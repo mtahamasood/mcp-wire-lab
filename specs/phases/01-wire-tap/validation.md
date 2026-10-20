@@ -116,6 +116,10 @@ Any of these standing means the phase is NOT done, whatever else passes:
     Sending `tools/list` before `initialize`: answered first with 16 tools and no error, then `initialize`
     is answered normally. The server enforces none of the three spec rules; the lesson says so and its
     runnable blocks (G9) fail if a future pin changes it.
+  - M7 (taken 2026-10-20 by the owner): `tap.show --mermaid` output of a fresh `handshake-2025` recording
+    (2 participants, 11 lines of messages and notes), pasted in a fenced `mermaid` block into the Preview tab
+    of a new GitHub issue on `mtahamasood/mcp-wire-lab` (not submitted). It rendered as a sequence diagram.
+    No screenshot kept; nothing from the run was committed.
   - M6 (partial, this machine): node v24.22.0, Python 3.12.3, uv 0.12.5. CI (2026-10-20, ubuntu-latest): node v24.22.0, Python 3.12.15, uv 0.13.4.
 - Checks seen to fail:
   - C10 (2026-10-20): `ci.yml` on `phase-01-wire-tap` finished green (bootstrap and gate, 34s). A throwaway
