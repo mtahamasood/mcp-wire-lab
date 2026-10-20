@@ -27,11 +27,11 @@ checked at close.
 | Row | Type | Check | Passes when | Mutation |
 | --- | --- | --- | --- | --- |
 | C1 | check | Byte-exact forwarding both ways | sha256 of bytes out equals sha256 of bytes in, in each direction, for a fixture containing non-canonical JSON (extra spaces, unsorted keys, `é` escapes, an embedded `\r`); concatenating the `raw` fields per direction equals the stream; in each direction, a frame split across two writes with a pause between them and a frame over 128 KiB are forwarded unchanged and each recorded as exactly one record holding the whole frame | *to record:* forward `json.dumps(json.loads(line))` instead of the bytes |
-| C2 | check | Direction and order are recorded truly | `seq` is strictly increasing; each frame's `dir` matches its true direction; the child is a *transforming* echo (prefixes its output), so c2s and s2c frames differ; in an in-process run of the relay, every frame is recorded before the chunk that completes it is forwarded; on a child that writes 20000 stdout lines and 2000 stderr lines and exits at once, all of them are recorded, `seq` is contiguous, and `exit` is the last record; every record's `t_ns` is above 0 and below the run's wall time, and every frame record's `bytes` equals the length of its raw bytes | *to record:* swap the `dir` labels |
+| C2 | check | Direction and order are recorded truly | `seq` is strictly increasing; each frame's `dir` matches its true direction; the child is a *transforming* echo (prefixes its output), so c2s and s2c frames differ; in an in-process run of the relay, every frame is recorded before the chunk that completes it is forwarded; on a child that writes 20000 stdout lines and 2000 stderr lines and exits at once, all of them are recorded, `seq` is contiguous, and `exit` is the last record; every record's `t_ns` is above 0 and below the run's wall time, two frames the child writes 0.5 s apart are recorded at least 0.25 s apart, and every frame record's `bytes` equals the length of its raw bytes | *to record:* swap the `dir` labels |
 | C3 | check | A final partial line is forwarded and recorded | the output ends with the exact unterminated bytes; the last record has `partial: true` | *to record:* drop the buffer remainder at EOF |
-| C4 | check | Non-UTF-8 and non-JSON frames | forwarded unchanged; recorded with `raw_b64` (non-UTF-8, including CESU-8 surrogate bytes) or `json: null` and `parse_error` (non-JSON, `1e999`, and a frame nested 20000 deep, in each direction, with the frames after it still forwarded and recorded); every trace line parses as strict JSON (no `NaN` or `Infinity`), and a frame holding U+0085, U+2028 and U+2029 gives trace lines that contain none of them raw | *to record:* decode with `errors="replace"` before forwarding |
+| C4 | check | Non-UTF-8 and non-JSON frames | forwarded unchanged; recorded with `raw_b64` (non-UTF-8, including CESU-8 surrogate bytes) or `json: null` and `parse_error` (non-JSON, `1e999`, and a frame nested 20000 deep, in each direction, which keeps its `raw` text, with the frames after it still forwarded and recorded); every trace line parses as strict JSON (no `NaN` or `Infinity`), and a frame holding U+0085, U+2028 and U+2029 gives trace lines that contain none of them raw | *to record:* decode with `errors="replace"` before forwarding |
 | C5 | check | Exit code and lifecycle (D4) | a child exiting 3 makes the tap exit 3; a child killed by SIGTERM makes the tap exit 143; SIGINT, SIGTERM, SIGHUP and SIGQUIT sent to the tap each reach the child once, and a SIGTERM sent to the tap's process group reaches it once; a signal that arrives before the child starts reaches it; a child that closes stdout and lives on gives the client EOF before the child exits; usage errors and an unopenable trace path exit 2 with no traceback; a failing signal test fails within seconds and leaves no process behind | *to record:* always exit 0 |
-| C6 | check | Server stderr is relayed and recorded | stderr bytes appear on the tap's stderr and as `stderr` records, and never on stdout; on the flood child of C2 every stderr line is recorded before `exit` | *to record:* send child stderr to the tap's stdout |
+| C6 | check | Server stderr is relayed and recorded | stderr bytes appear on the tap's stderr and as `stderr` records, and never on stdout; on the flood child of C2, and on a child that closes stdout and then writes 20000 stderr lines, every stderr line is recorded before `exit` | *to record:* send child stderr to the tap's stdout |
 | C7 | check | E2E against the real server (G5) | driving the handshake fixture through the tap to the pinned built server yields: a response whose `id` matches `initialize` and whose `result` has `protocolVersion`, `capabilities`, and `serverInfo.name`; a `tools/list` response whose `result.tools` is non-empty; a `ping` response with `result` `{}`; every c2s request has exactly one s2c response with its `id` | *to record:* break stdout relay so nothing reaches the driver — C7 must fail on the missing `initialize` response, not on a crash in the test harness |
 | C8 | check | Provenance linter (G1) | passes on the real specs; fails, naming the record, on each of: a D-record without `*Source:*`, an undated Source, an unknown `A<n>`, a register date not in `mission.md`; fails loudly when `specs/` is missing | *to record:* delete a Source line in a temp copy of a real requirements file → G1 red |
 | C9 | check | Viewer correlates by `id` | on `out-of-order.jsonl` (requests 1 and 2 in flight, response 2 arrives first), each response shows its own request's `seq` and latency; the error response is labeled as an error; the notification shows no pairing | *to record:* pair each response with the immediately preceding request |
@@ -42,7 +42,7 @@ checked at close.
 | C14 | check | `--explain` coverage | on a fresh handshake run (G5) with the real walkthrough, exits 0 and prints a note after every frame; on a synthetic trace with a fixture walkthrough missing one note, prints `(no note)` and exits non-zero; with a fixture walkthrough holding an extra note for a frame that never occurs, prints `(no frame)` and exits non-zero | *to record:* make `--explain` exit 0 regardless |
 | C15 | check | No run output reaches git (G11, D15) | passes on the clean repo; in a temp clone, fails, naming the file, on each of: a `git add -f`'d file under `runs/`, a trace-shaped `.jsonl` without the synthetic marker, a doc containing an environment dump, a home-directory path, and each secret regex's planted sample; the installed pre-push hook blocks a push of such a commit to a local bare remote | *to record:* `git add -f` a real `runs/` trace in the temp clone and push to the bare remote — hook red, push refused |
 | C16 | check | Minimal environment (D14) | with `FAKE_SECRET_FOR_C16=leak` exported in the parent shell, a `record.sh` run of a fixture that calls `get-env` yields a trace in which `FAKE_SECRET_FOR_C16` and the parent's `HOME` appear nowhere, and `MCP_WIRE_LAB` appears in the `get-env` result (presence first, so an empty or failed result cannot pass) | *to record:* drop `env -i` from `record.sh` — the planted variable appears, C16 red |
-| C17 | check | Trace file and trace failure (D2, D3) | a new trace has mode 0600 under umask 022, and an existing file at the path is replaced; with the tap's file size limit set below the trace's size, every byte is still forwarded, the tap exits with the child's code within the test's timeout, and its stderr holds one `tap:` line about the trace; with a non-blocking stdin that gets data late, the data is forwarded and recorded | *to record:* let the trace write error propagate out of the relay — the run hangs or loses output, C17 red |
+| C17 | check | Trace file and trace failure (D2, D3) | a new trace has mode 0600 under umask 022, and an existing file at the path is replaced; with the tap's file size limit set below the trace's size, every byte is still forwarded, the tap exits with the child's code within the test's timeout, and its stderr holds one `tap:` line about the trace; with a non-blocking stdin that gets data late, the data is forwarded and recorded; started with its stdin, stdout or stderr closed, the tap exits 0, its trace parses as strict JSON from `spawn` to `exit`, and it writes nothing of its own on stderr | *to record:* let the trace write error propagate out of the relay — the run hangs or loses output, C17 red |
 
 ### Measurements (no pass condition; the numbers are the result)
 
@@ -167,6 +167,37 @@ Any of these standing means the phase is NOT done, whatever else passes:
     records a fresh run and requires `--explain` over the real walkthrough to exit 0 with no `(no note)` or
     `(no frame)`. Mutant: the heading `c2s.ping.2` renamed to `c2s.ping.9` in the walkthrough; the test fails.
     Baseline passes.
+  - C1-C6, C17 after step (a) (2026-10-21): each mutant applied to `tap/__main__.py` in a temp copy of
+    `tap/` and `tests/` with `PYTHONDONTWRITEBYTECODE=1` and no `__pycache__`, then the whole of
+    `tests.test_tap` run; baseline exit 0 (36 tests). Killed, with the tests that fail:
+    C1, a frame's head dropped when a newline completes it (review G1): both split-and-large tests and the
+    flood test; `pending` replaced instead of extended: both split-and-large tests; every forwarded chunk cut to
+    4096 bytes (C1.5): 6 tests, among them both split-and-large tests and the flood.
+    C2, record after forward (G11): `test_frames_are_recorded_before_they_are_forwarded`; no join of the
+    stdout and stderr threads (G8): the flood, partial-line and s2c split tests; `t_ns` absolute (G5) or
+    always 0 (G6): 22 tests through the shared trace check; stderr records not advancing `seq` (G7): the flood
+    and stderr tests; `bytes` one short on a terminated frame (G4): 19 tests.
+    C4, `surrogatepass` (C4.5): the CESU-8 test; U+0085/U+2028/U+2029 left raw: the line-breaks test; the
+    `RecursionError` catch dropped in `encode_record`: the too-deep-to-write test; dropped in `frame_fields`
+    together with `frame()`'s fallback: both deep-frame tests.
+    C5, `process_group=0` dropped (G9): the process-group test; early signals not replayed (G10): the
+    early-signal test, by `TimeoutExpired` after 5 s rather than an assertion; SIGHUP not forwarded: the
+    SIGHUP subtest; `close_stdout` dropped: the EOF-at-once test; usage errors exit 1: both usage tests; an
+    unopenable trace exits 1: the unwritable-path test.
+    C17, a trace write error propagates out of the relay (the row's mutation): the file-size-limit test; no
+    `O_TRUNC`: the replace test; mode 0644 without `fchmod`: both mode tests; no `fchmod` alone: the replace
+    test; `read_some` without its wait on `BlockingIOError`: the non-blocking stdin test.
+    Five survived, and C2, C4, C6 and C17 were amended (register row 2026-10-21, decided by the agent on the
+    owner's delegation). Joining only the stdout thread (C6.6) passed because the flood child's last stderr
+    lines are drained while the stdout thread still works; `t_ns` always 1 passed every bound C2 set; dropping
+    the `RecursionError` catch in `frame_fields` passed because `frame()`'s fallback still gave `json: null`,
+    though as `raw_b64`; dropping `open_standard_fds` had no test. After the new tests (39), each is killed:
+    C6.6 by `test_stderr_written_after_stdout_closes_is_recorded_before_exit` (5 runs of 5), `t_ns` 1 by
+    `test_t_ns_follows_real_time`, the `frame_fields` catch by both deep-frame tests (`raw` missing), and
+    `open_standard_fds` by all three subtests of `test_closed_standard_descriptors_do_not_reach_the_trace`.
+    Signed equivalent: dropping `parse_float` (`1e999` then parses to infinity, and `encode_record`'s
+    `allow_nan=False` turns it into `json: null` with a `parse_error`, so C4 holds; the first layer stays
+    because its message names the cause).
 - Judgement verdicts:
 - Findings beyond the rows:
 - Where it stands:

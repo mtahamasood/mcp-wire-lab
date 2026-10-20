@@ -271,6 +271,12 @@ class DirectionAndOrderTest(TapTestCase):
         self.assertEqual(run.stream("s2c"), run.stdout)
         self.assertEqual(run.stream("stderr"), run.stderr)
 
+    def test_t_ns_follows_real_time(self) -> None:
+        child = "import os, time; os.write(1, b'a\\n'); time.sleep(0.5); os.write(1, b'b\\n')"
+        run = self.run_child(["-c", child])
+        first, second = run.frames("s2c")
+        self.assertGreaterEqual(second["t_ns"] - first["t_ns"], 250_000_000)
+
     def test_nothing_is_recorded_after_exit(self) -> None:
         trace = tap_main.Trace(self.tmp / "t.jsonl")
         trace.finish(code=0)
@@ -361,7 +367,7 @@ class NonUtf8AndNonJsonTest(TapTestCase):
         self.assertEqual(self.received.read_bytes(), stdin)
         self.assertEqual(run.stdout, stdin)
         first, deep, last = run.frames("c2s")
-        self.assertEqual(raw_bytes(deep), DEEP)
+        self.assertEqual(deep["raw"], DEEP.decode("ascii"))
         self.assertIsNone(deep["json"])
         self.assertTrue(deep["parse_error"])
         self.assertEqual((first["json"], last["json"]), ({"id": 1}, {"id": 3}))
@@ -372,6 +378,7 @@ class NonUtf8AndNonJsonTest(TapTestCase):
         self.assertEqual(run.code, 0, run.stderr)
         self.assertEqual(run.stdout, out)
         first, deep, last = run.frames("s2c")
+        self.assertEqual(deep["raw"], DEEP.decode("ascii"))
         self.assertIsNone(deep["json"])
         self.assertTrue(deep["parse_error"])
         self.assertEqual((first["json"], last["json"]), ({"id": 1}, {"id": 3}))
@@ -480,6 +487,17 @@ class StderrTest(TapTestCase):
         self.assertEqual(run.stream("s2c"), stderr_writer.STDOUT_BYTES)
         self.assertTrue(run.frames("stderr")[-1].get("partial"))
 
+    def test_stderr_written_after_stdout_closes_is_recorded_before_exit(self) -> None:
+        child = (
+            "import os\nos.write(1, b'x\\n')\nos.close(1)\n"
+            "data = b''.join(b'log %d\\n' % n for n in range(20000))\n"
+            "while data:\n    data = data[os.write(2, data):]\n"
+        )
+        run = self.run_child(["-c", child])
+        self.assertEqual(run.code, 0)
+        self.assertEqual(len(run.frames("stderr")), 20000)
+        self.assertEqual(run.stream("stderr"), run.stderr)
+
 
 class TraceFileTest(TapTestCase):
     """C17."""
@@ -538,6 +556,28 @@ class TraceFileTest(TapTestCase):
         self.assertEqual(tap.returncode, 0, err)
         records = strict_records((self.tmp / "trace.jsonl").read_bytes())
         self.assertEqual([r["raw"] for r in records if r["dir"] == "c2s"], ['{"id":1}\n'])
+
+    def test_closed_standard_descriptors_do_not_reach_the_trace(self) -> None:
+        child = "import os; os.write(1, b'x\\n'); os.write(2, b'w\\n')"
+        for fd in (0, 1, 2):
+            with self.subTest(closed=fd):
+                trace = self.tmp / f"trace-{fd}.jsonl"
+                done = subprocess.run(
+                    tap_command(trace, sys.executable, "-c", child),
+                    cwd=ROOT,
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    timeout=TIMEOUT,
+                    preexec_fn=functools.partial(os.close, fd),
+                )
+                self.assertEqual(done.returncode, 0, done.stderr)
+                records = strict_records(trace.read_bytes())
+                self.assertEqual((records[0]["event"], records[-1]["event"]), ("spawn", "exit"))
+                self.assertEqual([r["raw"] for r in records if r["dir"] == "stderr"], ["w\n"])
+                if fd != 1:
+                    self.assertEqual(done.stdout, b"x\n")
+                if fd != 2:
+                    self.assertEqual(done.stderr, b"w\n")
 
 
 class UsageTest(unittest.TestCase):
