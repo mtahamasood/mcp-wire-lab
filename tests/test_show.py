@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -18,6 +20,156 @@ def show(*args: object) -> subprocess.CompletedProcess[str]:
         [sys.executable, "-m", "tap.show", *map(str, args)],
         cwd=ROOT, capture_output=True, text=True, timeout=30,
     )
+
+
+def rec(seq: int, direction: str, message: object = None, **extra: object) -> dict[str, object]:
+    out: dict[str, object] = {"seq": seq, "t_ns": seq * 1_000_000, "dir": direction}
+    if message is not None:
+        out["raw"] = json.dumps(message) + "\n"
+        out["json"] = message
+    out.update(extra)
+    return out
+
+
+class TraceCase(unittest.TestCase):
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
+
+    def trace(self, records: list[dict[str, object]], name: str = "t.jsonl") -> Path:
+        path = self.dir / name
+        body = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
+        path.write_text(body, encoding="utf-8")
+        return path
+
+    def lines(self, records: list[dict[str, object]], *flags: str) -> list[str]:
+        done = show(self.trace(records), *flags)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("Traceback", done.stderr)
+        return done.stdout.splitlines()
+
+
+def req(i: object, method: str = "ping") -> dict[str, object]:
+    return {"jsonrpc": "2.0", "id": i, "method": method}
+
+
+def res(i: object) -> dict[str, object]:
+    return {"jsonrpc": "2.0", "id": i, "result": {}}
+
+
+class RobustnessTest(TraceCase):
+    def test_c9_stack_and_id_pairing_differ_in_both_directions(self) -> None:
+        lines = self.lines([
+            rec(1, "c2s", req(1)), rec(2, "c2s", req(2)),
+            rec(3, "s2c", req(10)), rec(4, "s2c", req(11)),
+            rec(5, "s2c", res(1)), rec(6, "c2s", res(10)),
+            rec(7, "s2c", res(2)), rec(8, "c2s", res(11)),
+        ])
+        by_seq = {int(ln.split()[0]): ln for ln in lines}
+        self.assertIn("(answers seq 1,", by_seq[5])
+        self.assertIn("(answers seq 3,", by_seq[6])
+        self.assertIn("(answers seq 2,", by_seq[7])
+        self.assertIn("(answers seq 4,", by_seq[8])
+
+    def test_c9_ids_keep_their_json_type(self) -> None:
+        records = [rec(1, "c2s", req(1)), rec(2, "c2s", req("1")), rec(3, "c2s", req(1.0)),
+                   rec(4, "c2s", req(True))]
+        records += [rec(5, "s2c", res(True)), rec(6, "s2c", res(1.0)), rec(7, "s2c", res("1")),
+                    rec(8, "s2c", res(1))]
+        by_seq = {int(ln.split()[0]): ln for ln in self.lines(records)}
+        self.assertIn("id=true (answers seq 4,", by_seq[5])
+        self.assertIn("id=1.0 (answers seq 3,", by_seq[6])
+        self.assertIn('id="1" (answers seq 2,', by_seq[7])
+        self.assertIn("id=1 (answers seq 1,", by_seq[8])
+
+    def test_c9_unicode_line_separators_do_not_split_the_trace(self) -> None:
+        text = "a\u2028b\u2029c\u0085d\x0be\x1cf"
+        lines = self.lines([rec(1, "stderr", raw=text + "\n", json=None), rec(2, "c2s", req(1))])
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(lines[0].split()[0] == "1" and lines[1].split()[0] == "2")
+        for ch in "\u2028\u2029\u0085\x0b\x1c":
+            self.assertNotIn(ch, "\n".join(lines))
+        self.assertIn("\\u2028", lines[0])
+
+    def test_c9_notes_file_is_split_on_newline_only(self) -> None:
+        notes = self.dir / "w.md"
+        notes.write_text("#### `c2s.ping.1`\nfirst\u2028second\nthird\n", encoding="utf-8")
+        done = show(self.trace([rec(1, "c2s", req(1))]), "--explain", notes)
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertIn("first\u2028second third", done.stdout.replace("\n        ", "\n"))
+
+    def test_c9_malformed_json_rpc_is_shown_raw(self) -> None:
+        shapes = [[1, 2], "text", 7, {"jsonrpc": "2.0"}, {"id": None, "method": "x"},
+                  {"id": [1], "result": {}}, {"method": 5, "id": 1}, {"id": 1, "error": "boom"},
+                  {"id": 2, "error": None}]
+        records = [rec(n + 1, "s2c", shape) for n, shape in enumerate(shapes)]
+        records[0]["raw"] = "[1,2]\n"
+        for flags in ((), ("--full",), ("--mermaid",)):
+            self.assertEqual(len(self.lines(records, *flags)) >= len(shapes), True)
+        lines = self.lines(records)
+        self.assertIn("batch", lines[0])
+        for line in lines[1:]:
+            self.assertIn("raw", line)
+            self.assertNotIn("response", line)
+
+    def test_c9_binary_and_unparsed_frames_show_escaped_raw_in_full(self) -> None:
+        records = [rec(1, "c2s", raw="bad\x07\u2028json\n", json=None, parse_error="x"),
+                   rec(2, "s2c", raw_b64="AAEC", bytes=3, json=None)]
+        out = "\n".join(self.lines(records, "--full"))
+        self.assertIn("bad\\x07\\u2028json", out)
+        self.assertIn("binary", out)
+
+    def test_c9_in_flight_id_reuse_is_flagged_and_latest_pairs(self) -> None:
+        lines = self.lines([rec(1, "c2s", req(1)), rec(2, "c2s", req(1)), rec(3, "s2c", res(1)),
+                            rec(4, "s2c", req(1)), rec(5, "c2s", res(1))])
+        self.assertNotIn("in flight", lines[0])
+        self.assertIn("id already in flight", lines[1])
+        self.assertIn("answers seq 2,", lines[2])
+        self.assertNotIn("in flight", lines[3])  # the other direction has its own ids
+        self.assertIn("answers seq 4,", lines[4])
+
+    def test_c9_control_characters_in_method_id_and_stderr_are_escaped(self) -> None:
+        bad = "a\x1b[31mb\rc\u2028d"
+        records = [rec(1, "c2s", req(bad, bad)), rec(2, "stderr", raw=bad + "\n", json=None),
+                   rec(3, "s2c", res(bad))]
+        for flags in ((), ("--full",), ("--mermaid",)):
+            out = "\n".join(self.lines(records, *flags))
+            for ch in "\x1b\r\u2028":
+                self.assertNotIn(ch, out)
+        self.assertIn("\\x1b", "\n".join(self.lines(records)))
+
+    def test_c9_unreadable_trace_exits_two_with_one_line(self) -> None:
+        bad_json = self.dir / "bad.jsonl"
+        bad_json.write_text('{"dir": "c2s"\nnot json\n', encoding="utf-8")
+        bad_utf8 = self.dir / "utf8.jsonl"
+        bad_utf8.write_bytes(b"\xff\xfe\n")
+        for path in (self.dir / "missing.jsonl", self.dir, bad_json, bad_utf8):
+            done = show(path)
+            self.assertEqual(done.returncode, 2, (path, done.stderr))
+            self.assertEqual(done.stdout, "")
+            self.assertEqual(len(done.stderr.splitlines()), 1, done.stderr)
+            self.assertTrue(done.stderr.startswith("show: "), done.stderr)
+
+    def test_c13_unreadable_notes_exit_two_missing_note_exits_one(self) -> None:
+        done = show(TRACE, "--explain", self.dir / "nope.md")
+        self.assertEqual(done.returncode, 2)
+        self.assertEqual(len(done.stderr.splitlines()), 1)
+        self.assertTrue(done.stderr.startswith("show: "))
+        missing = show(TRACE, "--explain", FIXTURES / "walkthrough-missing-note.md")
+        self.assertEqual(missing.returncode, 1)
+
+    def test_c9_closed_output_pipe_ends_quietly(self) -> None:
+        records = [rec(n, "c2s", req(n)) for n in range(1, 20000)]
+        path = self.trace(records)
+        proc = subprocess.Popen([sys.executable, "-m", "tap.show", str(path)], cwd=ROOT,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        assert proc.stdout is not None and proc.stderr is not None
+        proc.stdout.read(10)
+        proc.stdout.close()
+        err = proc.stderr.read().decode()
+        self.assertEqual(proc.wait(timeout=30), 0)
+        self.assertEqual(err, "")
 
 
 class CorrelationTest(unittest.TestCase):
