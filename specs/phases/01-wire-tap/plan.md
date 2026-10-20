@@ -63,11 +63,15 @@ the tap, rather than twice.
 
 ## 4. End to end against the real server (D8, D9)
 
-- [ ] `tests/fixtures/handshake-2025.ndjson` and `tests/drive.py`.
-- [ ] `scripts/record.sh` (D14) with the minimal environment; C16 and its mutation.
-- [ ] `tests/test_e2e.py`: C7; wire it into G5.
-- [ ] Take measurements M1–M4 with `scripts/record.sh`; record the values (not the traces)
+- [x] `tests/fixtures/handshake-2025.ndjson` and `tests/drive.py`.
+- [x] `scripts/record.sh` (D14) with the minimal environment; C16 and its mutation.
+- [x] `tests/test_e2e.py`: C7; wire it into G5.
+- [x] Take measurements M1–M4 with `scripts/record.sh`; record the values (not the traces)
   in the Result.
+
+Note: C7 runs the driver and tap directly rather than through `record.sh`, which discards what reaches the
+driver. `record.sh` links node into the run folder as `PATH` so the caller's home directory stays out of the
+trace (C16). `tests.test_e2e` runs in G4's discovery as well as in G5.
 
 *Stop point: one command records a real handshake trace into `runs/`.*
 

@@ -10,7 +10,7 @@ gate G1 python3 tools/check_provenance.py
 gate G2 uvx ruff@0.17.1 check .
 gate G3 uvx mypy@2.4.0
 gate G4 python3 -m unittest discover -s tests -t . -v
-# G5 (end to end against the built server) is a no-op until plan group 4.
+gate G5 python3 -m unittest tests.test_e2e -v
 gate G8 python3 tools/check_citations.py
 # --min-lessons 0 until lesson 01 exists (plan group 6); then drop it so the default of 1 applies.
 gate G9 python3 tools/check_lessons.py --min-lessons 0

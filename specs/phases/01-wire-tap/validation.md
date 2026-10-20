@@ -101,6 +101,14 @@ Any of these standing means the phase is NOT done, whatever else passes:
     `scripts/bootstrap.sh` run 9.5 s wall; `vendor/servers/node_modules` 141M. The whole-workspace
     install was not needed (D6's cost is avoided). Submodule worktrees: servers 4.7M, spec 59M;
     `.git/modules` 93M. The built server answers `initialize` over stdio with protocolVersion 2025-11-25.
+  - M1-M4 (taken 2026-10-20, WSL2, pinned server `51b6382`, `scripts/record.sh` on the handshake fixture):
+    M1: every stdout frame ends in a bare `\n` (no `\r\n`), no frame contains a raw newline or `\r`
+    inside it, and the largest frame is 10184 bytes (the `tools/list` response).
+    M2: stdin at EOF with no traffic: exit 0 in 0.31 s, nothing on stdout; after the handshake (fixture
+    sent at once, then EOF): exit 0 in 0.37 s, all three responses present.
+    M3: the whole handshake writes one stderr line, `Starting default (STDIO) server...`.
+    M4: offering `2025-11-25` is answered `2025-11-25`; offering `2024-11-05` is answered `2024-11-05`;
+    offering `1999-01-01` is answered `2025-11-25`.
   - M6 (partial, this machine): node v24.22.0, Python 3.12.3, uv 0.12.5. CI values still to take.
 - Checks seen to fail:
   - C8 (2026-10-20): deleted D2's Source line in a temp copy of the real requirements.md; G1 exit 1,
@@ -113,7 +121,9 @@ Any of these standing means the phase is NOT done, whatever else passes:
     in group 6.
   - C15 (2026-10-20): in a temp clone with the installed pre-push hook, a clean push succeeded; after
     `git add -f runs/trace.jsonl` and a commit, the push was refused (exit 1) and the bare remote kept one
-    commit. The real-trace variant waits for `scripts/record.sh` (group 4).
+    commit. Real-trace variant (2026-10-20,
+    group 4): a trace recorded by `scripts/record.sh` was `git add -f`'d in a temp clone; the push was refused
+    (exit 1; G11 named the file for all three rules) and the bare remote kept only the earlier clean commit.
   - C1-C6 (2026-10-20): each mutation applied to `tap/__main__.py` in a temp copy of `tap/` and `tests/`, and
     that row's test class run; every baseline exit 0, every mutant exit 1.
     C1, forwarding `json.dumps(json.loads(frame))`: `test_both_directions_are_byte_exact` fails on the c2s sha256.
@@ -123,6 +133,15 @@ Any of these standing means the phase is NOT done, whatever else passes:
     C5, always exit 0: exit-code, SIGTERM-143 and both signal-forwarding subtests fail (`0 != 143`).
     C6, child stderr sent to the tap's stdout: `test_stderr_is_relayed_and_recorded_not_mixed` fails
     (tap stderr empty).
+  - C7 (2026-10-20): baseline `tests.test_e2e` exit 0. Mutant: relay forwards nothing from the child's
+    stdout to the tap's stdout (the trace still records it); C7 fails on `0 != 1 : responses with id 0
+    reaching the driver`, an assertion on the missing `initialize` response, not a harness crash. C7 runs
+    the driver and tap directly, because `record.sh` discards what reaches the driver and the trace alone
+    would not show the break.
+  - C16 (2026-10-20): baseline exit 0 with `FAKE_SECRET_FOR_C16=leak` exported. Mutant: `env -i` replaced by
+    `env` in `record.sh`; C16 fails on `'FAKE_SECRET_FOR_C16' unexpectedly found` in the trace. First run of
+    the real test also failed on the parent's `HOME`: nvm puts node under it and the spec put node's
+    directory in `PATH`. Fixed in `record.sh` by linking node into the run folder and using that as `PATH`.
 - Judgement verdicts:
 - Findings beyond the rows:
 - Where it stands:
