@@ -47,6 +47,9 @@ Do them in order.
    stdio, the 2025 opening exchange, and three ways to break it.
    Walkthrough: [the handshake, frame by frame](docs/walkthrough/01-handshake-2025.md).
 
+More lessons arrive with later phases; [`specs/roadmap.md`](specs/roadmap.md) lists what each
+phase adds.
+
 ## How it is checked
 
 `scripts/gate.sh` runs every automated check: the unit and end-to-end tests, a check that every
