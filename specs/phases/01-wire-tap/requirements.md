@@ -104,7 +104,12 @@ child; with the tap gone, the child sees EOF on its stdin.
 direction arrow, and for JSON-RPC messages the kind (request/response/notification/error),
 `method`, and `id`. A response is paired with its request by `id` and per direction, not
 by adjacency, and shows the request's `seq` and the latency. `--full` also pretty-prints
-each message body.
+each message body. The trace is split on `\n` only. An id keeps its JSON type: `1`, `"1"`,
+`1.0` and `true` are four different ids. A frame whose JSON does not fit the JSON-RPC shape is
+shown as a raw line (a batch as `batch`), never as a crash. A request whose id is already in flight
+in its direction is flagged. Control characters in method, id and stderr text are shown escaped.
+An unreadable trace prints one `show:` line and exits 2. Output follows file order; a closed output
+pipe ends the view quietly. `--full` pretty-prints JSON only; other frames show their escaped `raw`.
 
 *Rationale:* A2 asks to *see* requests and responses; a raw JSONL file shows bytes but
 not which response answers which request once several are in flight.
@@ -130,7 +135,7 @@ not just the everything server, unless measurement shows a narrower install work
 
 ### D7 — One gate script, run locally and in CI
 
-`scripts/gate.sh` runs G1–G5, G8, and G9 from `tech-stack.md` in order and stops at the
+`scripts/gate.sh` runs G1–G5, G8, G9, and G11 from `tech-stack.md` in order and stops at the
 first failure.
 `.github/workflows/ci.yml` checks out with submodules, sets up Node and Python, runs
 `scripts/bootstrap.sh`, then `scripts/gate.sh`, on every push and pull request.
@@ -156,8 +161,9 @@ explains every frame a run of that fixture produces: the spec section that gover
 commit, file and line). No trace is committed (A5): the learner records their own with
 `scripts/record.sh` (D14), and G5 records a fresh one on every gate run and requires
 `tap.show --explain` to exit 0 on it (C14). Where the walkthrough shows a message, it is a
-hand-written example with no environment-specific values (P9), checked by G9 against the
-fresh run's output.
+hand-written example with no environment-specific values (P9). The examples are not
+machine-checked; the Result lists them as unchecked, and a key order that differs from the wire is
+said to be the SDK's.
 
 *Rationale:* the instrument is only worth its cost if it produces understanding (A1, A2);
 the handshake is the first thing every connection does. Checking against a fresh run on
@@ -218,8 +224,10 @@ non-zero exit turns "every frame has an entry" (J1) into a check.
 dependency).
 *Cost accepted:* identity keys tolerate timing and interleaving changes but not a change in
 what is sent; traffic the server emits unprompted and in varying number (e.g. simulated
-log notifications) must be keyed by occurrence with a note that covers "any number", or
-the check flaps.
+log notifications) must be kept out of the fixture or keyed by occurrence, one note each, or the
+check flaps. `--explain` parses notes leniently, and a label that is hostile to Mermaid can still
+break the fence; both are accepted for a local trace. A trace or notes file that cannot be read
+exits 2.
 *Source:* owner decision, 2026-10-20 — registered in mission.md (A4, delegated; roadmap L5;
 amended by A5 to identity keys).
 
@@ -248,9 +256,11 @@ L1, L4, L14).
 
 `tools/check_citations.py` (G8) finds every citation of the form in `tech-stack.md` in
 `README.md`, `docs/`, and `tap/`, and fails, naming the citation, if the submodule file is
-missing, the line does not exist, or the fragment is not on that line.
+missing or outside the submodule, the line does not exist, the fragment is shorter than 6 characters or
+not on that line, or a doc cannot be decoded.
 `tools/check_lessons.py` (G9) fails if a lesson lacks an L1 section, runs each block marked
-runnable from the repo root with a timeout, and fails on a non-zero exit or an expected
+runnable from the repo root under `bash -eo pipefail -c` with a timeout, requires the headings
+outside fenced blocks and in order, and fails on a non-zero exit or an expected
 block that does not appear in the output. Both fail loudly on missing inputs and are wired
 into `scripts/gate.sh`.
 
@@ -266,11 +276,12 @@ L3, L4).
 
 ### D14 — One recording script, with a minimal environment
 
-`scripts/record.sh <fixture> [name]` creates `runs/<UTC timestamp>-<name>/`, runs the tap
+`scripts/record.sh <fixture> [name]` creates `runs/<UTC timestamp>-<name>/` (a numeric suffix is added
+when that folder exists), runs the tap
 with D9's driver over the fixture against the pinned server, and writes `trace.jsonl` and
 `stderr.txt` there, then prints the `tap.show` commands to read it. The server is started
-under `env -i` with only an allowlist: a fixed `PATH` (the directory of the `node` found at
-bootstrap, plus `/usr/bin:/bin`), `HOME` set to an empty directory inside the run folder,
+under `env -i` with only an allowlist: a fixed `PATH` (a directory in the run folder linking the `node` found at
+record time, plus `/usr/bin:/bin`), `HOME` set to an empty directory inside the run folder,
 `LANG=C.UTF-8`, and `MCP_WIRE_LAB=1`. The tap's `spawn` record shows argv relative to the
 repo root. `runs/` is in `.gitignore`. G5, the lessons, and the learner walk all record
 through this script.
@@ -292,7 +303,9 @@ delegated; roadmap L16).
 `tools/check_no_run_output.py` implements G11 exactly as written in `tech-stack.md`, over
 `git ls-files` (and, as the pre-push hook, over the commits being pushed). Every hand-written
 trace fixture opens with a `{"dir":"tap","event":"synthetic"}` record. `scripts/bootstrap.sh`
-installs `.git/hooks/pre-push` running it, and refuses to overwrite a different existing hook.
+installs `pre-push` in `git rev-parse --git-path hooks` running it, refuses to overwrite a different existing hook, and warns
+when `core.hooksPath` is set to a directory other than the repo's own hooks (it must chain the hook).
+The hook also scans files that a merge commit adds.
 The learner walk (L15) runs in a directory outside the repo; only the agent's written list
 of findings is committed.
 

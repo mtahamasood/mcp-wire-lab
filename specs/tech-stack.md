@@ -10,7 +10,7 @@ dated register row in `mission.md`.
 | Node | 24.22.0 | P2 (ratified 2026-10-20) |
 | Python | 3.12 (stdlib only for runtime code) | Register 2026-10-20 (client language); P4 |
 | Raw client | Python, no MCP library | Register 2026-10-20 (two clients; client language) |
-| SDK client | TypeScript, `@modelcontextprotocol/client` 2.3.1 exact; test tool chosen in the phase 4 spec | Register 2026-10-20 (client language); P1 |
+| SDK client | TypeScript, `@modelcontextprotocol/client` 2.3.1 exact; test tool chosen in the phase 5 spec | Register 2026-10-20 (client language); P1 |
 | Wire tap | Python, stdlib only | P4, P5 |
 | Python lint | ruff 0.17.1, run via `uvx ruff@0.17.1` | P6 |
 | Python typecheck | mypy 2.4.0 `--strict`, run via `uvx mypy@2.4.0` | P6 |
@@ -25,17 +25,17 @@ guide §3 (adopted by register row 2026-10-20, SDD).
 
 | Gate | What | Kind |
 | --- | --- | --- |
-| G1 | Provenance lint: every decision record in `specs/phases/*/requirements.md` has a dated `*Source:*` line that resolves to an ask (A<n>), a register row (by date), or a constitution file | check |
+| G1 | Provenance lint: every decision record in `specs/phases/*/requirements.md` has a dated `*Source:*` line that resolves to an ask (A<n>), a register row (by date), or a constitution file, written as `register row` or `registered in mission.md`; any `##`-`####` D heading without a Source fails | check |
 | G2 | Lint (ruff) | check |
-| G3 | Typecheck (mypy `--strict`; `tsc --strict` from phase 4) | check |
+| G3 | Typecheck (mypy `--strict`; `tsc --strict` from phase 5) | check |
 | G4 | Unit tests | check |
 | G5 | End-to-end: the phase's flows against the real, pinned, built server | check |
 | G6 | Clean-clone walk: fresh `git clone --recurse-submodules` in a new directory, bootstrap, `scripts/gate.sh` | measurement, per phase |
-| G7 | `CHANGELOG.md` has an entry for the phase | check (G1 script) |
-| G8 | Citations: every `` `<submodule>:<path>:<line>` "fragment" `` in `docs/`, `tap/`, and the clients resolves in the pinned submodule and the fragment is on that line (L2, L3, L13) | check |
+| G7 | `CHANGELOG.md` has an entry for the phase once a phase's Result has the line `Status: closed` (any value other than open or closed fails) | check (G1 script) |
+| G8 | Citations: every `` `<submodule>:<path>:<line>` "fragment" `` in `docs/`, `tap/`, and the clients resolves in the pinned submodule (the path stays inside it) and a fragment of at least 6 characters is on that line (L2, L3, L13) | check |
 | G9 | Lessons: every lesson has the L1 sections; every block marked runnable exits 0 and its expected-output block appears in its output (L1, L4) | check |
 | G10 | Atlas: regenerating `docs/atlas.md` from the pinned schemas and the lessons' declared methods produces the committed file (L8; from phase 2) | check |
-| G11 | No run output in git: no tracked file under `runs/`; every tracked trace-shaped file (`*.jsonl` whose records carry `seq` and `dir`) is under `tests/fixtures/` and opens with a `{"dir":"tap","event":"synthetic"}` record; no tracked text file contains an environment dump (a JSON object with three or more of `PATH`, `HOME`, `USER`, `SHELL`, `PWD`), a home-directory path (regex `/(home/[A-Za-z0-9._-]+|Users/[A-Za-z0-9._-]+|root)/[A-Za-z0-9._-]`), or a secret (regexes `gh[opsu]_[A-Za-z0-9]{30,}`, `github_pat_[A-Za-z0-9_]{30,}`, `sk-[A-Za-z0-9_-]{20,}`, `AKIA[0-9A-Z]{16}`, `xox[abprs]-[A-Za-z0-9-]{10,}`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`). The patterns are written so this row does not match itself. Runs in `scripts/gate.sh`, in CI, and as a pre-push hook that `scripts/bootstrap.sh` installs | check |
+| G11 | No run output in git: no tracked file under `runs/`; every tracked trace-shaped file (a text file, whatever its name or case, whose JSON lines carry `seq`, `dir` and `t_ns`, or `*.jsonl` whose records carry `seq` and `dir`) is under `tests/fixtures/` and opens with a `{"dir":"tap","event":"synthetic"}` record; no tracked text file (read from the index as well as the working tree, undecodable bytes replaced, symlink targets included) contains an environment dump (a JSON object, or three or more `KEY=VALUE` lines, with three or more of `PATH`, `HOME`, `USER`, `SHELL`, `PWD`), a home-directory path (regex `/(home/[A-Za-z0-9._-]+|Users/[A-Za-z0-9._-]+|root)/[A-Za-z0-9._-]`), or a secret (regexes `gh[opsu]_[A-Za-z0-9]{30,}`, `github_pat_[A-Za-z0-9_]{30,}`, `sk-[A-Za-z0-9_-]{20,}`, `AKIA[0-9A-Z]{16}`, `xox[abprs]-[A-Za-z0-9-]{10,}`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`). The patterns are written so this row does not match itself. Runs in `scripts/gate.sh`, in CI, and as a pre-push hook that `scripts/bootstrap.sh` installs, which also scans files that a merge commit adds | check |
 
 G8–G10 come from the learning-feature catalogue in `roadmap.md` (register row 2026-10-20, A4);
 G11 from A5 (register row 2026-10-20, run output never committed).
@@ -43,7 +43,7 @@ G11 from A5 (register row 2026-10-20, run output never committed).
 ## Standing conventions
 
 - Specs live in `specs/`; phase specs in `specs/phases/NN-<name>/{requirements,plan,validation}.md`.
-- Review corpora live in `audits/YYYY-MM-DD-<phase>-<lens>.md`.
+- Review corpora live in `audits/<lens>-review.md`.
 - Runs are recorded by `scripts/record.sh` into `runs/` (git-ignored, never committed).
   Walkthroughs live in `docs/walkthrough/`, lessons in `docs/lessons/`, hand-written
   synthetic trace fixtures in `tests/fixtures/`.

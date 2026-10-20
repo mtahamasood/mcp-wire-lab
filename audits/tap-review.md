@@ -145,7 +145,7 @@ could not.
   Also `--explain` anchors for id `1` and id `"1"` are the same string (`c2s.ping.1`; checked with `annotate` on two synthetic records).
 - Suggested fix: treat `id` and `method` defensively (type-check, key on `(type name, value)`),
   and render a frame that does not fit the shape as `raw`.
-- Disposition: open, step (b) (viewer).
+- Disposition: fix in step (b), with S2 and S6 (viewer).
 
 ### T6 (minor, CONFIRMED) Only SIGINT and SIGTERM reach the child; SIGHUP, SIGQUIT and group-directed signals orphan it
 
@@ -275,7 +275,7 @@ plausible timestamps.
 - Suggested fix: parse the trace, find the s2c frame that answers the `get-env` request, and
   assert `MCP_WIRE_LAB` in that frame's `json`; assert the allowlist exactly (the set of variable
   names in the reply equals `{PATH, HOME, LANG, MCP_WIRE_LAB}` plus whatever node adds).
-- Disposition: open, step (b).
+- Disposition: fix in step (b): C16 finds the `get-env` reply by id and asserts `MCP_WIRE_LAB` in that frame, and the variable names equal the allowlist plus what node adds (C16 extended; register row 2026-10-21 (third of that date)).
 
 ### T15 (nit, CONFIRMED) G8 accepts an empty or very short fragment on any line
 
@@ -286,7 +286,7 @@ plausible timestamps.
   fragments of 8 or more characters, so nothing is wrong now.
 - Suggested fix: require a minimum fragment length (for example 6) and compare against
   `splitlines()`.
-- Disposition: open, step (b).
+- Disposition: same as R12; fix in step (b).
 
 ### T16 (nit, PLAUSIBLE) `exit` is not guaranteed to be the last record
 
@@ -309,7 +309,7 @@ plausible timestamps.
   my own first mutation batch).
 - Suggested fix: add the shell's `$$` or a counter to the folder name, or `mkdir` without `-p` and
   print "run folder exists".
-- Disposition: open, step (b).
+- Disposition: same as R15; fix in step (b).
 
 ### T18 (minor, CONFIRMED) The tests behind C15 do not plant every secret regex, contrary to the row
 
@@ -325,7 +325,7 @@ plausible timestamps.
 - Suggested fix: add a `github_pat_` sample, a three-key dump, a `PWD` dump and a root-home path to
   `LEAKS`, and two hook tests (a leak introduced by modifying an existing file; a leak in the first
   pushed commit).
-- Disposition: open, step (b).
+- Disposition: fix in step (b): the C15 tests plant every secret regex, a three-key env dump, a `PWD` dump and a root-home path, and two hook tests (a leak added by modifying a file; a leak in the first pushed commit) (C15 extended; register row 2026-10-21 (third of that date)).
 
 ### T19 (minor, CONFIRMED) G9's default `--min-lessons 1` and its timeout report are not pinned
 
@@ -338,7 +338,7 @@ plausible timestamps.
   `--min-lessons 0` flag was used on purpose earlier in this phase (plan group 2 note).
 - Suggested fix: a test that runs `main([...])` on an empty root and on a lesson with a sleeping
   block, with a short patched timeout.
-- Disposition: open, step (b).
+- Disposition: fix in step (b): a test runs G9's `main` on an empty root and on a lesson with a sleeping block under a short patched timeout (C12 extended; register row 2026-10-21 (third of that date)).
 
 ## 3. C1-C6 mutations re-run
 

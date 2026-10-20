@@ -86,7 +86,7 @@ trace (C16). `tests.test_e2e` runs in G4's discovery as well as in G5.
 
 Note: a `--explain` walkthrough note is a heading ``#### `<anchor>` `` plus its text. `out-of-order.jsonl`
 carries a c2s `notifications/cancelled` between server records, so C13's ordering mutant is caught. The
-Mermaid paste check (M7) is still open.
+Mermaid paste check (M7) is done and recorded.
 
 ## 6. Walkthrough, lesson 01, README (D8, D12)
 

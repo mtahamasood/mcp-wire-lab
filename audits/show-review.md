@@ -52,7 +52,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   would go red on a server change that is not a protocol change.
 - Fix: split on `"\n"` only (`read_text(...).split("\n")`, or `read_bytes().split(b"\n")` and decode
   each line). Add a test with a U+2028 frame recorded through the tap.
-- Disposition: open
+- Disposition: fix in step (b): the viewer splits trace and notes on `\n` only (D5; register row 2026-10-21 (third of that date); checked by C9).
 
 ### S2 (major, CONFIRMED): one JSON-valid but malformed JSON-RPC message crashes the whole view
 
@@ -72,7 +72,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   of the trace.
 - Fix: validate types in `kind_of` (string `method`; `id` string, number or null; `error` object) and
   give anything else a kind such as `invalid` that `describe` and `mermaid` print with its raw text.
-- Disposition: open
+- Disposition: fix in step (b): a frame whose JSON does not fit the JSON-RPC shape (wrong field types, non-object, batch) is shown as a raw line, and the view never crashes (D5; register row 2026-10-21 (third of that date); checked by C9). Same fix as T5.
 
 ### S3 (minor, CONFIRMED): file-level problems give a traceback and exit 1, the same code as "a note is missing"
 
@@ -93,7 +93,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
 - Fix: catch `OSError`, `UnicodeDecodeError` and `ValueError` in `main`, print one line naming the file
   and line number, and exit with a code distinct from 1 (2 is already "usage"; 3 would do). Skip or
   flag a record with an unknown `dir` instead of raising.
-- Disposition: open
+- Disposition: fix in step (b): an unreadable trace or notes file prints one `show:` line and exits 2; exit 1 stays for "a note is missing" (D5, D11; register row 2026-10-21 (third of that date); checked by C13).
 
 ### S4 (minor, CONFIRMED): plain output passes server bytes to the terminal, and a newline in a method name forges extra lines
 
@@ -111,7 +111,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   `json.dumps` escapes control characters.)
 - Fix: escape C0/C1 control characters (and U+2028/2029) in every string `describe` prints, for example
   through `json.dumps(text)[1:-1]`.
-- Disposition: open
+- Disposition: fix in step (b): control characters in server-controlled text (method, id, stderr) are shown escaped in plain output (D5; register row 2026-10-21 (third of that date); checked by C9).
 
 ### S5 (minor, CONFIRMED for CommonMark, PLAUSIBLE for GitHub): `--mermaid` labels can break out of the fenced block
 
@@ -129,7 +129,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   prevent a server choosing what a learner's issue or README shows.
 - Fix: replace every control character (category `Cc`, plus U+2028/2029/0085) with a space, and drop or
   replace backticks, `%`, `<` and `>`; or keep only a known-safe character set for labels.
-- Disposition: open
+- Disposition: accepted as a documented limit: labels are Mermaid-quoted and the diagram is for a trusted local trace; a hostile method name can still break the fence on strict CommonMark renderers. Noted in D11's cost accepted. Not checked.
 
 ### S6 (minor, CONFIRMED): ids are shown with Python spellings and lose their JSON type; `true` pairs with `1`
 
@@ -147,7 +147,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   sight in later experiments.
 - Fix: render ids with `json.dumps(id)` everywhere (plain, Mermaid, anchors) and key the pending map
   on `(direction, json.dumps(id))`.
-- Disposition: open
+- Disposition: fix in step (b): ids keep their JSON type (`1` and `"1"` and `true` are different ids; `1.0` is not `1`) in pairing and in display (D5; register row 2026-10-21 (third of that date); checked by C9). Same fix as T5.
 
 ### S7 (minor, CONFIRMED): a reused in-flight id silently mis-pairs
 
@@ -159,7 +159,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
 - Why it matters: a reused id is a protocol violation the viewer is the natural tool to expose; instead
   it reports a confident, wrong latency. Both responses also share the anchor `s2c.response.5`.
 - Fix: keep a queue per key, pair first-in-first-out, and print `duplicate id` on the second request.
-- Disposition: open
+- Disposition: fix in step (b): a request whose id is already in flight in the same direction is flagged on its line, and the pairing uses the latest request (D5; register row 2026-10-21 (third of that date); checked by C9).
 
 ### S8 (minor, CONFIRMED): `--explain` note parsing accepts things that should fail and hides others
 
@@ -176,7 +176,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   that lacks a note pass it, and the duplicate case lets an editor lose a note without any signal.
 - Fix: track fence state (lines starting with three backticks or tildes) and ignore headings inside
   fences; report a duplicate anchor as an error with a non-zero exit.
-- Disposition: open
+- Disposition: accepted as a documented limit: `--explain` note parsing is lenient on purpose; the strict checks are the two non-zero exits of D11. Noted in D11's cost accepted.
 
 ### S9 (minor, CONFIRMED): D11's "a note that covers any number" cannot be written
 
@@ -192,7 +192,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   the everything server's simulated logging will flap, which is the failure D11 names.
 - Fix: support one wildcard form, for example ``#### `s2c.notifications/message.*` ``, that matches zero
   or more occurrences and never reports `(no frame)`; or amend D11.
-- Disposition: open
+- Disposition: fix in step (b), spec only: D11's cost-accepted sentence says a note keyed by occurrence covers one frame, so varying traffic is kept out of the fixture or noted per occurrence (register row 2026-10-21 (third of that date)).
 
 ### S10 (minor, CONFIRMED): piping into a pager or `head` that exits early prints a traceback
 
@@ -204,7 +204,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   `tools/list` reply prints a traceback that looks like a bug.
 - Fix: catch `BrokenPipeError` in `main` (redirect stdout to `os.devnull` and exit 0 or 141), or restore
   the default `SIGPIPE` handler.
-- Disposition: open
+- Disposition: fix in step (b): the viewer ends quietly, exit 0, when its output pipe closes (D5; register row 2026-10-21 (third of that date); checked by C9).
 
 ### S11 (nit, CONFIRMED): the walkthrough says the viewer truncates the `tools/list` reply; it prints no body at all
 
@@ -214,7 +214,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
 - Reproduction: `python3 -m tap.show tests/fixtures/out-of-order.jsonl` prints one summary line per
   record and no message bodies (`describe`, `tap/show.py:82-101`).
 - Fix: "the viewer shows one line per frame and `--full` prints the decoded body".
-- Disposition: open
+- Disposition: fix in step (b), docs only: the walkthrough says the viewer prints no body for the `tools/list` reply in the default view (G8 checks the citation).
 
 ### S12 (nit, CONFIRMED): output follows file order, not `seq` order
 
@@ -227,7 +227,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   before `tap spawn`.
 - Why it matters: true only for traces not written by the tap (the tap writes in `seq` order under a
   lock), so it matters for fixtures. Fix: sort by `seq` when present, or reject a non-increasing `seq`.
-- Disposition: open
+- Disposition: accepted as a documented limit: output follows file order because the tap writes `seq` in order; `--mermaid` already sorts by `seq`. Noted in D5.
 
 ### S13 (nit, CONFIRMED): a batch is labeled "not a JSON-RPC message"
 
@@ -238,7 +238,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   reply): both lines print `raw (not a JSON-RPC message)`.
 - Why it matters: the label is false; the true statement is that the 2025-11-25 revision has no batching.
   Fix: label arrays `batch (N messages; not supported in MCP 2025-11-25)`.
-- Disposition: open
+- Disposition: fix in step (b): a batch is labeled `batch`, not "not a JSON-RPC message" (D5; checked by C9).
 
 ### S14 (nit, CONFIRMED): `--full` shows nothing for the frames whose bytes matter most
 
@@ -249,7 +249,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   `python3 -m tap.show w/raw.jsonl --full`: six summary lines (`raw (Expecting value: ...)`,
   `raw (not valid UTF-8: ...)`) and no bodies.
 - Fix: under `--full`, print `raw` (escaped as in S4) or `raw_b64` for frames with no `json`.
-- Disposition: open
+- Disposition: accepted as a documented limit: `--full` pretty-prints JSON; a non-JSON frame is shown by its escaped `raw` and a binary one by its `raw_b64` length. Noted in D5.
 
 ### S15 (major, CONFIRMED): C9's fixture cannot tell pairing by id from pairing by a stack
 
@@ -269,7 +269,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
 - Fix: put three requests in flight and answer them in an order that is neither first-in-first-out nor
   last-in-first-out (for example requests 1, 2, 3 answered 2, 3, 1; a stack pairs the response to 2
   with request 3), and add an s2c request whose id equals a c2s request's id to pin "per direction".
-- Disposition: open
+- Disposition: fix in step (b): C9's fixture gains a case where pairing by a stack and pairing by id differ in more than one direction, so a stack pairing fails (C9 extended; register row 2026-10-21 (third of that date)).
 
 ### S16 (nit, CONFIRMED, outside `show.py`): the walkthrough calls the `initialize` reply the largest frame
 
@@ -279,7 +279,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
 - Reproduction: the trace `tests.test_e2e` recorded in the real repo's git-ignored `runs/`, `bytes` per
   record: seq 3 (s2c, `initialize` reply) 3533, seq 6 (s2c, `tools/list` reply) 10184.
 - Fix: "the largest frame so far" or "larger than the request because it carries `instructions`".
-- Disposition: open
+- Disposition: same as R6; fix in step (b), docs only.
 
 ### S17 (nit, CONFIRMED, outside `show.py`): two recordings with the same name in one second collide
 
@@ -292,7 +292,7 @@ work folder). Line numbers are `tap/show.py` at commit 6659123.
   for this reason rather than the mutation; I re-ran them with `runs/` cleared.
 - Why it matters: a mutation can look caught when it is not. Fix: add `-%N` or a counter to the folder
   name, or fail early with a clear message if the folder exists.
-- Disposition: open
+- Disposition: same as R15; fix in step (b) (D14).
 
 ## 3. C9, C13, C14 mutations re-run
 

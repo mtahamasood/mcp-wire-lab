@@ -56,7 +56,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
   `core.hooksPath` is set, fail with a message that tells the user to chain G11 from that hooks
   directory (or add a test that runs with `core.hooksPath` set). Whatever global hook is
   in use on this machine also needs to call `tools/check_no_run_output.py --pre-push`.
-- Disposition: open
+- Disposition: downgraded: overstated on this machine. The global `_dispatch` hook chains to `.git/hooks/pre-push`, re-verified 2026-10-21 in a throwaway repo (push refused by the local hook). Real gap kept: other clones or other `core.hooksPath` values. Fix in step (b): the installer writes to `git rev-parse --git-path hooks` and warns when `core.hooksPath` is set and that path is not the repo's own hooks directory; a test runs with `core.hooksPath` set (D15; register row 2026-10-21 (third of that date); checked by C15).
 
 ### R2 (major, CONFIRMED). The pre-push hook does not check files that a merge commit adds
 
@@ -72,7 +72,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
   after the file is public.
 - Suggested fix: for merge commits, use `git diff-tree -r --diff-filter=AM -z --first-parent`
   (or diff against each parent), and add a merge case to `PrePushHookTest`.
-- Disposition: open
+- Disposition: fix in step (b): the pre-push scan reads files that a merge commit adds (G11 and D15 amended; register row 2026-10-21 (third of that date); checked by C15).
 
 ### R3 (major, CONFIRMED). A real recorded trace passes G11 under any name but `*.jsonl`
 
@@ -91,7 +91,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Suggested fix: apply the shape rule to any text file whose JSON lines carry `seq`, `dir` and
   `t_ns`, whatever its name (case-insensitive), and add `.ndjson` and `.JSONL` cases to the tests.
   Amend the G11 row in `tech-stack.md` by a register row.
-- Disposition: open
+- Disposition: fix in step (b): the trace-shape rule applies to any text file whose JSON lines carry `seq`, `dir` and `t_ns`, whatever its name or case (G11 amended; register row 2026-10-21 (third of that date); checked by C15).
 
 ### R4 (major, CONFIRMED). D8 says the walkthrough's example messages are checked by G9; nothing checks them, and one has already drifted from the wire
 
@@ -111,7 +111,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
   walkthrough equals some fresh frame's `raw` (minus the newline), or change D8 to say the
   examples are unchecked and list them in the Result. Then fix the `ping` example, or say that the
   key order is the SDK's (result first).
-- Disposition: open
+- Disposition: fix in step (b): D8 now says the walkthrough's JSON examples are not machine-checked and the Result lists them as unchecked; the `ping` example is corrected to the real key order (register row 2026-10-21 (third of that date)).
 
 ### R5 (major, CONFIRMED). Section E's "lesson command not covered by a gate" condition stands now
 
@@ -126,7 +126,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Why it matters: section E says the phase is not done while this stands. The fix is cheap.
 - Suggested fix: list these in the Result as unchecked, or gate the Mermaid claim by turning
   it into a runnable block with the diagram as its expect block.
-- Disposition: open
+- Disposition: fix in step (b): the lesson commands outside the runnable form, the Mermaid claim, and the walkthrough and README console blocks are listed in the Result as unchecked (register row 2026-10-21 (third of that date)).
 
 ### R6 (minor, CONFIRMED). The walkthrough says the `initialize` reply is the largest frame; the `tools/list` reply is nearly three times larger
 
@@ -140,7 +140,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
   verified (`plan.md:93-96`).
 - Suggested fix: "the largest frame after the tool list; much of it is the `instructions`
   text read at ...".
-- Disposition: open
+- Disposition: fix in step (b), docs only: the `initialize` reply is "the largest frame after the tool list".
 
 ### R7 (minor, CONFIRMED). G9 checks only a block's last exit status, and half of experiment 1's check passes with no server reply
 
@@ -159,7 +159,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Suggested fix: run blocks with `bash -eo pipefail -c`. In experiment 1, select the `s2c`
   response, e.g. grep the `<-  response id=0` line in plain `tap.show` and the
   `"protocolVersion"` inside `result`, or use a short `python3 -c` over the trace.
-- Disposition: open
+- Disposition: fix in step (b): G9 runs each block under `bash -eo pipefail -c`, and experiment 1 selects the `s2c` response (D13 amended; register row 2026-10-21 (third of that date); checked by C12).
 
 ### R8 (minor, CONFIRMED). G7 only notices a closed phase if "closed" is on the same line as "Where it stands:"
 
@@ -173,7 +173,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Why it matters: the CHANGELOG step is the last box in the plan and the only thing G7 guards.
 - Suggested fix: require CHANGELOG once a `lesson-01` tag or merge is claimed, or make the
   Result's status a fixed single-line field (`Status: open|closed`) and fail on any other value.
-- Disposition: open
+- Disposition: fix in step (b): G7 reads the Result's status from one fixed single-line field `Status: open|closed` and fails on any other value (tech-stack G7 amended; register row 2026-10-21 (third of that date); checked by C8).
 
 ### R9 (minor, CONFIRMED). G1 accepts any Source that contains the substring "register"
 
@@ -187,7 +187,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Suggested fix: match `register row` / `registered in mission.md` as phrases (or require
   the Source to name `mission.md`, an `A<n>`, or a constitution file), and flag any `#{2,4} D\d+`
   heading.
-- Disposition: open
+- Disposition: fix in step (b): G1 matches `register row` or `registered in mission.md` as phrases and flags any `##`-`####` D heading without a Source (tech-stack G1 amended; register row 2026-10-21 (third of that date); checked by C8).
 
 ### R10 (minor, CONFIRMED). G11's text rules miss common leak forms
 
@@ -210,7 +210,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
   form to the env rule; decode with `errors="replace"` for the text rules and keep "binary"
   only for the trace-shape rule; check symlink targets (`git cat-file -p` of mode 120000).
   Each change amends the G11 row by a register row.
-- Disposition: open
+- Disposition: fix in step (b): G11's text rules allow end of string, whitespace or a quote after the user name, add the KEY=VALUE env form, decode with `errors="replace"`, and check symlink targets (G11 amended; register row 2026-10-21 (third of that date); checked by C15).
 
 ### R11 (minor, CONFIRMED). G11 in gate mode reads the working tree, not what git will commit
 
@@ -223,7 +223,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Why it matters: small, because the pre-push hook reads commit content. But with R1 and R2 the
   hook cannot be relied on, and README line 48 says the gate catches what is "about to be committed".
 - Suggested fix: read `git show :<path>` (the index), or both index and working tree.
-- Disposition: open
+- Disposition: fix in step (b): G11 in gate mode reads the index (`git show :path`) as well as the working tree (G11 amended; register row 2026-10-21 (third of that date); checked by C15).
 
 ### R12 (minor, CONFIRMED). G8 accepts citations that escape the submodule or have an empty fragment, skips non-UTF-8 docs, and never checks the pin
 
@@ -245,7 +245,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Suggested fix: resolve the target and require it to stay under the submodule; require a
   non-empty fragment (perhaps three or more characters); fail on undecodable docs; check
   `git -C vendor/<x> rev-parse HEAD` against the pins (one shared constant with bootstrap).
-- Disposition: open
+- Disposition: fix in step (b): G8 requires the target to stay inside the submodule, a fragment of at least 6 characters, and fails on an undecodable doc; the pin check is accepted as a limit (bootstrap owns the pins) (D13 amended; register row 2026-10-21 (third of that date); checked by C11). Same as T15.
 
 ### R13 (minor, CONFIRMED). The lesson's Check-yourself 5 and M8 suggest that the server broke the spec; the rules cited bind the client
 
@@ -267,7 +267,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Suggested fix: reword answer 5 along the lines of "the rules bind the client; the server is
   lenient and the spec allows that", and M8 to "the server tolerates all three". Change line 132
   to "replies with `2025-11-25`, the newest `initialize`-era version it speaks".
-- Disposition: open
+- Disposition: fix in step (b), docs only: the lesson's answer 5 and M8 say the rules bind the client and the server is lenient; line 132 as the reviewer wrote.
 
 ### R14 (minor, CONFIRMED). The walkthrough says the SDK is not pinned; it is version-locked by the server's lockfile and installed on disk
 
@@ -285,7 +285,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Suggested fix: "the SDK is fixed by the server's lockfile (2.3.1) but is not a submodule, so
   its lines cannot be cited and checked here; its compiled code is under
   `vendor/servers/node_modules/@modelcontextprotocol/`". Cite index.ts:134 for line 71.
-- Disposition: open
+- Disposition: fix in step (b), docs only: the walkthrough says the SDK is fixed by the server's lockfile but is not a submodule; cite `index.ts:134`.
 
 ### R15 (minor, CONFIRMED). `record.sh` fails if run twice with the same name in the same second
 
@@ -299,7 +299,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
   the `ln` failure the second run would overwrite the first trace.
 - Suggested fix: `mktemp -d "runs/<ts>-<name>-XXXX"`, or refuse a folder that already exists
   with a clear message.
-- Disposition: open
+- Disposition: fix in step (b): `record.sh` adds a numeric suffix until the run folder is new (D14 amended; register row 2026-10-21 (third of that date); checked by C16). Same as T17, S17.
 
 ### R16 (minor, CONFIRMED). The records contradict the code or each other in several places
 
@@ -325,7 +325,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
   place where a later phase reads the wrong rule.
 - Suggested fix: amend each line. The tech-stack lines need a register row, under the
   constitution's own rules.
-- Disposition: open
+- Disposition: fix in step (b): each listed line is amended, the tech-stack lines by register row 2026-10-21 (third of that date); the `audits/` file-name rule is amended to the names in use.
 
 ### R17 (minor, CONFIRMED). J2's verdict still rests on no evidence, though the evidence now exists
 
@@ -340,7 +340,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
   column (every stall fixed or signed as accepted) has not been judged on its evidence.
 - Suggested fix: the owner re-signs J2 against the findings list and the local log, and signs
   the acceptance of items 3 and 7 in the row.
-- Disposition: open
+- Disposition: open, owner: the owner re-signs J2 against the findings list and signs the acceptance of learner-walk items 3 and 7. Not done by the agent.
 
 ### R18 (minor, CONFIRMED). The public repository has no licence
 
@@ -351,7 +351,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Reproduction: the command above. `README.md` and `specs/` do not mention a licence.
 - Why it matters: this decision faces outward and belongs to the owner. I raise it, not decide it.
 - Suggested fix: the owner picks a licence; add LICENSE and a register row.
-- Disposition: open
+- Disposition: open, owner: the owner picks a licence; the agent then adds `LICENSE` and a register row. Not done by the agent.
 
 ### R19 (nit, CONFIRMED). The walkthrough's wording is looser than the spec or the code in three places
 
@@ -367,7 +367,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Suggested fix: "should not send requests other than pings, and may send log notifications",
   "registers the tools every client gets at ..." and "the default view shows only one line per
   frame".
-- Disposition: open
+- Disposition: fix in step (b), docs only: the three wordings as the reviewer wrote.
 
 ### R20 (nit, CONFIRMED). G9's section check ignores order and code fences
 
@@ -376,7 +376,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
   order pass, and so do headings that exist only inside a fenced code block.
 - Reproduction: `check_sections` returned `[]` for both cases (scratch copy, `python3 -c`).
 - Suggested fix: strip fenced blocks before matching, and require the seven headings in order.
-- Disposition: open
+- Disposition: fix in step (b): G9 strips fenced blocks before matching and requires the seven headings in order (D13 amended; register row 2026-10-21 (third of that date); checked by C12).
 
 ### R21 (nit, CONFIRMED). CI pins actions by mutable major tag and lets uv and the Python patch version float
 
@@ -388,7 +388,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Reproduction: read the workflow. Compare M6 at `validation.md:123`.
 - Suggested fix: pin the actions by commit SHA, set `version: "0.12.5"` on setup-uv, or record
   in tech-stack that these may float.
-- Disposition: open
+- Disposition: accepted as a documented limit: CI actions are pinned by major tag and uv floats; noted in tech-stack. The Python and node versions are already recorded by CI output.
 
 ### R22 (nit, PLAUSIBLE). The README claims macOS support that nothing has tested
 
@@ -396,7 +396,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Defect: "Linux, macOS or WSL", but CI runs only `ubuntu-latest` and the measurements are from
   WSL2. I did not test macOS.
 - Suggested fix: "Linux or WSL (tested); macOS untested", or add a macOS CI job.
-- Disposition: open
+- Disposition: fix in step (b), docs only: the README says "Linux or WSL (tested); macOS untested".
 
 ## 3. Gate bypass experiments
 

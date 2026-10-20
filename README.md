@@ -45,7 +45,7 @@ python3 -m tap.show <the path it printed>
 `--explain <walkthrough.md>` (a note after every frame).
 
 Recordings go to `runs/`, which git ignores. This repository never holds run output: your traces
-stay on your machine, and `scripts/gate.sh` fails if one is about to be committed.
+stay on your machine, and the pre-push hook and `scripts/gate.sh` fail if one is about to be published or tracked.
 
 ## Lessons
 
