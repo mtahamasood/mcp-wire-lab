@@ -12,8 +12,7 @@ gate G3 uvx mypy@2.4.0
 gate G4 python3 -m unittest discover -s tests -t . -v
 gate G5 python3 -m unittest tests.test_e2e -v
 gate G8 python3 tools/check_citations.py
-# --min-lessons 0 until lesson 01 exists (plan group 6); then drop it so the default of 1 applies.
-gate G9 python3 tools/check_lessons.py --min-lessons 0
+gate G9 python3 tools/check_lessons.py
 gate G11 python3 tools/check_no_run_output.py
 
 echo "gate: all green"

@@ -90,14 +90,19 @@ Mermaid paste check (M7) is still open.
 
 ## 6. Walkthrough, lesson 01, README (D8, D12)
 
-- [ ] `docs/walkthrough/01-handshake-2025.md`: every frame of a fresh handshake run → spec
+- [x] `docs/walkthrough/01-handshake-2025.md`: every frame of a fresh handshake run → spec
   section (2025-11-25) and source location (pinned commit, file:line), verified by opening
   each cited location; identity anchors (D11) so `tap.show --explain` exits 0 on a fresh run;
   wire that into G5.
-- [ ] Lesson 01's experiments as fixtures under `tests/fixtures/`; record each with
+- [x] Lesson 01's experiments as fixtures under `tests/fixtures/`; record each with
   `scripts/record.sh`; state the outcomes as M8 values in the Result and in the lesson.
-- [ ] `docs/lessons/01-the-wire-and-the-handshake.md` and `README.md` (D12); G8 and G9 green on them;
+- [x] `docs/lessons/01-the-wire-and-the-handshake.md` and `README.md` (D12); G8 and G9 green on them;
   drop `--min-lessons 0` from `scripts/gate.sh`; re-run the C11 and C12 mutations on the real artifacts.
+
+Note: the SDK (request routing, the `initialize` reply, `ping`) is not a pinned submodule, so the
+walkthrough cites the spec for those rules and the server only for what it configures, and says so.
+`tests.test_e2e` holds the C14 real half. Experiment fixtures are `tests/fixtures/exp-*.ndjson`; the
+lesson's runnable blocks record them on every gate run.
 
 ## 7. CI and GitHub [human gate before push]
 

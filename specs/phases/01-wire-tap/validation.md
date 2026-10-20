@@ -109,16 +109,23 @@ Any of these standing means the phase is NOT done, whatever else passes:
     M3: the whole handshake writes one stderr line, `Starting default (STDIO) server...`.
     M4: offering `2025-11-25` is answered `2025-11-25`; offering `2024-11-05` is answered `2024-11-05`;
     offering `1999-01-01` is answered `2025-11-25`.
+  - M8 (taken 2026-10-20, pinned server `51b6382`, `scripts/record.sh` on the `exp-*` fixtures, WSL2):
+    offering `2024-11-05` is answered `2024-11-05`; offering `1999-01-01` is answered `2025-11-25`, and the
+    session carries on (tools/list returns 16 tools, ping returns `{}`). Omitting
+    `notifications/initialized`: `tools/list` (16 tools) and `ping` are both answered, no error.
+    Sending `tools/list` before `initialize`: answered first with 16 tools and no error, then `initialize`
+    is answered normally. The server enforces none of the three spec rules; the lesson says so and its
+    runnable blocks (G9) fail if a future pin changes it.
   - M6 (partial, this machine): node v24.22.0, Python 3.12.3, uv 0.12.5. CI values still to take.
 - Checks seen to fail:
   - C8 (2026-10-20): deleted D2's Source line in a temp copy of the real requirements.md; G1 exit 1,
     "D2: no *Source:* line". Baseline copy exit 0.
-  - C11 (2026-10-20, provisional): no walkthrough exists yet, so the real citation
-    `servers:src/everything/transports/stdio.ts:49` "serveStdio(" was shifted to line 50 in a temp tree;
-    G8 exit 1, "fragment is not on line 50". Baseline exit 0. Re-run on the real walkthrough in group 6.
-  - C12 (2026-10-20, provisional): no lesson 01 yet; a temp lesson whose expect block was changed to text
-    the command does not print; G9 exit 1, "expected output not found". Baseline exit 0. Re-run on lesson 01
-    in group 6.
+  - C11 (2026-10-20): the real citation `servers:src/everything/transports/stdio.ts:49` "serveStdio(" in
+    `docs/walkthrough/01-handshake-2025.md` was shifted to line 50; G8 exit 1, "fragment is not on line 50".
+    Baseline exit 0 (30 citations). Re-run on the real artifact in group 6; supersedes the provisional run.
+  - C12 (2026-10-20): in `docs/lessons/01-the-wire-and-the-handshake.md` the expected `2024-11-05` line of
+    experiment 1 was changed to `2024-11-06`; G9 exit 1, "expected output not found". Baseline exit 0.
+    Supersedes the provisional run.
   - C15 (2026-10-20): in a temp clone with the installed pre-push hook, a clean push succeeded; after
     `git add -f runs/trace.jsonl` and a commit, the push was refused (exit 1) and the bare remote kept one
     commit. Real-trace variant (2026-10-20,
@@ -149,7 +156,10 @@ Any of these standing means the phase is NOT done, whatever else passes:
     order. The first fixture did not catch this (no client message after a server message); the fixture
     gained a c2s `notifications/cancelled` between server records and the mutant then failed.
     C14, `--explain` always exits 0: both the missing-note and extra-note tests fail.
-    C14's real-walkthrough half (exit 0 on a fresh run, in G5) waits for group 6.
+    C14's real-walkthrough half (2026-10-20, group 6): `tests.test_e2e.test_c14_explain_covers_a_fresh_run`
+    records a fresh run and requires `--explain` over the real walkthrough to exit 0 with no `(no note)` or
+    `(no frame)`. Mutant: the heading `c2s.ping.2` renamed to `c2s.ping.9` in the walkthrough; the test fails.
+    Baseline passes.
 - Judgement verdicts:
 - Findings beyond the rows:
 - Where it stands:

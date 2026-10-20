@@ -1,4 +1,4 @@
-"""C7 and C16: the tap, the driver and record.sh against the real, pinned, built server (G5)."""
+"""C7, C14 (real half) and C16: tap, driver, viewer and record.sh against the real server (G5)."""
 
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ SERVER = ROOT / "vendor/servers/src/everything/dist/index.js"
 TIMEOUT = 120
 
 
-def record(fixture: str, env: dict[str, str] | None = None) -> Path:
+def record(fixture: str, name: str, env: dict[str, str] | None = None) -> Path:
     """Run scripts/record.sh on a fixture; return the run directory it reports."""
     done = subprocess.run(
-        ["scripts/record.sh", str(FIXTURES / fixture), "test"],
+        ["scripts/record.sh", str(FIXTURES / fixture), name],
         cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT, env=env,
     )
     assert done.returncode == 0, done.stderr
@@ -63,9 +63,21 @@ class E2ETest(unittest.TestCase):
             self.assertEqual(sum(m.get("id") == request["id"] for m in seen), 1)
         self.assertEqual(done.returncode, 0, done.stderr.decode())
 
+    def test_c14_explain_covers_a_fresh_run(self) -> None:
+        run = record("handshake-2025.ndjson", "test-c14")
+        done = subprocess.run(
+            [sys.executable, "-m", "tap.show", str(run / "trace.jsonl"), "--explain",
+             str(ROOT / "docs/walkthrough/01-handshake-2025.md")],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT,
+        )
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertNotIn("(no note)", done.stdout)
+        self.assertNotIn("(no frame)", done.stdout)
+        self.assertIn("The first thing any client says", done.stdout)
+
     def test_c16_minimal_environment(self) -> None:
         env = {**os.environ, "FAKE_SECRET_FOR_C16": "leak"}
-        run = record("get-env.ndjson", env)
+        run = record("get-env.ndjson", "test-c16", env)
         text = (run / "trace.jsonl").read_text()
         # Presence first: an empty or failed get-env result must not pass.
         self.assertIn("MCP_WIRE_LAB", text)
