@@ -114,6 +114,15 @@ lesson's runnable blocks record them on every gate run.
 
 ## 8. Close the phase
 
+Who runs what (the owner switches models with `/model`; an agent cannot):
+
+| Step | Model, effort | Session |
+| --- | --- | --- |
+| Tap review (`tap/`, C1-C6 mutations, falsifiability audit of every C row) -> `audits/` | Sonnet, xhigh | fresh |
+| Review of everything else (gates, docs, walkthrough, lesson, CI) -> `audits/` | Opus, high | fresh |
+| Disposition of findings, fixes | Sonnet, medium | fresh |
+| G6 clean-clone walk, CHANGELOG, merge, tag | Sonnet, medium (low is enough for the merge and tag) | fresh |
+
 - [ ] G6 clean-clone walk in a new directory; fill the Result with measurements.
 - [ ] Confirm every C row has a recorded mutation or a signed stand-in.
 - [ ] Boundary checks (section D of validation).
