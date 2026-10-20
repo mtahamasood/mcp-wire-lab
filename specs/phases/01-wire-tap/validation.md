@@ -142,6 +142,14 @@ Any of these standing means the phase is NOT done, whatever else passes:
     `env` in `record.sh`; C16 fails on `'FAKE_SECRET_FOR_C16' unexpectedly found` in the trace. First run of
     the real test also failed on the parent's `HOME`: nvm puts node under it and the spec put node's
     directory in `PATH`. Fixed in `record.sh` by linking node into the run folder and using that as `PATH`.
+  - C9, C13, C14 (2026-10-20): baseline `tests.test_show` exit 0 (7 tests); every mutant exit 1.
+    C9, pairing each response with the most recent request: `test_c9_responses_pair_by_id_not_adjacency`
+    fails (`answers seq 2, 7.0 ms` where seq 1 and 8.0 ms were expected).
+    C13, emitting c2s arrows before s2c arrows: `test_c13_diagram_shape_and_seq_order` fails on the arrow
+    order. The first fixture did not catch this (no client message after a server message); the fixture
+    gained a c2s `notifications/cancelled` between server records and the mutant then failed.
+    C14, `--explain` always exits 0: both the missing-note and extra-note tests fail.
+    C14's real-walkthrough half (exit 0 on a fresh run, in G5) waits for group 6.
 - Judgement verdicts:
 - Findings beyond the rows:
 - Where it stands:

@@ -77,12 +77,16 @@ trace (C16). `tests.test_e2e` runs in G4's discovery as well as in G5.
 
 ## 5. Viewer (D5, D11)
 
-- [ ] `tap/show.py`, plus `tests/fixtures/out-of-order.jsonl` (two requests in flight with
+- [x] `tap/show.py`, plus `tests/fixtures/out-of-order.jsonl` (two requests in flight with
   responses reversed, plus one notification and one error response).
-- [ ] `--mermaid` and `--explain` (D11), with a fixture walkthrough that is missing one note.
-- [ ] `tests/test_show.py`: C9, C13, C14; stage their mutations.
+- [x] `--mermaid` and `--explain` (D11), with a fixture walkthrough that is missing one note.
+- [x] `tests/test_show.py`: C9, C13, C14; stage their mutations.
 - [ ] Paste one `--mermaid` output into a scratch GitHub issue preview or the README and
   confirm GitHub renders it (measurement M7, after group 7).
+
+Note: a `--explain` walkthrough note is a heading ``#### `<anchor>` `` plus its text. `out-of-order.jsonl`
+carries a c2s `notifications/cancelled` between server records, so C13's ordering mutant is caught. The
+Mermaid paste check (M7) is still open.
 
 ## 6. Walkthrough, lesson 01, README (D8, D12)
 

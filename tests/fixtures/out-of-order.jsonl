@@ -1,0 +1,10 @@
+{"dir": "tap", "event": "synthetic"}
+{"seq": 0, "t_ns": 10000, "dir": "tap", "event": "spawn", "argv": ["server"]}
+{"seq": 1, "t_ns": 1000000, "dir": "c2s", "bytes": 47, "raw": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}\n", "json": {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}}
+{"seq": 2, "t_ns": 2000000, "dir": "c2s", "bytes": 41, "raw": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}\n", "json": {"jsonrpc": "2.0", "id": 2, "method": "ping"}}
+{"seq": 3, "t_ns": 3000000, "dir": "s2c", "bytes": 89, "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/message\",\"params\":{\"level\":\"info\",\"data\":\"hi\"}}\n", "json": {"jsonrpc": "2.0", "method": "notifications/message", "params": {"level": "info", "data": "hi"}}}
+{"seq": 4, "t_ns": 3500000, "dir": "c2s", "bytes": 78, "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":1}}\n", "json": {"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": 1}}}
+{"seq": 5, "t_ns": 4000000, "dir": "stderr", "bytes": 6, "raw": "boot\n", "json": null, "parse_error": "Expecting value: line 1 column 1 (char 0)"}
+{"seq": 6, "t_ns": 5000000, "dir": "s2c", "bytes": 37, "raw": "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{}}\n", "json": {"jsonrpc": "2.0", "id": 2, "result": {}}}
+{"seq": 7, "t_ns": 9000000, "dir": "s2c", "bytes": 66, "raw": "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32603,\"message\":\"boom\"}}\n", "json": {"jsonrpc": "2.0", "id": 1, "error": {"code": -32603, "message": "boom"}}}
+{"seq": 8, "t_ns": 10000000, "dir": "tap", "event": "exit", "code": 0}
