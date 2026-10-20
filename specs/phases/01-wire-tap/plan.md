@@ -120,7 +120,7 @@ lesson's runnable blocks record them on every gate run.
 - [ ] Closing review: one adversarial pass plus a falsifiability audit, by a fresh reviewer
   (a different model from the builder); corpus deposited in `audits/`; every finding
   dispositioned.
-- [ ] Learner walk (J2): a fresh agent, given only the clone URL and "follow the README
+- [x] Learner walk (J2): a fresh agent, given only the clone URL and "follow the README
   to the end of lesson 01", run in a new directory outside the repo; its log stays there
   for the owner to read; the agent's written findings list goes into `audits/`.
 - [x] **[human]** Owner verdicts on J1 and J2.
