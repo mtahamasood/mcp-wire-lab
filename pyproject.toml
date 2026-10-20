@@ -11,4 +11,4 @@ select = ["E", "F", "W", "I", "B", "UP"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["tools", "tests"]  # add "tap" when it exists (group 3)
+files = ["tap", "tools", "tests"]

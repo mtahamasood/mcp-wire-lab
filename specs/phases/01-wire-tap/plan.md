@@ -47,13 +47,17 @@ mutations are provisional until re-run on the real walkthrough and lesson (group
 
 ## 3. Tap core (D1–D4)
 
-- [ ] `tap/__main__.py`: spawn, three relay threads (stdin→child, child stdout→stdout,
+- [x] `tap/__main__.py`: spawn, three relay threads (stdin→child, child stdout→stdout,
   child stderr→stderr), a single trace writer that orders records under a lock, and
   signal and exit-code handling.
-- [ ] `tests/fake_children/`: small Python children (transforming echo, exit-with-code,
+- [x] `tests/fake_children/`: small Python children (transforming echo, exit-with-code,
   stderr writer, partial-final-line writer, non-UTF-8 writer).
-- [ ] `tests/test_tap.py`: C1–C6.
-- [ ] Stage the C1–C6 mutations; record them.
+- [x] `tests/test_tap.py`: C1–C6.
+- [x] Stage the C1–C6 mutations; record them.
+
+Note: the fake children include a `signal_waiter.py` beyond the five listed, to prove SIGINT and SIGTERM
+forwarding (D4). The child runs in its own process group, so a terminal's Ctrl-C reaches it once, through
+the tap, rather than twice.
 
 *Stop point: the tap is proven against fake children.*
 

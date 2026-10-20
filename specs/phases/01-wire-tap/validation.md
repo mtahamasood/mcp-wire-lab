@@ -114,6 +114,15 @@ Any of these standing means the phase is NOT done, whatever else passes:
   - C15 (2026-10-20): in a temp clone with the installed pre-push hook, a clean push succeeded; after
     `git add -f runs/trace.jsonl` and a commit, the push was refused (exit 1) and the bare remote kept one
     commit. The real-trace variant waits for `scripts/record.sh` (group 4).
+  - C1-C6 (2026-10-20): each mutation applied to `tap/__main__.py` in a temp copy of `tap/` and `tests/`, and
+    that row's test class run; every baseline exit 0, every mutant exit 1.
+    C1, forwarding `json.dumps(json.loads(frame))`: `test_both_directions_are_byte_exact` fails on the c2s sha256.
+    C2, `dir` labels swapped: `test_direction_and_order` fails (c2s frames carry the `echo:` prefix).
+    C3, remainder dropped at EOF: both partial-line tests fail (last record has no `partial`).
+    C4, `decode(errors="replace")` before forwarding: both non-UTF-8 tests fail (U+FFFD bytes on the wire).
+    C5, always exit 0: exit-code, SIGTERM-143 and both signal-forwarding subtests fail (`0 != 143`).
+    C6, child stderr sent to the tap's stdout: `test_stderr_is_relayed_and_recorded_not_mixed` fails
+    (tap stderr empty).
 - Judgement verdicts:
 - Findings beyond the rows:
 - Where it stands:
