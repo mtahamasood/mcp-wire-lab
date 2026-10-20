@@ -11,7 +11,8 @@ citations, runnable commands), then points all of it at a hand-written 2025-era 
 Invoked as `python3 -m tap --trace <file> -- <server command…>`. It spawns the server
 command as a child, copies its own stdin to the child's stdin and the child's stdout to its
 own stdout, and writes a trace. Any client that launches a stdio server can launch the tap
-instead, unchanged.
+instead, unchanged. A usage error, or a trace path that cannot be opened, prints one line
+starting `tap:` (or the usage text) on stderr and exits 2, before any child is started.
 
 *Rationale:* observation must sit on the wire, outside both endpoints, so that the trace
 records what was sent, not what either side thinks it sent, and so one instrument serves
@@ -21,7 +22,7 @@ client); a proxy built on the SDK (it parses and re-serializes, hiding the real 
 MCP Inspector (third-party, does far more than observe — a non-goal).
 *Cost accepted:* one more process in the path; if the tap mishandles buffering, EOF, or
 exit codes, it changes the behavior it claims to observe (guarded by D2, D4 and their checks).
-*Source:* stakeholder ask A2, 2026-10-20.
+*Source:* stakeholder ask A2, 2026-10-20; amended by register row 2026-10-21 (finding T8).
 
 ### D2 — Forwarding is byte-exact; parsing is for the trace only
 
@@ -29,13 +30,22 @@ The tap forwards bytes without decoding, re-encoding, or reframing them. It spli
 direction on `\n` only to cut trace records; the bytes forwarded are the bytes received,
 including a final partial line with no trailing newline.
 
+Forwarding never depends on recording (fail open). Whatever a frame contains, describing it
+for the trace cannot stop or delay its direction beyond the recording itself. If the trace
+cannot be written (disk full, a file size limit), the tap prints one `tap:` line on stderr,
+stops recording, and keeps forwarding; its exit code is still the child's (D4). A read
+or write error on one direction ends forwarding in that direction only, and EOF is still
+passed on (D4).
+
 *Rationale:* the point of the instrument is to show the real framing; a tap that
 normalizes JSON would hide exactly what A2 asks to see.
 *Rejected:* parse-then-reserialize forwarding (changes key order, spacing and escapes);
 line-buffered text-mode I/O (can translate newlines and decode).
 *Cost accepted:* the tap cannot fix or annotate traffic in flight; all interpretation happens
-after the fact, in the trace and the viewer.
-*Source:* stakeholder ask A2, 2026-10-20.
+after the fact, in the trace and the viewer. A trace that failed mid-session is incomplete,
+and only the `tap:` line on stderr says so (failing closed would end the session the tap
+observes).
+*Source:* stakeholder ask A2, 2026-10-20; amended by register row 2026-10-21 (findings T1, T2, T4).
 
 ### D3 — The trace is JSON Lines, one record per frame or event, on one timeline
 
@@ -48,6 +58,16 @@ frame with no newline. `tap` records mark `spawn` (with the argv) and `exit` (wi
 code). The server's stderr is passed through to the tap's stderr and also recorded as
 `stderr` frames.
 
+Every trace line is strict JSON and holds exactly one record: U+0085, U+2028 and U+2029
+inside strings are written as `\u` escapes, so a reader that splits on any line break
+still sees one record per line. A frame that is valid JSON but cannot be held as a parsed
+value is recorded with `json: null` and a `parse_error`, like any other non-JSON frame:
+a number that overflows to infinity (`1e999`), or nesting too deep to parse or serialize.
+`exit` is the last record; the tap closes the trace in the same step, so a late client
+frame is dropped rather than recorded after `exit`. The trace file is created with mode
+0600 (it can hold whatever the server prints, A5); an existing file at the path is
+replaced.
+
 *Rationale:* one timeline across both directions and stderr shows ordering, which is the
 heart of "the entire flow" (A2); JSON Lines is greppable, `jq`-able, and appendable;
 keeping `raw` beside `json` keeps the trace byte-faithful.
@@ -55,12 +75,16 @@ keeping `raw` beside `json` keeps the trace byte-faithful.
 to read); storing only parsed JSON (loses framing).
 *Cost accepted:* traces are roughly twice the traffic size (raw + parsed), which is
 acceptable at lab scale.
-*Source:* stakeholder ask A2, 2026-10-20.
+*Source:* stakeholder ask A2, 2026-10-20; amended by register row 2026-10-21 (findings T1, T3, T7, T10, T16).
 
 ### D4 — The tap preserves the child's lifecycle
 
 When the tap's stdin reaches EOF it closes the child's stdin and keeps relaying the child's
-stdout and stderr until they close. SIGINT and SIGTERM are forwarded to the child. The tap
+stdout and stderr until they close. When the child's stdout closes, the tap's stdout closes
+at once, so the client sees EOF when it would without the tap. SIGINT, SIGTERM, SIGHUP and
+SIGQUIT are forwarded to the child, including one that arrives before the child has started.
+The child runs in its own process group, so a signal sent to the tap's group (a terminal's
+Ctrl-C, a `kill` of the group) reaches the child exactly once, through the tap. The tap
 exits with the child's exit code (128 + signal number if the child was killed by a signal).
 
 *Rationale:* a client that judges the server by its exit status or by EOF must see the
@@ -68,8 +92,11 @@ server's real behavior through the tap.
 *Rejected:* killing the child at stdin EOF (would hide how the server actually shuts down,
 which is itself something to measure).
 *Cost accepted:* a server that never exits on EOF keeps the tap alive too; that is the
-server's behavior, faithfully reproduced.
-*Source:* stakeholder ask A2, 2026-10-20.
+server's behavior, faithfully reproduced. The tap exits only after the child's stdout and
+stderr have both closed, so a grandchild that keeps them open delays the tap's exit past
+the child's. Signals other than the four above, and SIGKILL to the tap, do not reach the
+child; with the tap gone, the child sees EOF on its stdin.
+*Source:* stakeholder ask A2, 2026-10-20; amended by register row 2026-10-21 (findings T6, T9).
 
 ### D5 — A viewer renders a trace as a correlated timeline
 

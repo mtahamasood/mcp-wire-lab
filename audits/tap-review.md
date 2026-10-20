@@ -69,7 +69,7 @@ could not.
   exactly this kind of frame; a hostile or buggy server can silence the tap.
 - Suggested fix: in `frame_fields` catch `RecursionError` as well (record `json: null` and a
   `parse_error`); more generally see T2.
-- Disposition: open
+- Disposition: fix in step (a): `RecursionError` while parsing or serializing a frame gives `json: null` plus `parse_error`; forwarding does not depend on recording (D2, D3 amended, register row 2026-10-21; checked by C4).
 
 ### T2 (major, CONFIRMED) Any exception in a relay thread silently ends that direction; a trace write failure hangs the session
 
@@ -94,7 +94,7 @@ could not.
 - Suggested fix: decide a policy and test it. Simplest: wrap the per-frame recording in
   `try/except Exception` and continue forwarding, noting a `tap` error event once; call `at_eof`
   in a `finally`; make `main` exit non-zero (and say why on stderr) if any relay thread died.
-- Disposition: open
+- Disposition: fix in step (a): fail open, as the owner chose (register row 2026-10-21): a trace write failure prints one `tap:` line, stops recording, keeps forwarding, and keeps the child's exit code; read and write errors end one direction only and EOF is still passed on (D2 amended; checked by C17).
 
 ### T3 (major, CONFIRMED) `tap.show` cannot open a valid trace that contains U+0085, U+2028 or U+2029
 
@@ -113,7 +113,7 @@ could not.
   instance) makes the learner's whole trace unreadable by the primary viewer.
 - Suggested fix: `path.read_bytes().decode("utf-8").split("\n")` (and the same in `parse_notes`),
   plus a test with a frame containing U+2028.
-- Disposition: open
+- Disposition: fix in step (a) at the root: the tap writes U+0085, U+2028 and U+2029 as `\u` escapes (D3 amended; checked by C4). The viewer half (split on `\n` only, for traces from elsewhere) stays open as S1 for step (b).
 
 ### T4 (minor, CONFIRMED) Quadratic time on large frames
 
@@ -127,7 +127,7 @@ could not.
   the very `t_ns` it reports; the edge lab's "oversized frame" will hit it.
 - Suggested fix: search only the new chunk for `\n` (`chunk.find`) and keep the unterminated tail
   in a `bytearray` or a list of chunks.
-- Disposition: open
+- Disposition: fix in step (a): frames are cut by searching only the new chunk, so the cost is linear in the frame size (D2; covered by C1's 128 KiB frame).
 
 ### T5 (minor, CONFIRMED) `tap.show` crashes on valid JSON frames with unexpected field types, and pairs `true` and `1.0` with `1`
 
@@ -145,7 +145,7 @@ could not.
   Also `--explain` anchors for id `1` and id `"1"` are the same string (`c2s.ping.1`; checked with `annotate` on two synthetic records).
 - Suggested fix: treat `id` and `method` defensively (type-check, key on `(type name, value)`),
   and render a frame that does not fit the shape as `raw`.
-- Disposition: open
+- Disposition: open, step (b) (viewer).
 
 ### T6 (minor, CONFIRMED) Only SIGINT and SIGTERM reach the child; SIGHUP, SIGQUIT and group-directed signals orphan it
 
@@ -163,7 +163,7 @@ could not.
   unchanged"; terminal hang-up is the standard way a server is told the session ended.
 - Suggested fix: trap SIGHUP and SIGQUIT too (forward them, then exit like the child), or keep the
   child in the tap's group and handle the double-SIGINT differently; document the choice in D4.
-- Disposition: open
+- Disposition: fix in step (a): forward SIGINT, SIGTERM, SIGHUP and SIGQUIT; the child keeps its own process group, so a group signal reaches it once through the tap; SIGKILL to the tap is an accepted cost (D4 amended, the owner's choice, register row 2026-10-21; checked by C5).
 
 ### T7 (minor, CONFIRMED) The trace can contain the token `Infinity`, which is not JSON
 
@@ -177,7 +177,7 @@ could not.
   literals on input (`_reject_constant`) but emits them on output.
 - Suggested fix: pass `allow_nan=False` and store `json: null` plus a `parse_error` when the
   parsed value contains a non-finite float, or keep floats as `parse_float=decimal.Decimal`.
-- Disposition: open
+- Disposition: fix in step (a): a non-finite number gives `json: null` plus `parse_error`, and the writer refuses `NaN` and `Infinity` (D3 amended; checked by C4).
 
 ### T8 (nit, CONFIRMED) Start-up failures are Python tracebacks with exit 1, and usage errors exit 1 not 2
 
@@ -188,7 +188,7 @@ could not.
   error exits 1 (the viewer uses 2). The tests only assert "non-zero".
 - Suggested fix: catch `OSError` around the trace open and print `tap: cannot write trace: ...`;
   use exit code 2 for usage errors.
-- Disposition: open
+- Disposition: fix in step (a): an unopenable trace path prints `tap: cannot write trace: ...` and exits 2; usage errors exit 2; closed standard descriptors are replaced by /dev/null before anything is opened (D1 amended; checked by C5).
 
 ### T9 (nit, CONFIRMED) End of file on the child's stdout is not passed on until the whole child has gone
 
@@ -199,7 +199,7 @@ could not.
   sleep). D4 accepts the stdin-EOF case ("a server that never exits on EOF keeps the tap alive
   too") but not these two.
 - Suggested fix: document it in D4, or close the tap's stdout when the s2c relay ends.
-- Disposition: open
+- Disposition: fix in step (a) for the stdout half: the tap's stdout closes when the child's does (D4 amended; checked by C5). The grandchild half is accepted and written into D4's cost.
 
 ### T10 (nit, CONFIRMED) The trace file is overwritten without notice and created with the caller's umask
 
@@ -207,7 +207,7 @@ could not.
 - Observed: `--trace` pointing at an existing file truncates it; with umask 022 the new trace is
   mode 644. Traces can contain whatever the server prints (the `get-env` case in A5).
 - Suggested fix: open with `os.open(..., O_CREAT|O_EXCL|O_WRONLY, 0o600)` or at least say so in D3.
-- Disposition: open
+- Disposition: fix in step (a): the trace is created with mode 0600 and an existing file is replaced, as the owner chose (D3 amended, register row 2026-10-21; checked by C17).
 
 ### T11 (major, CONFIRMED) Core relay guarantees have no test that can fail
 
@@ -230,7 +230,7 @@ I applied mutations that violate stated behavior and the C1-C6 tests (`tests.tes
   with a recorder that logs the order of "record" and "write" calls; (c) a child that writes
   20000 lines and exits, then assert 20000 s2c records and that `exit` is last; (d) a test that
   signals the tap's process group.
-- Disposition: open
+- Disposition: fix in step (a): tests for split and 128 KiB frames in both directions, record-before-forward order in-process, a 20000-line flood with `exit` last, and a process-group signal (C1, C2, C5, C6 amended). Moved from step (b) to (a) by the owner, 2026-10-21. G10 (early-signal replay) is checked too.
 
 ### T12 (minor, CONFIRMED) D3 field semantics are unpinned
 
@@ -246,7 +246,7 @@ plausible timestamps.
 - Suggested fix: assert `t_ns` is strictly positive and below the run's wall time, assert `bytes`
   equals `len(raw)` for every record (both directions), run the strict-`seq` check on a child that
   also writes stderr.
-- Disposition: open
+- Disposition: fix in step (a): `t_ns` bounds, `bytes` on every record, strict `seq` with stderr present, CESU-8 bytes (C2, C4 amended).
 
 ### T13 (nit, CONFIRMED) The signal test fails by a 30 s timeout and leaves processes behind
 
@@ -255,7 +255,7 @@ plausible timestamps.
   as `subprocess.TimeoutExpired` after 30 s per signal, not as an assertion, and the tap and its
   child are not killed on failure (the child sleeps 30 s).
 - Suggested fix: `addCleanup(tap.kill)`, and a short `communicate` timeout (a few seconds).
-- Disposition: open
+- Disposition: fix in step (a): the signal test kills the tap and child on failure and uses a short timeout (C5 amended).
 
 ### T14 (minor, CONFIRMED) C16's "presence first" check is satisfied by the spawn record, so it cannot fail when the `get-env` reply is missing
 
@@ -275,7 +275,7 @@ plausible timestamps.
 - Suggested fix: parse the trace, find the s2c frame that answers the `get-env` request, and
   assert `MCP_WIRE_LAB` in that frame's `json`; assert the allowlist exactly (the set of variable
   names in the reply equals `{PATH, HOME, LANG, MCP_WIRE_LAB}` plus whatever node adds).
-- Disposition: open
+- Disposition: open, step (b).
 
 ### T15 (nit, CONFIRMED) G8 accepts an empty or very short fragment on any line
 
@@ -286,7 +286,7 @@ plausible timestamps.
   fragments of 8 or more characters, so nothing is wrong now.
 - Suggested fix: require a minimum fragment length (for example 6) and compare against
   `splitlines()`.
-- Disposition: open
+- Disposition: open, step (b).
 
 ### T16 (nit, PLAUSIBLE) `exit` is not guaranteed to be the last record
 
@@ -296,7 +296,7 @@ plausible timestamps.
   after `exit`; a frame after `close()` is dropped silently. `test_spawn_first_exit_last` runs with
   empty stdin, so it cannot see this. I could not trigger the window without injecting a delay.
 - Suggested fix: close the trace inside the same locked section that writes `exit`.
-- Disposition: open
+- Disposition: fix in step (a): `exit` is written and the trace closed under one lock (D3 amended).
 
 ### T17 (nit, CONFIRMED) `scripts/record.sh` fails with a cryptic message when two recordings share a name within one second
 
@@ -309,7 +309,7 @@ plausible timestamps.
   my own first mutation batch).
 - Suggested fix: add the shell's `$$` or a counter to the folder name, or `mkdir` without `-p` and
   print "run folder exists".
-- Disposition: open
+- Disposition: open, step (b).
 
 ### T18 (minor, CONFIRMED) The tests behind C15 do not plant every secret regex, contrary to the row
 
@@ -325,7 +325,7 @@ plausible timestamps.
 - Suggested fix: add a `github_pat_` sample, a three-key dump, a `PWD` dump and a root-home path to
   `LEAKS`, and two hook tests (a leak introduced by modifying an existing file; a leak in the first
   pushed commit).
-- Disposition: open
+- Disposition: open, step (b).
 
 ### T19 (minor, CONFIRMED) G9's default `--min-lessons 1` and its timeout report are not pinned
 
@@ -338,7 +338,7 @@ plausible timestamps.
   `--min-lessons 0` flag was used on purpose earlier in this phase (plan group 2 note).
 - Suggested fix: a test that runs `main([...])` on an empty root and on a lesson with a sleeping
   block, with a short patched timeout.
-- Disposition: open
+- Disposition: open, step (b).
 
 ## 3. C1-C6 mutations re-run
 

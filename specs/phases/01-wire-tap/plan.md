@@ -120,7 +120,8 @@ Who runs what (the owner switches models with `/model`; an agent cannot):
 | --- | --- | --- |
 | Tap review (`tap/`, C1-C6 mutations, falsifiability audit of every C row) -> `audits/` | Sonnet, xhigh | fresh |
 | Review of everything else (gates, docs, walkthrough, lesson, CI) -> `audits/` | Opus, high | fresh |
-| Disposition of findings, fixes | Sonnet, medium | fresh |
+| Disposition and fixes (a): tap core, T1-T4, T6-T13, T16 (register row 2026-10-21) | Opus, high | fresh |
+| Disposition and fixes (b): everything else (viewer S1-S17, T5, T14, T15, T17-T19, R1-R22) | Sonnet, medium | fresh, after (a) |
 | G6 clean-clone walk, CHANGELOG, merge, tag | Sonnet, medium (low is enough for the merge and tag) | fresh |
 
 - [ ] G6 clean-clone walk in a new directory; fill the Result with measurements.
