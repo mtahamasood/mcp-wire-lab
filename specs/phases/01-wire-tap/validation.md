@@ -95,6 +95,13 @@ Any of these standing means the phase is NOT done, whatever else passes:
 *Filled during the walk. Empty until then.*
 
 - Measurements:
+  - M5 (taken 2026-10-20, WSL2): the narrowest install that builds the everything server is
+    `cd vendor/servers && npm ci --workspace=@modelcontextprotocol/server-everything --ignore-scripts`
+    then `cd src/everything && npm run build`. Install 6.4 s and build 4.8 s by hand; clean
+    `scripts/bootstrap.sh` run 9.5 s wall; `vendor/servers/node_modules` 141M. The whole-workspace
+    install was not needed (D6's cost is avoided). Submodule worktrees: servers 4.7M, spec 59M;
+    `.git/modules` 93M. The built server answers `initialize` over stdio with protocolVersion 2025-11-25.
+  - M6 (partial, this machine): node v24.22.0, Python 3.12.3, uv 0.12.5. CI values still to take.
 - Checks seen to fail:
 - Judgement verdicts:
 - Findings beyond the rows:

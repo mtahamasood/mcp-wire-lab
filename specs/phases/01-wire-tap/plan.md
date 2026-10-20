@@ -5,24 +5,24 @@ could stop. Steps marked **[human]** only the owner can perform.
 
 ## 0. Prerequisites [human]
 
-- [ ] **[human]** Install Node 24.22.0 with `nvm` in a separate terminal; confirm `node --version`
+- [x] **[human]** Install Node 24.22.0 with `nvm` in a separate terminal; confirm `node --version`
   prints `v24.22.0` in a new shell.
-- [ ] **[human]** Answer Q1 (ratify or overrule P1–P9, strike any of L1–L16); the agent
+- [x] **[human]** Answer Q1 (ratify or overrule P1–P9, strike any of L1–L16); the agent
   records the answer as register rows.
-- [ ] **[human]** Approve this spec. The agent then commits the constitution and phase spec
+- [x] **[human]** Approve this spec. The agent then commits the constitution and phase spec
   to `main`, before any phase code.
 
 ## 1. Repository, pinned server and spec (D6, D10)
 
-- [ ] `git init` (branch `main`), `.gitignore` (`node_modules/`, `__pycache__/`, `runs/`).
-- [ ] Commit the constitution and this phase's spec on `main`; create branch `phase-01-wire-tap`.
-- [ ] `git submodule add https://github.com/modelcontextprotocol/servers vendor/servers`,
+- [x] `git init` (branch `main`), `.gitignore` (`node_modules/`, `__pycache__/`, `runs/`).
+- [x] Commit the constitution and this phase's spec on `main`; create branch `phase-01-wire-tap`.
+- [x] `git submodule add https://github.com/modelcontextprotocol/servers vendor/servers`,
   check out `51b6382…`; `git submodule add https://github.com/modelcontextprotocol/modelcontextprotocol vendor/spec`,
   check out `1155ca4…`.
-- [ ] Measure the narrowest install that builds the everything server (M5), then write
+- [x] Measure the narrowest install that builds the everything server (M5), then write
   `scripts/bootstrap.sh` around it.
-- [ ] Bootstrap verifies both submodules are at their pins and fails otherwise.
-- [ ] Run bootstrap; record M5 (commands, wall time, `node_modules` size) and M6 (Node
+- [x] Bootstrap verifies both submodules are at their pins and fails otherwise.
+- [x] Run bootstrap; record M5 (commands, wall time, `node_modules` size) and M6 (Node
   version) in the validation Result.
 
 *Stop point: the server builds and runs by hand.*

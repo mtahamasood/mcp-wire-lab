@@ -1,0 +1,6 @@
+[submodule "vendor/servers"]
+	path = vendor/servers
+	url = https://github.com/modelcontextprotocol/servers
+[submodule "vendor/spec"]
+	path = vendor/spec
+	url = https://github.com/modelcontextprotocol/modelcontextprotocol
