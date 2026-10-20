@@ -1,0 +1,14 @@
+# Tool configuration only: the project has no Python dependencies (tech-stack.md).
+# ruff and mypy are run through uvx at pinned versions by scripts/gate.sh.
+[tool.ruff]
+line-length = 100
+extend-exclude = ["vendor", "runs"]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["tools", "tests"]  # add "tap" when it exists (group 3)

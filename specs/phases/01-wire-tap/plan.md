@@ -29,16 +29,19 @@ could stop. Steps marked **[human]** only the owner can perform.
 
 ## 2. Gate skeleton, provenance, citation and lesson gates (D7, D13)
 
-- [ ] `pyproject.toml` with ruff and mypy configuration only (no dependencies).
-- [ ] `tools/check_provenance.py` with its own tests in `tests/test_provenance.py`
+- [x] `pyproject.toml` with ruff and mypy configuration only (no dependencies).
+- [x] `tools/check_provenance.py` with its own tests in `tests/test_provenance.py`
   (good spec passes; missing Source, undated Source, unknown ask, unknown register date,
   and missing `specs/` all fail).
-- [ ] `tools/check_citations.py` (G8) and `tools/check_lessons.py` (G9), each with tests
+- [x] `tools/check_citations.py` (G8) and `tools/check_lessons.py` (G9), each with tests
   over small fixture docs and fixture submodule trees.
-- [ ] `tools/check_no_run_output.py` (G11, D15) with tests; `scripts/bootstrap.sh` installs
+- [x] `tools/check_no_run_output.py` (G11, D15) with tests; `scripts/bootstrap.sh` installs
   it as `.git/hooks/pre-push`.
-- [ ] `scripts/gate.sh` running G1–G4, G8, G9, G11 (G5 is a no-op until group 4).
-- [ ] Stage the C8, C11, C12, C15 mutations; record them.
+- [x] `scripts/gate.sh` running G1–G4, G8, G9, G11 (G5 is a no-op until group 4).
+- [x] Stage the C8, C11, C12, C15 mutations; record them.
+
+Note: the lesson gate runs with `--min-lessons 0` in `scripts/gate.sh` until lesson 01 exists; C11 and C12
+mutations are provisional until re-run on the real walkthrough and lesson (groups 5-6).
 
 *Stop point: `scripts/gate.sh` is green and its gates have been seen red.*
 
@@ -81,7 +84,8 @@ could stop. Steps marked **[human]** only the owner can perform.
   wire that into G5.
 - [ ] Lesson 01's experiments as fixtures under `tests/fixtures/`; record each with
   `scripts/record.sh`; state the outcomes as M8 values in the Result and in the lesson.
-- [ ] `docs/lessons/01-the-wire-and-the-handshake.md` and `README.md` (D12); G8 and G9 green on them.
+- [ ] `docs/lessons/01-the-wire-and-the-handshake.md` and `README.md` (D12); G8 and G9 green on them;
+  drop `--min-lessons 0` from `scripts/gate.sh`; re-run the C11 and C12 mutations on the real artifacts.
 
 ## 7. CI and GitHub [human gate before push]
 

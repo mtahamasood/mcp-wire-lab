@@ -30,4 +30,6 @@ check_pin vendor/spec "$pin_spec"
 [ -z "$(git -C vendor/servers status --porcelain)" ] || fail "vendor/servers working tree was modified"
 [ -z "$(git -C vendor/spec status --porcelain)" ] || fail "vendor/spec working tree was modified"
 
+scripts/install-pre-push.sh "$root"
+
 echo "bootstrap: ok ($(node --version))"
