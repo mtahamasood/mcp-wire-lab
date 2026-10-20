@@ -116,8 +116,10 @@ Any of these standing means the phase is NOT done, whatever else passes:
     Sending `tools/list` before `initialize`: answered first with 16 tools and no error, then `initialize`
     is answered normally. The server enforces none of the three spec rules; the lesson says so and its
     runnable blocks (G9) fail if a future pin changes it.
-  - M6 (partial, this machine): node v24.22.0, Python 3.12.3, uv 0.12.5. CI values still to take.
+  - M6 (partial, this machine): node v24.22.0, Python 3.12.3, uv 0.12.5. CI (2026-10-20, ubuntu-latest): node v24.22.0, Python 3.12.15, uv 0.13.4.
 - Checks seen to fail:
+  - C10 (2026-10-20): `ci.yml` on `phase-01-wire-tap` finished green (bootstrap and gate, 34s). A throwaway
+    branch adding one always-failing unit test finished red at the gate step; branch deleted locally and on origin.
   - C8 (2026-10-20): deleted D2's Source line in a temp copy of the real requirements.md; G1 exit 1,
     "D2: no *Source:* line". Baseline copy exit 0.
   - C11 (2026-10-20): the real citation `servers:src/everything/transports/stdio.ts:49` "serveStdio(" in

@@ -106,10 +106,10 @@ lesson's runnable blocks record them on every gate run.
 
 ## 7. CI and GitHub [human gate before push]
 
-- [ ] `.github/workflows/ci.yml` (D7).
+- [x] `.github/workflows/ci.yml` (D7).
 - [ ] **[human]** Confirm creating the public repo `mtahamasood/mcp-wire-lab`; the agent then
   runs `gh repo create` and pushes `main` and the phase branch.
-- [ ] Watch CI go green on the branch; stage C10 (a deliberately failing push on a
+- [x] Watch CI go green on the branch; stage C10 (a deliberately failing push on a
   throwaway branch, seen red, branch deleted).
 
 ## 8. Close the phase
