@@ -41,7 +41,7 @@ The fixture offers `2025-11-25` and no capabilities. `id` is `0`: requests carry
 reply can be matched when several are in flight; notifications carry none.
 
 ```json
-{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"example","version":"0"}}}
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"wire-lab-fixture","version":"0"}}}
 ```
 
 Without it nothing else works: the server has not agreed on a version or exchanged capabilities.
@@ -109,8 +109,10 @@ viewer truncates it by default and `--full` prints it whole.
 
 A liveness check. The spec defines `ping` as a request with no parameters
 (`spec:docs/specification/2025-11-25/basic/utilities/ping.mdx:23` "\"method\": \"ping\"") that either side may send.
-It is the one request the spec allows before the handshake finishes
-(`spec:docs/specification/2025-11-25/basic/lifecycle.mdx:157` "The client **SHOULD NOT** send requests other than").
+It is the one request the spec exempts from the handshake order: the client should not send requests
+other than pings before the server has answered `initialize`
+(`spec:docs/specification/2025-11-25/basic/lifecycle.mdx:157` "The client **SHOULD NOT** send requests other than"
+continues on `spec:docs/specification/2025-11-25/basic/lifecycle.mdx:158` "[pings](").
 The fixture sends it last so you can compare its latency with `initialize`'s.
 
 #### `s2c.response.2`

@@ -56,3 +56,11 @@ Experiment predictions: exp 1 old version right, bogus version wrong; exp 2 righ
 
 About 8 working steps (clone, README, bootstrap, record, read the trace, lesson commands, 3 experiments, Check yourself). No blockers.
 Every doc command ran as written, apart from the `$ done` paste issue (item 6), which I worked around by omitting the prompts.
+
+## 5. Resolution (2026-10-21)
+
+Fixed in the README, lesson 01 and the walkthrough: items 1, 2, 4, 5, 6, 8, 9, 10. Item 11 needs no
+change (the README's plain `git clone` gets this content once the phase branch is merged to `main`).
+Items 3 (the Predict section is spoiled further down the page) and 7 (prompting an explicit guess for
+each experiment outcome) are teaching-design choices; the owner chose to leave both unchanged, so they
+stand as accepted. Gate green after the edits (31 citations checked).

@@ -24,16 +24,24 @@ scripts/bootstrap.sh
 ```
 
 The bootstrap checks both submodules are at their pinned commits (the reference server and the
-specification) and builds the server. The pins are why line numbers cited in the lessons stay true.
+specification) and builds the server. The pins are why line numbers cited in the lessons stay true. `npm` may report high-severity
+vulnerabilities while it installs; that is expected for a pinned reference server that only ever
+runs locally under the tap, and nothing here is exposed.
+
+Citations in the docs look like `servers:path:line "fragment"` or `spec:path:line "fragment"`.
+`servers:` means under `vendor/servers/` and `spec:` means under `vendor/spec/`; the quoted
+fragment is the text you should find on that line.
 
 ## Record and read a trace
 
 ```console
 scripts/record.sh tests/fixtures/handshake-2025.ndjson
-python3 -m tap.show runs/<the folder it printed>/trace.jsonl
+python3 -m tap.show <the path it printed>
 ```
 
-`python3 -m tap.show` also takes `--full` (whole bytes), `--mermaid` (a sequence diagram) and
+`record.sh` prints that path ending in `trace.jsonl` (and a ready `read it:` line to copy).
+
+`python3 -m tap.show` also takes `--full` (every frame's decoded JSON, pretty-printed), `--mermaid` (a sequence diagram) and
 `--explain <walkthrough.md>` (a note after every frame).
 
 Recordings go to `runs/`, which git ignores. This repository never holds run output: your traces

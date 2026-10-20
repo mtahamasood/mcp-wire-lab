@@ -88,10 +88,12 @@ every frame has a note
 ```
 
 Run the same command without the redirect and read every
-note against your own prediction. Add `--full` to a plain `tap.show` to see the whole bytes of
-the large `initialize` reply.
+note against your own prediction. Add `--full` to a plain `tap.show` to see the decoded JSON of
+every frame, pretty-printed (the `tools/list` reply runs to hundreds of lines, so pipe it to `less`).
 
 ## Read the source
+
+A citation like `servers:path:line "fragment"` points into `vendor/servers/`, and `spec:path:line "fragment"` into `vendor/spec/`; open the file and look at that line.
 
 Two places, both pinned so the line numbers hold. The server hands its stdin and stdout to the
 protocol layer here: `servers:src/everything/transports/stdio.ts:49` "serveStdio(". The rule
@@ -117,7 +119,7 @@ $ for f in exp-old-version exp-bogus-version; do
     scripts/record.sh tests/fixtures/$f.ndjson $f > /dev/null
     run=$(ls -d runs/*-$f | tail -1)
     python3 -m tap.show "$run/trace.jsonl" --full | grep -o '"protocolVersion": "[^"]*"' | tail -1
-$ done
+  done
 ```
 
 <!-- expect -->
@@ -175,7 +177,7 @@ and "should not" is the strength of the rule: this server does not enforce it. D
 Answer from your own trace, then open the answers.
 
 1. Which frame is the slowest, and what is its latency spent on?
-2. Why does the `ping` reply take about as long as the `tools/list` reply and not as long as `initialize`'s?
+2. Why are the `ping` and `tools/list` replies both fast (a few milliseconds or less) when `initialize`'s took hundreds?
 3. Which line did the server write that was not an MCP message, and where did it go?
 4. In experiment 1, who decides what happens after the version mismatch, and what does the spec tell them to do?
 5. Which of the three experiments proved the spec's words are stronger than the server's behaviour?
