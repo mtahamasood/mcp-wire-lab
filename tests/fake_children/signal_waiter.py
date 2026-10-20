@@ -1,4 +1,8 @@
-"""Says `ready`, then waits; on SIGINT or SIGTERM says which and exits 10 + the signal number."""
+"""Says `ready`, then waits; on each forwarded signal says which, and exits 10 + its number.
+
+It stays up for half a second after the first signal, so a signal delivered twice (once by
+the tap, once straight from the process group) shows as two `got` lines.
+"""
 
 from __future__ import annotations
 
@@ -7,17 +11,25 @@ import signal
 import time
 from types import FrameType
 
+SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)
+received: list[int] = []
+
 
 def on_signal(signum: int, _frame: FrameType | None) -> None:
     os.write(1, f"got {signal.Signals(signum).name}\n".encode())
-    os._exit(10 + signum)
+    received.append(signum)
 
 
 def main() -> int:
-    for sig in (signal.SIGINT, signal.SIGTERM):
+    for sig in SIGNALS:
         signal.signal(sig, on_signal)
     os.write(1, b"ready\n")
-    time.sleep(30)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if received:
+            time.sleep(0.5)
+            os._exit(10 + received[0])
+        time.sleep(0.01)
     return 1
 
 
