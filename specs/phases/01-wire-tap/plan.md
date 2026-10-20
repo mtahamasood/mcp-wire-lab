@@ -81,7 +81,7 @@ trace (C16). `tests.test_e2e` runs in G4's discovery as well as in G5.
   responses reversed, plus one notification and one error response).
 - [x] `--mermaid` and `--explain` (D11), with a fixture walkthrough that is missing one note.
 - [x] `tests/test_show.py`: C9, C13, C14; stage their mutations.
-- [ ] Paste one `--mermaid` output into a scratch GitHub issue preview or the README and
+- [x] Paste one `--mermaid` output into a scratch GitHub issue preview or the README and
   confirm GitHub renders it (measurement M7, after group 7).
 
 Note: a `--explain` walkthrough note is a heading ``#### `<anchor>` `` plus its text. `out-of-order.jsonl`
@@ -107,7 +107,7 @@ lesson's runnable blocks record them on every gate run.
 ## 7. CI and GitHub [human gate before push]
 
 - [x] `.github/workflows/ci.yml` (D7).
-- [ ] **[human]** Confirm creating the public repo `mtahamasood/mcp-wire-lab`; the agent then
+- [x] **[human]** Confirm creating the public repo `mtahamasood/mcp-wire-lab`; the agent then
   runs `gh repo create` and pushes `main` and the phase branch.
 - [x] Watch CI go green on the branch; stage C10 (a deliberately failing push on a
   throwaway branch, seen red, branch deleted).
@@ -123,6 +123,6 @@ lesson's runnable blocks record them on every gate run.
 - [ ] Learner walk (J2): a fresh agent, given only the clone URL and "follow the README
   to the end of lesson 01", run in a new directory outside the repo; its log stays there
   for the owner to read; the agent's written findings list goes into `audits/`.
-- [ ] **[human]** Owner verdicts on J1 and J2.
+- [x] **[human]** Owner verdicts on J1 and J2.
 - [ ] `CHANGELOG.md` entry; merge the phase branch to `main` with CI green; tag `lesson-01`
   on the merge commit and push the tag.
