@@ -43,7 +43,8 @@ G11 from A5 (register row 2026-10-20, run output never committed).
 ## Standing conventions
 
 - Specs live in `specs/`; phase specs in `specs/phases/NN-<name>/{requirements,plan,validation}.md`.
-- Review corpora live in `audits/<lens>-review.md`.
+- Review corpora live in `audits/<lens>-review.md`; a learner walk's findings list in
+  `audits/learner-walk-lesson-NN.md`.
 - Runs are recorded by `scripts/record.sh` into `runs/` (git-ignored, never committed).
   Walkthroughs live in `docs/walkthrough/`, lessons in `docs/lessons/`, hand-written
   synthetic trace fixtures in `tests/fixtures/`.

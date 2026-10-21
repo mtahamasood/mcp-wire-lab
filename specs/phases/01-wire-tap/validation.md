@@ -122,6 +122,13 @@ Any of these standing means the phase is NOT done, whatever else passes:
     of a new GitHub issue on `mtahamasood/mcp-wire-lab` (not submitted). It rendered as a sequence diagram.
     No screenshot kept; nothing from the run was committed.
   - M6 (partial, this machine): node v24.22.0, Python 3.12.3, uv 0.12.5. CI (2026-10-20, ubuntu-latest): node v24.22.0, Python 3.12.15, uv 0.13.4.
+- Unchecked (no gate covers them; the rule in section E allows this only when listed here):
+  - Lesson 01 commands outside the runnable form: the bootstrap command (line 11), "the same
+    command without the redirect" and the `--full ... | less` command (lines 90-92).
+  - The Mermaid claim in lesson 01 ("yours will match", lines 56-73): matched by hand against a fresh
+    `--mermaid` output on 2026-10-21; no gate compares them.
+  - The console blocks in the walkthrough (the record and `--explain` commands) and in the README (clone,
+    bootstrap, record, read), and the walkthrough's hand-written JSON examples (D8).
 - Checks seen to fail:
   - C10 (2026-10-20): `ci.yml` on `phase-01-wire-tap` finished green (bootstrap and gate, 34s). A throwaway
     branch adding one always-failing unit test finished red at the gate step; branch deleted locally and on origin.
@@ -156,6 +163,11 @@ Any of these standing means the phase is NOT done, whatever else passes:
     `env` in `record.sh`; C16 fails on `'FAKE_SECRET_FOR_C16' unexpectedly found` in the trace. First run of
     the real test also failed on the parent's `HOME`: nvm puts node under it and the spec put node's
     directory in `PATH`. Fixed in `record.sh` by linking node into the run folder and using that as `PATH`.
+    Extended after the review (T14, R15/T17; 2026-10-21): the test now finds the `get-env` reply frame by id,
+    asserts `MCP_WIRE_LAB` in that frame, and compares the variable names with the allowlist (plus `PWD`,
+    `SHLVL`, `_` if node adds them). A second test records the same name twice with a pinned timestamp
+    and requires two run folders; it failed before the `record.sh` change (one `ln` error) and passes after.
+    The mutants of review T14 (C16.5-C16.8) were not re-run.
   - C9, C13, C14 (2026-10-20): baseline `tests.test_show` exit 0 (7 tests); every mutant exit 1.
     C9, pairing each response with the most recent request: `test_c9_responses_pair_by_id_not_adjacency`
     fails (`answers seq 2, 7.0 ms` where seq 1 and 8.0 ms were expected).

@@ -15,11 +15,14 @@ every gate run).
 
 Citations point into the two pinned submodules: `spec` is the 2025-11-25 revision of the
 specification, `servers` is the everything reference server. The server's protocol plumbing
-(request routing, the `initialize` reply itself, `ping`) lives in the TypeScript SDK, which this
-repository does not pin, so those notes cite the spec for the rule and the server for what it
-configures, and say so.
+(request routing, the `initialize` reply itself, `ping`) lives in the TypeScript SDK. The SDK is
+fixed by the server's lockfile (2.3.1) but is not a submodule, so its lines cannot be cited and
+checked here; its compiled code is under `vendor/servers/node_modules/@modelcontextprotocol/`.
+Those notes cite the spec for the rule and the server for what it configures, and say so.
 
-The examples below are hand-written and trimmed; your trace has the full bytes.
+The examples below are hand-written and trimmed; your trace has the full bytes. They are not
+machine-checked (the Result in `specs/phases/01-wire-tap/validation.md` lists them as unchecked), so
+where one differs from your trace, trust the trace.
 
 #### `tap.spawn.0`
 
@@ -60,7 +63,7 @@ The answer to `initialize`, matched by `id`. The spec requires the server to ans
 capabilities and information (`spec:docs/specification/2025-11-25/basic/lifecycle.mdx:98` "MUST** respond with its own capabilities").
 Version negotiation: if the server supports the requested version it echoes it back, otherwise it
 names one it does support (`spec:docs/specification/2025-11-25/basic/lifecycle.mdx:170` "MUST** respond with the same").
-In the trace the server echoes `2025-11-25`. The reply is the largest frame of the handshake
+In the trace the server echoes `2025-11-25`. The reply is the largest frame after the tool list,
 because it also carries the server's `instructions` text, read at
 `servers:src/everything/server/index.ts:120` "readInstructions()".
 
@@ -69,8 +72,8 @@ What the server declares is configured in the everything server: its identity at
 `servers:src/everything/server/index.ts:133` "capabilities: {" (for example resources with
 subscribe and listChanged at `servers:src/everything/server/index.ts:141` "resources: {", and logging at
 `servers:src/everything/server/index.ts:148` "logging: {}"). The `tools` capability is added by the first tool
-registration, which is why it is not in that block. The reply itself is assembled by the SDK, which is
-not pinned here.
+registration (`servers:src/everything/server/index.ts:134` "is advertised by the first"), which is why
+it is not in that block. The reply itself is assembled by the SDK, whose lines are not cited here.
 
 This is the slowest frame of the run, the server's start-up showing as latency: `tap.show` prints
 the time between request and reply.
@@ -88,14 +91,14 @@ to know what the client can do.
 {"jsonrpc":"2.0","method":"notifications/initialized"}
 ```
 
-Until it arrives the server should only send pings and log messages
+Until it arrives the server should not send requests other than pings, and may send log notifications
 (`spec:docs/specification/2025-11-25/basic/lifecycle.mdx:160` "The server **SHOULD NOT** send requests other than").
 
 #### `c2s.tools/list.1`
 
 The first ordinary request after the handshake: ask the server what tools it has. The spec's form
 is `spec:docs/specification/2025-11-25/server/tools.mdx:57` "To discover available tools, clients send a `tools/list` request".
-The everything server registers its tools in one place, starting at
+The everything server registers the tools every client gets starting at
 `servers:src/everything/tools/index.ts:47` "registerEchoTool(server)", and the SDK turns those
 registrations into the reply. `id` is `1`; ids only need to be unique per sender.
 
@@ -103,7 +106,8 @@ registrations into the reply. `id` is `1`; ids only need to be unique per sender
 
 The tool list, matched to `tools/list` by `id` 1: each tool's name, description and JSON Schema for
 its arguments. This is what a model is shown so it can decide what to call. Its size is why the
-viewer truncates it by default and `--full` prints it whole.
+default view of `tap.show` prints no body for it, only the one summary line every frame gets;
+`--full` prints the decoded body whole.
 
 #### `c2s.ping.2`
 
@@ -123,8 +127,11 @@ and a reply in about a millisecond or two, against hundreds for `initialize`: th
 paid once, before the first reply, not on every request.
 
 ```json
-{"jsonrpc":"2.0","id":2,"result":{}}
+{"result":{},"jsonrpc":"2.0","id":2}
 ```
+
+The key order is the SDK's: it writes `result` first, before `jsonrpc` and `id`. The bytes are the
+server's, so `tap` keeps them as sent.
 
 #### `tap.exit.0`
 
