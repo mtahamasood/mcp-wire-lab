@@ -218,10 +218,10 @@ def check_frame(
         result_def = schema.result_of(request_def) if request_def else None
         if result_def is None:
             return None
-        errors = validate(message, defs["JSONRPCResultResponse"], "$", defs)
-        if not errors:
-            errors = validate(message["result"], defs[result_def], "$.result", defs)
-        return result_def, errors
+        envelope = validate(message, defs["JSONRPCResultResponse"], "$", defs)
+        if envelope:
+            return "JSONRPCResultResponse", envelope
+        return result_def, validate(message["result"], defs[result_def], "$.result", defs)
     reason = item.get("parse_error") or "not a JSON-RPC object"
     if message is None:
         return "JSONRPCMessage", [("$", reason)]

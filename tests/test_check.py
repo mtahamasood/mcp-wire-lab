@@ -76,12 +76,16 @@ class CheckTest(unittest.TestCase):
         bad_params = {**INIT, "params": {"capabilities": {}, "clientInfo": {"name": "t"}}}
         bad_const = {**LIST, "jsonrpc": "1.0"}
         bad_type = {**LIST_REPLY, "result": {"tools": "not a list"}}
+        ping = {"jsonrpc": "2.0", "id": 2, "method": "ping"}
+        bad_envelope = {"jsonrpc": "1.0", "id": 2, "result": {}}
         records = trace_of(
-            ("c2s", bad_params), ("c2s", bad_const), ("c2s", LIST), ("s2c", bad_type))
+            ("c2s", bad_params), ("c2s", bad_const), ("c2s", LIST), ("s2c", bad_type),
+            ("c2s", ping), ("s2c", bad_envelope))
         code, out, _ = run_check(records)
         self.assertEqual(code, 1)
         lines = out.strip().splitlines()
-        self.assertEqual(len(lines), 3, out)
+        self.assertEqual(len(lines), 4, out)
+        self.assertRegex(lines[3], r"^seq 6  \$\.jsonrpc  JSONRPCResultResponse  ")
         self.assertRegex(lines[0], r"^seq 1  \$\.params  InitializeRequest  .*protocolVersion")
         self.assertRegex(lines[1], r"^seq 2  \$\.jsonrpc  ListToolsRequest  ")
         self.assertRegex(lines[2], r"^seq 4  \$\.result\.tools  ListToolsResult  ")

@@ -105,6 +105,7 @@ class ClassifyTest(unittest.TestCase):
             line({"jsonrpc": "2.0", "id": 99, "result": {}}),
             line({"jsonrpc": "2.0", "id": None, "result": {}}),
             line({"jsonrpc": "2.0", "id": 1.5, "method": "m"}),
+            line({"jsonrpc": "2.0", "id": True, "method": "m"}),
             line({"jsonrpc": "2.0", "method": 5}),
         ]
         for raw in junk:
@@ -141,20 +142,23 @@ def request_many(w: wire.Wire) -> None:
 class FramingTest(unittest.TestCase):
     def test_one_compact_line_per_message(self) -> None:
         w, sink, _ = make()
-        w.start_request("echo", {"text": "line one\nline two", "u": "café   \u0085"})
+        w.start_request("echo", {"text": "line one\nline two", "u": "caf\u00e9 \u2028 \u0085"})
         w.notify("notifications/initialized")
+        w.notify("notifications/message", {"data": "\u2028"})
         w.send_line('{"typed": "as is" }')
         data = sink.getvalue()
         lines = data.split(b"\n")
         self.assertEqual(lines.pop(), b"", "every message ends in exactly one newline")
-        self.assertEqual(len(lines), 3)
+        self.assertEqual(len(lines), 4)
         self.assertEqual(
             lines[0],
             b'{"jsonrpc":"2.0","id":0,"method":"echo","params":'
             b'{"text":"line one\\nline two","u":"caf\\u00e9 \\u2028 \\u0085"}}',
         )
         self.assertEqual(lines[1], b'{"jsonrpc":"2.0","method":"notifications/initialized"}')
-        self.assertEqual(lines[2], b'{"typed": "as is" }', "a typed line is sent untouched")
+        self.assertEqual(lines[2], b'{"jsonrpc":"2.0","method":"notifications/message",'
+                                   b'"params":{"data":"\\u2028"}}', "notify is ASCII-only too")
+        self.assertEqual(lines[3], b'{"typed": "as is" }', "a typed line is sent untouched")
         data.decode("utf-8")  # UTF-8 (here pure ASCII)
 
     def test_concurrent_sends_do_not_interleave(self) -> None:
