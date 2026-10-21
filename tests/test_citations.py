@@ -41,7 +41,7 @@ class CitationsTest(unittest.TestCase):
         self.assertEqual(self.run_on(doc), (2, []))
 
     def test_missing_file_fails_naming_citation(self) -> None:
-        _, errors = self.run_on('`servers:src/nope.ts:1` "x"')
+        _, errors = self.run_on('`servers:src/nope.ts:1` "serveStdio("')
         self.assertEqual(len(errors), 1)
         self.assertIn("src/nope.ts:1", errors[0])
         self.assertIn("does not exist", errors[0])
@@ -81,6 +81,37 @@ class CitationsTest(unittest.TestCase):
             total, errors = check_citations.check(root)
         self.assertEqual(total, 2)
         self.assertEqual(len(errors), 2)
+
+    def test_path_escaping_the_submodule_fails(self) -> None:
+        # R12: `../../docs/x.md` resolves to a real file in the repo, outside the submodule.
+        _, errors = self.run_on('`servers:../../docs/x.md:1` "servers"')
+        self.assertEqual(len(errors), 1)
+        self.assertIn("outside", errors[0])
+
+    def test_short_fragment_fails(self) -> None:
+        # R12/T15: "" and "a" match almost any line.
+        for frag in ("", "a", "alpha"):
+            _, errors = self.run_on(f'`servers:src/a.ts:1` "{frag}"')
+            self.assertEqual(len(errors), 1, frag)
+            self.assertIn("at least 6", errors[0])
+
+    def test_six_character_fragment_is_enough(self) -> None:
+        self.assertEqual(self.run_on('`servers:src/a.ts:2` "serveS"')[1], [])
+
+    def test_phantom_last_line_is_past_the_end(self) -> None:
+        # SERVER_FILE ends in a newline: it has 3 lines, not 4.
+        _, errors = self.run_on('`servers:src/a.ts:4` "serveStdio("')
+        self.assertTrue(any("past the end" in e for e in errors))
+
+    def test_undecodable_doc_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_tree(root, "ok")
+            (root / "docs/bad.md").write_bytes(b"caf\xe9 `servers:src/a.ts:2` \"serveStdio(\"")
+            _, errors = check_citations.check(root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("bad.md", errors[0])
+        self.assertIn("UTF-8", errors[0])
 
 
 if __name__ == "__main__":

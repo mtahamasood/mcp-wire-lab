@@ -14,7 +14,9 @@ ASK = re.compile(r"\bA(\d+)\b")
 ROW_DATE = re.compile(r"^\|\s*(\d{4}-\d{2}-\d{2})\s*\|", re.MULTILINE)
 ASK_ROW = re.compile(r"^\|\s*(A\d+)\s*\|", re.MULTILINE)
 SOURCE = re.compile(r"^\*Source:\*", re.MULTILINE)
-RECORD = re.compile(r"^### (D\d+)\b.*$", re.MULTILINE)
+RECORD = re.compile(r"^#{2,4} (D\d+)\b.*$", re.MULTILINE)
+REGISTER_ROW = re.compile(r"\bregister row\b|\bregistered in mission\.md\b", re.IGNORECASE)
+STATUS = re.compile(r"^[ \t]*(?:[-*][ \t]+)?Status:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
 CONSTITUTION = ("mission.md", "roadmap.md", "tech-stack.md")
 
 
@@ -51,7 +53,7 @@ def check_requirements(path: Path, asks: set[str], dates: set[str]) -> list[str]
         resolves = (
             bool(cited)
             or "mission.md" in source
-            or "register" in source.lower()
+            or REGISTER_ROW.search(source) is not None
             or any(c in source for c in CONSTITUTION)
         )
         if not resolves:
@@ -65,7 +67,12 @@ def check_changelog(root: Path, phase_dir: Path) -> list[str]:
     head = text.find("## Result")
     if head < 0:
         return [f"{validation}: no ## Result section"]
-    if not re.search(r"Where it stands:.*\bclosed\b", text[head:], re.IGNORECASE):
+    nxt = re.search(r"^## ", text[head + 1 :], re.MULTILINE)
+    result = text[head : head + 1 + nxt.start()] if nxt else text[head:]
+    values = STATUS.findall(result)
+    if len(values) != 1 or values[0] not in ("open", "closed"):
+        return [f"{validation}: Result needs exactly one line 'Status: open' or 'Status: closed'"]
+    if values[0] == "open":
         return []
     changelog = root / "CHANGELOG.md"
     if not changelog.is_file():

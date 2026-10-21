@@ -115,7 +115,7 @@ Any of these standing means the phase is NOT done, whatever else passes:
     session carries on (tools/list returns 16 tools, ping returns `{}`). Omitting
     `notifications/initialized`: `tools/list` (16 tools) and `ping` are both answered, no error.
     Sending `tools/list` before `initialize`: answered first with 16 tools and no error, then `initialize`
-    is answered normally. The server enforces none of the three spec rules; the lesson says so and its
+    is answered normally. The server tolerates all three (the rules cited bind the client, and the spec gives the server no duty to refuse); the lesson says so and its
     runnable blocks (G9) fail if a future pin changes it.
   - M7 (taken 2026-10-20 by the owner): `tap.show --mermaid` output of a fresh `handshake-2025` recording
     (2 participants, 10 lines of messages and notes), pasted in a fenced `mermaid` block into the Preview tab

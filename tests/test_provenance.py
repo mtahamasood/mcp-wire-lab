@@ -88,7 +88,7 @@ class ProvenanceTest(unittest.TestCase):
         self.assertIn("missing", errors[0])
 
     def test_closed_phase_needs_changelog(self) -> None:
-        closed = "## Result\n\n- Where it stands: closed\n"
+        closed = "## Result\n\n- Status: closed\n"
         errors = self.run_on(GOOD, closed)
         self.assertTrue(any("CHANGELOG.md is missing" in e for e in errors))
         with tempfile.TemporaryDirectory() as tmp:
@@ -97,8 +97,46 @@ class ProvenanceTest(unittest.TestCase):
             self.assertEqual(check_provenance.check(Path(tmp)), [])
 
     def test_open_phase_needs_no_changelog(self) -> None:
-        open_phase = "## Result\n\n- Where it stands: in progress\n"
-        self.assertEqual(self.run_on(GOOD, open_phase), [])
+        self.assertEqual(self.run_on(GOOD, "## Result\n\n- Status: open\n"), [])
+
+    def test_status_may_follow_other_result_lines_and_precede_next_section(self) -> None:
+        text = "## Result\n\n- Measurements:\n  - M1: closed\n- Status: closed\n\n## Later\n"
+        self.assertTrue(any("CHANGELOG.md is missing" in e for e in self.run_on(GOOD, text)))
+
+    def test_status_outside_result_is_ignored(self) -> None:
+        text = "Status: closed\n\n## Result\n\n- Status: open\n"
+        self.assertEqual(self.run_on(GOOD, text), [])
+
+    def test_other_status_values_fail(self) -> None:
+        for value in ("complete", "closed 2026-10-21", "in progress", ""):
+            errors = self.run_on(GOOD, f"## Result\n\n- Status: {value}\n")
+            self.assertEqual(len(errors), 1, value)
+            self.assertIn("Status", errors[0])
+
+    def test_missing_or_repeated_status_fails(self) -> None:
+        texts = (
+            "## Result\n\n- phase complete, merged\n",
+            "## Result\n- Status: open\n- Status: closed\n",
+        )
+        for text in texts:
+            errors = self.run_on(GOOD, text)
+            self.assertEqual(len(errors), 1, text)
+            self.assertIn("Status", errors[0])
+
+    def test_unregistered_wording_is_not_a_register_row(self) -> None:
+        for source in ("agent idea, not yet registered, 2026-10-20.", "unregistered 2026-10-20."):
+            errors = self.run_on(f"### D1 — T\n\n*Source:* {source}\n")
+            self.assertTrue(any("names no ask" in e for e in errors), source)
+
+    def test_register_row_phrases_resolve(self) -> None:
+        for source in ("the register row 2026-10-20.", "registered in mission.md 2026-10-20."):
+            self.assertEqual(self.run_on(f"### D1 — T\n\n*Source:* {source}\n"), [], source)
+
+    def test_record_at_any_heading_depth_needs_a_source(self) -> None:
+        for hashes in ("##", "####"):
+            errors = self.run_on(f"{hashes} D18 — Hidden\n\nNo source.\n")
+            self.assertEqual(len(errors), 1, hashes)
+            self.assertIn("D18", errors[0])
 
 
 if __name__ == "__main__":
