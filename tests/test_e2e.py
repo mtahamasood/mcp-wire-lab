@@ -183,6 +183,15 @@ class RawClientTest(unittest.TestCase):
         self.assertEqual([e.get("code") for e in exits], [0])
         self.assertEqual((self.run_dir / "stderr.txt").read_text().count("client:"), 0)
 
+    def test_tour_trace_passes_schema_check(self) -> None:
+        done = subprocess.run(
+            [sys.executable, "-m", "tap.check", str(self.run_dir / "trace.jsonl"),
+             "--revision", "2025-11-25"],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT,
+        )
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertRegex(done.stdout, r"check: ok \(\d+ frames\)")
+
     def test_record_client_tour(self) -> None:
         # A secret in the caller's environment reaches neither the server nor the trace (D14).
         env = {**os.environ, "FAKE_SECRET_FOR_C8": "leak"}
