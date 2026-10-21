@@ -12,7 +12,7 @@ from pathlib import Path
 
 CITATION = re.compile(r'`([A-Za-z0-9_-]+):([^`\s:]+):(\d+)`\s+"((?:[^"\\]|\\.)*)"')
 SUBMODULES = {"servers": "vendor/servers", "spec": "vendor/spec"}
-SCANNED = ("README.md", "docs", "tap")
+SCANNED = ("README.md", "docs", "tap", "client")
 MIN_FRAGMENT = 6
 
 
