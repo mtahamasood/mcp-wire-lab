@@ -123,6 +123,30 @@ class CheckFileTest(unittest.TestCase):
         self.assertEqual(g11.check_file("d/c.md", two.encode()), [])
         self.assertEqual(g11.check_file("d/d.md", (three.replace("=", ":")).encode()), [])
 
+    def test_key_value_env_key_is_the_whole_name(self) -> None:
+        # Mutant E5: an unanchored KEY= also matched MANPATH=, OLDPWD= and SUDO_USER=.
+        pairs = (("MAN", "PA" + "TH"), ("OLD", "PW" + "D"), ("SUDO_", "US" + "ER"))
+        text = "".join(f"{p}{k}=x\n" for p, k in pairs)
+        self.assertEqual(g11.check_file("d/a.md", text.encode()), [])
+
+    def test_export_with_any_whitespace_is_an_env_dump(self) -> None:
+        # Mutant E6: only `export ` with one space was accepted; the shell takes a tab too.
+        text = "\n".join(f"export\t{k}=x" for k in ("US" + "ER", "SHE" + "LL", "PW" + "D"))
+        self.assertTrue(any("environment" in p for p in g11.check_file("d/a.sh", text.encode())))
+
+    def test_marker_line_with_an_undecodable_byte_is_not_the_marker(self) -> None:
+        # Mutant D1 (errors="ignore"): dropping the byte made the line a valid marker again;
+        # replacing it (G11) leaves the line unparseable, so the file does not open with the marker.
+        data = MARKER.encode() + b"\xff\n" + TRACE_NS.encode() + b"\n"
+        problems = g11.check_file("tests/fixtures/a.ndjson", data)
+        self.assertTrue(any("synthetic marker" in p for p in problems), problems)
+
+    def test_one_trace_record_among_other_json_lines_is_trace_shaped(self) -> None:
+        # Mutant T5: requiring every JSON line to be a trace record let a pasted trace through.
+        data = ('{"jsonrpc":"2.0","id":1,"method":"ping"}\n' + TRACE_NS + "\n").encode()
+        problems = g11.check_file("docs/notes.md", data)
+        self.assertTrue(any("trace-shaped" in p for p in problems), problems)
+
 
 def git(
     cwd: Path, *args: str, env: dict[str, str] | None = None
@@ -185,6 +209,44 @@ class TrackedAndMergeTest(unittest.TestCase):
 
     def test_clean_repo_has_no_problems(self) -> None:
         self.assertEqual(g11.check_tracked(self.repo), [])
+
+    def test_leak_in_index_and_working_tree_is_named_once(self) -> None:
+        # Mutant I4: without the dedupe, a leak present in both copies was reported twice.
+        (self.repo / "both.md").write_text(GH_TOKEN, encoding="utf-8")
+        self.run_git("add", "both.md")
+        (self.repo / "both.md").write_text(GH_TOKEN + "\nmore\n", encoding="utf-8")
+        problems = [p for p in g11.check_tracked(self.repo) if "both.md" in p]
+        self.assertEqual(len(problems), 1, problems)
+
+    def test_working_tree_symlink_content_is_not_read(self) -> None:
+        # Mutant I7: following a working-tree symlink read a file outside the repo, which is not
+        # what git would store (it stores the link). The index blob is the clean README.
+        outside = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, outside)
+        (outside / "secret.txt").write_text(GH_TOKEN, encoding="utf-8")
+        (self.repo / "README.md").unlink()
+        os.symlink(outside / "secret.txt", self.repo / "README.md")
+        problems = g11.check_tracked(self.repo)
+        self.assertFalse(any("GitHub token" in p for p in problems), problems)
+
+    def test_non_utf8_file_name_is_checked(self) -> None:
+        # Mutants D3, D4, M4: a name that is not UTF-8 crashed the scan, or its blob was not found.
+        name = b"leak-\xff.md"
+        with open(os.path.join(os.fsencode(self.repo), name), "wb") as f:
+            f.write(GH_TOKEN.encode())
+        self.run_git("add", "-A")
+        self.assertTrue(any("GitHub token" in p for p in g11.check_tracked(self.repo)))
+        self.run_git("commit", "-m", "odd name")
+        head = self.run_git("rev-parse", "HEAD").stdout.strip()
+        self.assertTrue(any("GitHub token" in p for p in g11.check_commit(self.repo, head)))
+
+    def test_commit_adding_a_submodule_gitlink_is_skipped(self) -> None:
+        # Mutant M5: a gitlink's id names a commit, not a blob, so reading it crashed the hook.
+        base = self.run_git("rev-parse", "HEAD").stdout.strip()
+        self.run_git("update-index", "--add", "--cacheinfo", f"160000,{base},sub")
+        self.run_git("commit", "-m", "submodule")
+        head = self.run_git("rev-parse", "HEAD").stdout.strip()
+        self.assertEqual(g11.check_commit(self.repo, head), [])
 
     def merge_adding(self, rel: str, content: str) -> str:
         self.run_git("checkout", "-q", "-b", "side")
@@ -261,6 +323,31 @@ class InstallerTest(unittest.TestCase):
         done = self.install(self.repo)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertNotIn("core.hooksPath", done.stderr)
+
+    def test_no_warning_when_the_repo_is_reached_through_a_symlink(self) -> None:
+        # Mutant S5: without `pwd -P` the two spellings of the same directory looked different.
+        link = self.tmp / "link"
+        os.symlink(self.repo, link)
+        hooks = (self.repo / ".git/hooks").resolve()
+        self.run_git(self.repo, "config", "core.hooksPath", str(hooks))
+        done = self.install(link)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("core.hooksPath", done.stderr)
+
+    def test_missing_hooks_directory_is_created(self) -> None:
+        # Mutant S6: `git init` with an empty template leaves no hooks directory.
+        shutil.rmtree(self.repo / ".git/hooks")
+        done = self.install(self.repo)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertTrue((self.repo / ".git/hooks/pre-push").is_file())
+
+    def test_hooks_path_to_a_missing_directory_warns_and_installs(self) -> None:
+        # Mutant S8: a core.hooksPath that does not exist made the installer abort.
+        self.run_git(self.repo, "config", "core.hooksPath", str(self.tmp / "missing"))
+        done = self.install(self.repo)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("core.hooksPath", done.stderr)
+        self.assertTrue((self.repo / ".git/hooks/pre-push").is_file())
 
     def test_a_dispatcher_that_chains_to_the_repo_hook_blocks_a_push(self) -> None:
         bare = self.tmp / "remote.git"
