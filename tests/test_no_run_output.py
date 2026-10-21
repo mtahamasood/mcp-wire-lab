@@ -19,6 +19,7 @@ GH_TOKEN = "gh" + "p_" + "a1B2" * 9
 SK_KEY = "sk" + "-" + "abcDEF123_" * 3
 AWS_KEY = "AK" + "IA" + "ABCDEFGHIJKLMNOP"
 SLACK = "xo" + "xb-" + "1234567890-abc"
+GH_PAT = "github" + "_pat_" + "A1b2C3d4" * 4
 PRIVATE_KEY = "-----BEGIN " + "RSA PRIVATE KEY-----"
 HOME = "/ho" + "me/someone/project"
 ENV_KEYS = ["PA" + "TH", "HO" + "ME", "US" + "ER", "SHE" + "LL"]
@@ -37,6 +38,8 @@ LEAKS = {
     "docs/sk.md": SK_KEY,
     "docs/aws.md": AWS_KEY,
     "docs/slack.md": SLACK,
+    "docs/pat.md": GH_PAT,
+    "docs/env3.json": json.dumps({k: "x" for k in ("PW" + "D", "US" + "ER", "SHE" + "LL")}),
     "docs/key.md": PRIVATE_KEY,
 }
 
@@ -106,8 +109,44 @@ class CheckFileTest(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertTrue(g11.check_file("docs/a.md", text.encode()), text)
 
+    def test_home_directory_before_any_delimiter(self) -> None:
+        # B3: a doc puts a bare home directory in a code span, before a colon, a comma, a paren.
+        h = "/ho" + "me/someone"
+        for text in (
+            f"your HOME is `{h}`",
+            f"PATH=/usr/bin:{h}:/bin",
+            f"{h},",
+            f"({h})",
+            f"see ({h}) now",
+            f"someone:x:1000:1000::{h}:/bin/bash",
+            f"[{h}]",
+            f"{h}\n",
+        ):
+            with self.subTest(text=text):
+                problems = g11.check_file("docs/a.md", text.encode())
+                self.assertTrue(any("home-directory" in p for p in problems), (text, problems))
+
+    def test_indented_and_declared_env_dumps(self) -> None:
+        keys = ["PA" + "TH", "HO" + "ME", "US" + "ER"]
+        forms = {
+            "spaces": "\n".join(f"    {k}=x" for k in keys),
+            "tab": "\n".join(f"\t{k}=x" for k in keys),
+            "declare": "\n".join(f"declare -x {k}=x" for k in keys),
+            "indented export": "\n".join(f"  export {k}=x" for k in keys),
+        }
+        for name, text in forms.items():
+            with self.subTest(form=name):
+                problems = g11.check_file("docs/a.md", text.encode())
+                self.assertTrue(any("environment" in p for p in problems), problems)
+
     def test_home_lookalikes_pass(self) -> None:
-        for text in ("/ro" + "oted", "/ho" + "mework/x", "/ho" + "me/", "/ro" + "ot-cause"):
+        for text in (
+            "/ro" + "oted",
+            "/ho" + "mework/x",
+            "/ho" + "me/",
+            "/ro" + "ot-cause",
+            "/ho" + "me/<you>",
+        ):
             with self.subTest(text=text):
                 self.assertEqual(g11.check_file("docs/a.md", text.encode()), [], text)
 
@@ -190,6 +229,59 @@ class TrackedAndMergeTest(unittest.TestCase):
         self.run_git("commit", "-m", "link")
         head = self.run_git("rev-parse", "HEAD").stdout.strip()
         self.assertTrue(any("link" in p for p in g11.check_commit(self.repo, head)))
+
+    def commit_head(self) -> str:
+        return self.run_git("rev-parse", "HEAD").stdout.strip()
+
+    def test_commit_turning_a_file_into_a_symlink_is_checked(self) -> None:
+        # B4: a regular file replaced by a symlink is a typechange (T); the filter dropped it.
+        (self.repo / "note").write_text("clean\n", encoding="utf-8")
+        self.run_git("add", "note")
+        self.run_git("commit", "-m", "note")
+        (self.repo / "note").unlink()
+        os.symlink(HOME, self.repo / "note")
+        self.run_git("add", "note")
+        self.run_git("commit", "-m", "note becomes a link")
+        problems = g11.check_commit(self.repo, self.commit_head())
+        self.assertTrue(any("note" in p for p in problems), problems)
+
+    def test_commit_turning_a_symlink_into_a_file_is_checked(self) -> None:
+        os.symlink("README.md", self.repo / "note")
+        self.run_git("add", "note")
+        self.run_git("commit", "-m", "link")
+        (self.repo / "note").unlink()
+        (self.repo / "note").write_text(GH_TOKEN, encoding="utf-8")
+        self.run_git("add", "note")
+        self.run_git("commit", "-m", "link becomes a file")
+        problems = g11.check_commit(self.repo, self.commit_head())
+        self.assertTrue(any("note" in p and "GitHub token" in p for p in problems), problems)
+
+    def test_working_tree_file_replacing_a_tracked_symlink_is_read(self) -> None:
+        # B19 (a)
+        os.symlink("README.md", self.repo / "note")
+        self.run_git("add", "note")
+        self.run_git("commit", "-m", "link")
+        (self.repo / "note").unlink()
+        (self.repo / "note").write_text(GH_TOKEN, encoding="utf-8")
+        problems = g11.check_tracked(self.repo)
+        self.assertTrue(any("note" in p and "GitHub token" in p for p in problems), problems)
+
+    def test_working_tree_retargeted_symlink_is_read(self) -> None:
+        # B19 (b)
+        os.symlink("README.md", self.repo / "note")
+        self.run_git("add", "note")
+        self.run_git("commit", "-m", "link")
+        (self.repo / "note").unlink()
+        os.symlink(HOME, self.repo / "note")
+        problems = g11.check_tracked(self.repo)
+        self.assertTrue(any("note" in p and "home-directory" in p for p in problems), problems)
+
+    def test_working_tree_symlink_replacing_a_tracked_file_is_read_as_its_target(self) -> None:
+        # B19 (c)
+        (self.repo / "README.md").unlink()
+        os.symlink(HOME, self.repo / "README.md")
+        problems = g11.check_tracked(self.repo)
+        self.assertTrue(any("README.md" in p and "home-directory" in p for p in problems), problems)
 
     def test_staged_leak_hidden_by_the_working_tree_is_found(self) -> None:
         (self.repo / "staged.md").write_text(GH_TOKEN, encoding="utf-8")
@@ -301,6 +393,24 @@ class InstallerTest(unittest.TestCase):
             text=True,
             env=self.env,
         )
+
+    def test_outside_a_repo_the_installer_stops_before_mkdir(self) -> None:
+        # B16: `mkdir -p "$(failed)/hooks"` ran with an empty prefix and tried to create /hooks.
+        outer = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, outer)
+        empty = outer / "empty"
+        empty.mkdir()
+        env = {**self.env, "GIT_CEILING_DIRECTORIES": str(outer)}
+        done = subprocess.run(
+            [str(ROOT / "scripts/install-pre-push.sh"), str(empty)],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("not a git repository", done.stderr)
+        self.assertNotIn("mkdir", done.stderr)
+        self.assertEqual(list(empty.iterdir()), [])
 
     def test_no_warning_when_hooks_path_is_unset(self) -> None:
         done = self.install(self.repo)
@@ -421,8 +531,10 @@ class PrePushHookTest(unittest.TestCase):
             [str(ROOT / "scripts/install-pre-push.sh"), str(self.clone)],
             capture_output=True,
             text=True,
+            env=self.env,
         )
         self.assertEqual(install.returncode, 0, install.stderr)
+        self.assertEqual(install.stderr, "")
 
     def run_git(self, cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         done = git(cwd, *args, env=self.env)
@@ -443,6 +555,43 @@ class PrePushHookTest(unittest.TestCase):
         self.assertEqual(
             git(self.bare, "rev-parse", "--verify", "main", env=self.env).returncode, 128
         )
+
+    def test_leak_edited_into_a_tracked_file_is_refused(self) -> None:
+        # B1 (c): the hook must read modified files, not only added ones.
+        self.run_git(self.clone, "push", "origin", "main")
+        (self.clone / "README.md").write_text("hello\n" + GH_TOKEN + "\n", encoding="utf-8")
+        self.run_git(self.clone, "commit", "-am", "edit")
+        done = git(self.clone, "push", "origin", "main", env=self.env)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("README.md", done.stderr)
+
+    def test_leak_in_the_root_commit_of_a_new_branch_is_refused(self) -> None:
+        # B1 (d): without --root the first commit of a branch has no parent to compare with.
+        self.run_git(self.clone, "checkout", "-q", "--orphan", "fresh")
+        self.run_git(self.clone, "rm", "-rfq", "--cached", ".")  # keep tools/ on disk for the hook
+        (self.clone / "leak.md").write_text(GH_TOKEN, encoding="utf-8")
+        self.run_git(self.clone, "add", "leak.md")
+        self.run_git(self.clone, "commit", "-m", "root")
+        done = git(self.clone, "push", "origin", "fresh", env=self.env)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("leak.md", done.stderr)
+        self.assertNotEqual(
+            git(self.bare, "rev-parse", "--verify", "fresh", env=self.env).returncode, 0
+        )
+
+    def test_file_that_becomes_a_symlink_to_a_home_path_is_refused(self) -> None:
+        # B4: typechange in a pushed commit.
+        (self.clone / "note").write_text("clean\n", encoding="utf-8")
+        self.run_git(self.clone, "add", "note")
+        self.run_git(self.clone, "commit", "-m", "note")
+        self.run_git(self.clone, "push", "origin", "main")
+        (self.clone / "note").unlink()
+        os.symlink(HOME, self.clone / "note")
+        self.run_git(self.clone, "add", "note")
+        self.run_git(self.clone, "commit", "-m", "note becomes a link")
+        done = git(self.clone, "push", "origin", "main", env=self.env)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("note", done.stderr)
 
     def test_leak_removed_by_a_later_commit_is_still_refused(self) -> None:
         (self.clone / "docs").mkdir()
@@ -482,6 +631,7 @@ class PrePushHookTest(unittest.TestCase):
             [str(ROOT / "scripts/install-pre-push.sh"), str(self.clone)],
             capture_output=True,
             text=True,
+            env=self.env,
         )
         self.assertNotEqual(done.returncode, 0)
         self.assertEqual(hook.read_text(encoding="utf-8"), "#!/bin/sh\nexit 0\n")
