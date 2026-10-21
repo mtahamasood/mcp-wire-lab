@@ -210,6 +210,38 @@ Any of these standing means the phase is NOT done, whatever else passes:
     Signed equivalent: dropping `parse_float` (`1e999` then parses to infinity, and `encode_record`'s
     `allow_nan=False` turns it into `json: null` with a `parse_error`, so C4 holds; the first layer stays
     because its message names the cause).
+  - C8, C11, C12 after step (b) (2026-10-21): the G1, G7, G8 and G9 changes of `baf9054` (R7-R9, R12, R20,
+    T15, T19). Each mutant applied in place to its tool with `PYTHONDONTWRITEBYTECODE=1`, the matching test
+    file run, the tool restored and `git diff` seen empty. G8 is C11's gate, recorded here with its batch.
+    Baselines exit 0. 42 mutants (G8 14, G1 8, G7 9, G9 11): 29 killed by the tests of `baf9054`, 13
+    survived; 11 of those were killed by new tests (passing on the real tools first), 2 signed equivalent.
+    Whole set re-run on the final tests: 40 killed, the 2 equivalents pass.
+    C11 (G8, `tests.test_citations`, 16 tests): killed with no new test: containment check off, target not
+    resolved (escape test); minimum 5 or 7, `<=` or no length check (short- and six-character tests); no
+    `continue` after the length error (the scanned-files count); final-newline `pop` dropped (phantom-line
+    test); undecodable doc skipped silently, or not skipped (undecodable test). Survived, then killed:
+    base not resolved, by `test_root_reached_through_a_symlink_passes`; length of the raw text instead of
+    the unescaped fragment, by `test_fragment_length_counts_unescaped_characters`; no `continue` after the
+    outside error (the outside file is read), by `test_escaping_path_gets_one_error_and_is_not_read`.
+    C8 (G1 and G7, `tests.test_provenance`, 25 tests): killed with no new test: record headings `###` only,
+    `##`-`###` or `###`-`####`; the old `register` substring; the register phrases ignored; the next-section
+    search starting on `## Result` itself; `len(values) < 1`; any Status value accepted; a bulleted
+    `- Status:` not matched; an open phase sent to the CHANGELOG check. Survived, then killed: case-sensitive
+    phrases, by `test_register_row_at_sentence_start_resolves`; no word boundary before `register row`, by
+    `test_register_row_inside_a_longer_word_does_not_resolve`; the Result not cut at the next `##`, by
+    `test_status_in_a_later_section_is_ignored`; trailing blanks kept in the value, by
+    `test_trailing_whitespace_after_status_value_is_ignored`; `Status:` matched mid-line, by
+    `test_status_mentioned_mid_line_is_not_the_field`; `status:` in any case, by
+    `test_lowercase_status_is_not_the_field`.
+    C12 (G9, `tests.test_lessons`, 16 tests): killed with no new test: fences not stripped, or `^` only at
+    the string start (fence test); order check off (reverse test); `-e` alone (pipe test); `-o pipefail`
+    alone (not-last test); default `--min-lessons 0`; the timeout uncaught, unreported or not patched
+    (timed-out test). Survived, then killed: a greedy fence (first fence to last), by
+    `test_headings_between_fenced_blocks_count`; a fence closed by a ```` ```text ```` line, by
+    `test_fence_closes_only_on_a_bare_fence_line`.
+    Signed equivalent: G8 `if lines and lines[-1] == ""` without `lines and` (`str.split` never returns an
+    empty list); G1 without the `registered in mission.md` phrase (`"mission.md" in source` already
+    resolves any Source holding it).
 - Judgement verdicts:
 - Findings beyond the rows:
 - Status: open

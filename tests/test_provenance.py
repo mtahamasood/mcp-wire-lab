@@ -132,6 +132,31 @@ class ProvenanceTest(unittest.TestCase):
         for source in ("the register row 2026-10-20.", "registered in mission.md 2026-10-20."):
             self.assertEqual(self.run_on(f"### D1 — T\n\n*Source:* {source}\n"), [], source)
 
+    def test_register_row_at_sentence_start_resolves(self) -> None:
+        self.assertEqual(self.run_on("### D1 — T\n\n*Source:* Register row 2026-10-20.\n"), [])
+
+    def test_register_row_inside_a_longer_word_does_not_resolve(self) -> None:
+        errors = self.run_on("### D1 — T\n\n*Source:* a preregister row, 2026-10-20.\n")
+        self.assertTrue(any("names no ask" in e for e in errors))
+
+    def test_status_in_a_later_section_is_ignored(self) -> None:
+        text = "## Result\n\n- Status: open\n\n## Notes\n\nStatus: closed\n"
+        self.assertEqual(self.run_on(GOOD, text), [])
+
+    def test_trailing_whitespace_after_status_value_is_ignored(self) -> None:
+        errors = self.run_on(GOOD, "## Result\n\n- Status: closed \t\n")
+        self.assertEqual(len(errors), 1)
+        self.assertIn("CHANGELOG.md is missing", errors[0])
+
+    def test_status_mentioned_mid_line_is_not_the_field(self) -> None:
+        text = "## Result\n\n- Status: open\n- Note: the line Status: closed must stand alone\n"
+        self.assertEqual(self.run_on(GOOD, text), [])
+
+    def test_lowercase_status_is_not_the_field(self) -> None:
+        errors = self.run_on(GOOD, "## Result\n\n- status: closed\n")
+        self.assertEqual(len(errors), 1)
+        self.assertIn("'Status: open'", errors[0])
+
     def test_record_at_any_heading_depth_needs_a_source(self) -> None:
         for hashes in ("##", "####"):
             errors = self.run_on(f"{hashes} D18 — Hidden\n\nNo source.\n")
