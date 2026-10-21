@@ -29,7 +29,9 @@ change, or if the fault mode alters a run that did not ask for it.
 
 ## Result
 
-- Status: open
+- Status: closed
+
+Closed 2026-10-21 by the agent under the owner's delegation (register row 2026-10-21, spec batch approval): every C row passes on `main` with the gate green (G1-G5, G7-G12; G12 checks this phase). G6, the learner walk and J rows are deferred (LP5).
 
 ### Mutation (LP4)
 
@@ -60,4 +62,13 @@ frame or claiming `forwarded: true`; the first non-matching frame dropped.
 
 ### Owner learning check (LP6)
 
-Prompts written at close; answers by the owner only.
+Answers by the owner only; open until answered (LP5).
+
+1. *Explain.* Record `edge-duplicate-id` fresh and, without the walkthrough, say which reply
+   answers which request and why the client could not tell them apart.
+2. *Change.* Predict the trace of `edge-string-id` if the second request used `"id": 1.0`
+   instead of `1`, then record it and explain any difference from your prediction.
+3. *Debug.* Run the handshake fixture through the tap with `--drop c2s:notifications/initialized`
+   and explain, from the trace alone, what the server did with the requests that followed.
+
+Answers:
