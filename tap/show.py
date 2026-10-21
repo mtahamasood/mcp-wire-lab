@@ -90,11 +90,12 @@ def load(path: Path) -> list[dict[str, Any]]:
             rec = json.loads(line)
         except ValueError as exc:
             raise ShowError(f"{path}:{number}: not a trace record: {exc}") from exc
-        if not isinstance(rec, dict) or rec.get("dir") not in ARROWS or not isinstance(
-            rec.get("t_ns", 0), (int, float)
-        ):
+        synthetic = isinstance(rec, dict) and rec.get("event") == "synthetic"
+        if (not isinstance(rec, dict) or not isinstance(rec.get("dir"), str)
+                or rec["dir"] not in ARROWS
+                or not isinstance(rec.get("t_ns", 0 if synthetic else None), (int, float))):
             raise ShowError(f"{path}:{number}: not a trace record")
-        if rec.get("event") != "synthetic":
+        if not synthetic:
             records.append(rec)
     return records
 
@@ -185,7 +186,9 @@ def mermaid(items: list[dict[str, Any]]) -> str:
         elif direction == "stderr":
             note = mermaid_text("stderr: " + item.get("raw", "").rstrip("\n"))
             lines.append(f"    Note over Server: {note}")
-        elif kind in ("raw", "batch"):
+        elif kind == "batch":
+            lines.append(f"    Note over Client,Server: {direction} batch")
+        elif kind == "raw":
             note = mermaid_text(f"{direction} not JSON-RPC: {item.get('raw', '<binary>')}")
             lines.append(f"    Note over Client,Server: {note}")
         else:

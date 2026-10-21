@@ -176,6 +176,29 @@ class RobustnessTest(TraceCase):
             self.assertEqual(len(done.stderr.splitlines()), 1, done.stderr)
             self.assertTrue(done.stderr.startswith("show: "), done.stderr)
 
+    def test_c9_record_without_t_ns_or_with_listy_dir_exits_two_with_one_line(self) -> None:
+        bodies = ['{"seq": 0, "dir": "c2s", "json": null}',
+                  '{"seq": 0, "t_ns": 1, "dir": ["c2s"], "json": null}',
+                  '{"seq": 0, "t_ns": 1, "dir": {"a": 1}, "json": null}']
+        for n, body in enumerate(bodies):
+            path = self.dir / f"missing{n}.jsonl"
+            path.write_text(body + "\n", encoding="utf-8")
+            done = show(path)
+            self.assertEqual(done.returncode, 2, (body, done.stderr))
+            self.assertEqual(done.stdout, "")
+            self.assertNotIn("Traceback", done.stderr)
+            self.assertEqual(len(done.stderr.strip().split("\n")), 1, done.stderr)
+
+    def test_c9_synthetic_marker_may_omit_t_ns(self) -> None:
+        path = self.dir / "synth.jsonl"
+        path.write_text('{"seq": 0, "dir": "tap", "event": "synthetic"}\n', encoding="utf-8")
+        self.assertEqual(show(path).returncode, 0)
+
+    def test_c13_mermaid_labels_a_batch_as_a_batch(self) -> None:
+        out = "\n".join(self.lines([rec(1, "c2s", [req(1)])], "--mermaid"))
+        self.assertIn("batch", out)
+        self.assertNotIn("not JSON-RPC", out)
+
     def test_c9_output_pipe_closed_before_start_ends_quietly(self) -> None:
         # the read end is gone before the viewer writes, so its one buffered flush hits EPIPE
         read_end, write_end = os.pipe()
