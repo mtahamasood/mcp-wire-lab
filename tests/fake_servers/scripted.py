@@ -11,7 +11,8 @@ receives to LOG (one per line) so a test can check exactly what the client sent.
   overlap      sends a request with id 0 first (method roots/list), replies when the client
                has answered it, with the client's answer as the result
 
---ignore-eof makes it keep running after stdin closes, --ignore-term makes it ignore SIGTERM.
+On end of stdin it writes LOG.eof. --ignore-eof makes it keep running after stdin closes,
+--ignore-term makes it ignore SIGTERM.
 """
 
 from __future__ import annotations
@@ -72,6 +73,8 @@ def main() -> int:
                 late_id = msg["params"]["requestId"]
                 if hung.pop(late_id, False):
                     send({"jsonrpc": "2.0", "id": late_id, "result": {"late": True}})
+    with open(args.log + ".eof", "w", encoding="utf-8") as marker:
+        marker.write("stdin closed\n")
     if args.ignore_eof:
         time.sleep(60)
     return 0
