@@ -383,7 +383,7 @@ Any of these standing means the phase is NOT done, whatever else passes:
 - Judgement verdicts:
   - J1: pass, owner, 2026-10-21 (the row above).
   - J2: pass, owner, 2026-10-21 (the row above), signed before the learner-walk findings list existed
-    (finding R17). Close-out note, agent-proposed, owner to confirm (A3; not an owner signature): read
+    (finding R17). Close-out note, agent-proposed and confirmed by the owner (A3; the owner approved A2 to A21 in the session of 2026-10-21, after the agent's final report): read
     against `audits/learner-walk-lesson-01.md`, the learner reached the end of lesson 01 without outside
     help; of its stalls, items 1, 2, 4, 5, 6, 8, 9 and 10 are fixed in the README, lesson and walkthrough
     (`2634b41`), item 11 needs no change, and items 3 (the Predict answers can be read further down the
