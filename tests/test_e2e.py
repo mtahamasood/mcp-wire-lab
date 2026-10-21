@@ -126,5 +126,36 @@ class E2ETest(unittest.TestCase):
                 shutil.rmtree(r, ignore_errors=True)
 
 
+class AtlasClaimsTest(unittest.TestCase):
+    """C9, real half: a lesson's `exercises` line is true of a fresh trace of its recording."""
+
+    # Lesson file -> the fixtures it records. Lessons 02-04 are added when they are written.
+    LESSON_FIXTURES = {"01-the-wire-and-the-handshake.md": ["handshake-2025.ndjson"]}
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        assert SERVER.is_file(), f"{SERVER} missing: run scripts/bootstrap.sh"
+
+    def test_lesson_declarations_appear_in_fresh_traces(self) -> None:
+        from tools import atlas
+
+        declared = atlas.declared_methods(ROOT)
+        self.assertTrue(declared, "no lesson declares methods")
+        for lesson, methods in declared.items():
+            self.assertIn(lesson, self.LESSON_FIXTURES, f"{lesson} has no fixture mapped")
+            seen: set[str] = set()
+            for fixture in self.LESSON_FIXTURES[lesson]:
+                run = record(fixture, "test-c9")
+                try:
+                    for line in (run / "trace.jsonl").read_text().splitlines():
+                        message = json.loads(line).get("json")
+                        if isinstance(message, dict) and "method" in message:
+                            seen.add(message["method"])
+                finally:
+                    shutil.rmtree(run, ignore_errors=True)
+            for method in methods:
+                self.assertIn(method, seen, f"{lesson} declares {method}, absent from its trace")
+
+
 if __name__ == "__main__":
     unittest.main()
