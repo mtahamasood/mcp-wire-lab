@@ -69,3 +69,8 @@ that no run output is tracked (G11). Some things are not checked by any gate: se
 [`specs/phases/01-wire-tap/validation.md`](specs/phases/01-wire-tap/validation.md).
 
 The reasoning behind the project lives in [`specs/`](specs/).
+
+## Licence
+
+This repository's own content is under the MIT licence: see [`LICENSE`](LICENSE). The
+submodules under `vendor/` are upstream projects and keep their own licences.

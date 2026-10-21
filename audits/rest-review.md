@@ -352,6 +352,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Why it matters: this decision faces outward and belongs to the owner. I raise it, not decide it.
 - Suggested fix: the owner picks a licence; add LICENSE and a register row.
 - Disposition: open, owner: the owner picks a licence; the agent then adds `LICENSE` and a register row. Not done by the agent.
+- Status (2026-10-21, close-out): decided by the agent under the owner's later delegation (A2): MIT, `LICENSE` and register row 2026-10-21 (sixth of that date). Agent-proposed, owner to confirm.
 
 ### R19 (nit, CONFIRMED). The walkthrough's wording is looser than the spec or the code in three places
 
