@@ -17,6 +17,8 @@ TOOLS: dict[str, list[str]] = {
     "tap.check": [sys.executable, "-m", "tap.check"],
     "client": [sys.executable, "-m", "client"],
     "record.sh": ["scripts/record.sh"],
+    "bootstrap.sh": ["scripts/bootstrap.sh"],
+    "gate.sh": ["scripts/gate.sh"],
 }
 
 
@@ -61,8 +63,11 @@ class HelpTest(unittest.TestCase):
                 done = run(TOOLS[name], "--nonsense")
                 self.assertEqual(done.returncode, 2)
                 self.assertIn("usage:", done.stderr)
-        done = run(TOOLS["record.sh"], "--nonsense")
-        self.assertEqual(done.returncode, 1)
+        for script in ("record.sh", "bootstrap.sh", "gate.sh"):
+            with self.subTest(tool=script):
+                done = run(TOOLS[script], "--nonsense")
+                self.assertEqual(done.returncode, 1)
+                self.assertIn("usage:", done.stderr)
 
 
 if __name__ == "__main__":

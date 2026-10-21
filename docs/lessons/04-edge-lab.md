@@ -155,6 +155,8 @@ lost message look the same to a client.
 3. In the fault run, which record proves the request reached the tap, and which proves it did not
    reach the server?
 4. A request is silently lost. Name two things a client should have set up before it happens.
+5. In the `--delay s2c:2000` run, which part of the added time is the tap's and which is the
+   server's?
 
 <details>
 <summary>Answers</summary>
@@ -168,5 +170,9 @@ lost message look the same to a client.
    its `frame_seq` and `"forwarded": false` proves it went no further.
 4. A timeout on every request, and the means to send `notifications/cancelled` (and to ignore a
    late reply) when the timeout fires.
+5. The two seconds are the tap's: they show as the gap before the next client frame and as the
+   `tap fault` row after each reply. The server's part is the latency printed beside each reply,
+   which stays small, because the tap records a reply before it holds it. A client waiting on
+   the wire cannot tell the two apart from a slow server.
 
 </details>

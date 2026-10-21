@@ -200,7 +200,7 @@ request it does not handle: `Wire._refuse` answers with `-32601` under the serve
 **3. Change the client, predict the trace.** In `client/tour.py`, change the `"hello"` the tour
 sends to `echo` and the `"Echo: hello"` it expects back (for example to `"howdy"` and
 `"Echo: howdy"`). Before you run `scripts/record.sh --client tour`
-again, predict which frames of the trace change and which do not. Then check with `tap.show --full`. Then undo the edit with `git checkout client/tour.py`, so the
+again, predict which frames of the trace change and which do not. Then compare the two recordings with the recipe in the README (*Record and read a trace*). Then undo the edit with `git checkout client/tour.py`, so the
 gate still sees the original.
 
 ## Check yourself

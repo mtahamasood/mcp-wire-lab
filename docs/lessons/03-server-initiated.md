@@ -33,7 +33,8 @@ The server tour declares every capability and then calls the tools that make the
 roots, sampling, elicitation (form, two rounds, URL), log messages, list changes, and a resource
 update. `scripts/record.sh --client server-tour` runs it with the tap between the client and the
 pinned server, into your own `runs/` folder (git-ignored). It avoids the server's timer tools
-(`toggle-*`), so its messages are the same on every run.
+(`toggle-*`), so its messages are the same on every run, except for one random `elicitationId`
+(a UUID) in the URL-elicitation request and in that tool's result.
 
 <!-- run -->
 ```console
@@ -198,9 +199,9 @@ Measured: the tool does not exist for this client, so the server answers an erro
 request's id. Declaring `roots` is what makes it appear.
 
 **3. Change the roots.** In `client/server_tour.py`, change the `uri` and `name` in `OTHER_ROOT`
-(for example to `file:///wire-lab/mine` and `mine`). Predict which frames of the trace change (the
-client's last answer and the server's last log line) and which do not. Record again and check with
-`tap.show --full`. Then undo the edit with `git checkout client/server_tour.py`, so the gate still
+(for example to `file:///wire-lab/mine` and `mine`). Predict which frames of the trace change and which do not (hint: only the client's answer to the
+last `roots/list` carries the roots themselves; the server's log line about them reports a count).
+Record again and compare with the recipe in the README (*Record and read a trace*). Then undo the edit with `git checkout client/server_tour.py`, so the gate still
 sees the original.
 
 ## Check yourself

@@ -8,6 +8,12 @@ each phase ends with a git tag named after its lesson (`lesson-NN`) instead of a
 
 ### Changed
 
+- `-h` / `--help` on `tap`, `tap.show`, `tap.check`, `client`, `record.sh`, `bootstrap.sh` and
+  `gate.sh` prints the usage on stdout and exits 0 (the two setup scripts no longer run on an
+  unknown argument either); the usage texts explain every option.
+- README: *Start here*, a tools table, *What is where*, *Troubleshooting*, *Status*, a recipe for
+  comparing two recordings, and a note about the answers in the lessons.
+
 - `tap.show --explain file.md#name` with a section the file does not have now lists the sections
   it does have.
 - Lessons 02 to 04 and the README fixed after a learner walk (`audits/learner-walk-lessons-02-04.md`):

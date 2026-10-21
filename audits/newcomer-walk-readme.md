@@ -38,13 +38,13 @@ the need for timeouts) was correct.
 
 | # | Finding | Severity | Proposed disposition |
 | --- | --- | --- | --- |
-| N1 | README says every command takes `--help`; `scripts/bootstrap.sh --help` re-ran the whole bootstrap and `scripts/gate.sh --help` started the 2-minute gate | wrong | Add `-h`/`--help` to both scripts (extend D1 and C19). Harmless today, but it is a README claim that is false |
-| N2 | Lesson 03 experiment 3 says the server's last log line changes; it carries only a count, so it does not. A random `elicitationId` UUID also differs per run, against "same on every run" | wrong | Correct the hint (only the client's `roots/list` answer changes) and name the UUID as the one varying value |
-| N3 | Answers sit under `<details>` in the same file; in a terminal they show before the learner predicts | unclear | One sentence in the README *Start here*: in a terminal the answers are visible, so cover them |
-| N4 | Lesson 04's "which part of a delayed run is the tap and which the server?" has no answer in the answer block | unclear | Add the answer (the gaps and fault rows are the tap; reply latencies are the server) |
-| N5 | Lesson 01 experiment 2 never says what work the `oninitialized` hook does | unclear | One sentence |
-| N6 | Lessons 02 and 03 experiment 3: no recipe for comparing two traces | unclear | One-line recipe (`tap.show --full` of both, then `diff`) |
-| N7 | README `<the path it printed>` is explained after the code block | nit | Reorder |
-| N8 | Lesson 03 `matrix` expect block shows one row, not the table | nit | Accepted: the gate matches a line, and the text now says to compare rows |
-| N9 | Lesson 04: walkthrough batch section repeats about 45 "(continues the note on stderr.1)" lines; `tap fault` rows hide `frame_seq`/`forwarded` unless you grep the JSONL | nit | Accepted limit: range anchors keep the explain check exact; `tap.show --full` shows the fields |
-| N10 | `env -i` in the spawn line and ids starting at 0 not explained at first sight | nit | Accepted limit |
+| N1 | README says every command takes `--help`; `scripts/bootstrap.sh --help` re-ran the whole bootstrap and `scripts/gate.sh --help` started the 2-minute gate | wrong | Add `-h`/`--help` to both scripts (extend D1 and C19). Harmless today, but it is a README claim that is false **Done: Fixed: `-h`/`--help` on both scripts (D1 and C19 extended); an unknown argument exits 1.** |
+| N2 | Lesson 03 experiment 3 says the server's last log line changes; it carries only a count, so it does not. A random `elicitationId` UUID also differs per run, against "same on every run" | wrong | Correct the hint (only the client's `roots/list` answer changes) and name the UUID as the one varying value **Done: Fixed: hint corrected, UUID named.** |
+| N3 | Answers sit under `<details>` in the same file; in a terminal they show before the learner predicts | unclear | One sentence in the README *Start here*: in a terminal the answers are visible, so cover them **Done: Fixed: README *Start here* says the answers are plain text in a terminal.** |
+| N4 | Lesson 04's "which part of a delayed run is the tap and which the server?" has no answer in the answer block | unclear | Add the answer (the gaps and fault rows are the tap; reply latencies are the server) **Done: Fixed: lesson 04 check question 5 and its answer.** |
+| N5 | Lesson 01 experiment 2 never says what work the `oninitialized` hook does | unclear | One sentence **Done: Fixed: lesson 01 says what the hook does.** |
+| N6 | Lessons 02 and 03 experiment 3: no recipe for comparing two traces | unclear | One-line recipe (`tap.show --full` of both, then `diff`) **Done: Fixed: README recipe (tested on two identical tours: no diff), pointed to from lessons 02 and 03.** |
+| N7 | README `<the path it printed>` is explained after the code block | nit | Reorder **Done: Fixed.** |
+| N8 | Lesson 03 `matrix` expect block shows one row, not the table | nit | Accepted: the gate matches a line, and the text now says to compare rows **Done: Accepted limit.** |
+| N9 | Lesson 04: walkthrough batch section repeats about 45 "(continues the note on stderr.1)" lines; `tap fault` rows hide `frame_seq`/`forwarded` unless you grep the JSONL | nit | Accepted limit: range anchors keep the explain check exact; `tap.show --full` shows the fields **Done: Accepted limit.** |
+| N10 | `env -i` in the spawn line and ids starting at 0 not explained at first sight | nit | Accepted limit **Done: Accepted limit.** |

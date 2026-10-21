@@ -2,6 +2,16 @@
 # One entry point for the automated quality gates (D7); CI runs exactly this.
 # Stops at the first failure. Gate numbers are in specs/tech-stack.md.
 set -euo pipefail
+
+usage() {
+  echo "usage: scripts/gate.sh"
+  echo "  Takes no arguments. Runs every automated check (needs uv); takes about two minutes and stops at the first failure."
+}
+case "${1:-}" in
+  "") ;;
+  -h|--help) usage; exit 0 ;;
+  *) echo "gate: unexpected argument: $1" >&2; usage >&2; exit 1 ;;
+esac
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 gate() { local id="$1"; shift; echo "== $id: $*"; "$@"; }

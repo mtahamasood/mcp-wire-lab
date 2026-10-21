@@ -153,7 +153,8 @@ response id=2
 Measured: the server answers `tools/list` and `ping` as if nothing were missing. The spec tells the
 client to send the notification (`spec:docs/specification/2025-11-25/basic/lifecycle.mdx:147` "MUST** send an `initialized` notification"),
 but this server does not refuse a client that skips it. What it does skip is the work its
-`oninitialized` hook does (`servers:src/everything/server/index.ts:194` "server.server.oninitialized").
+`oninitialized` hook does (it registers the tools that depend on what the client declared, and
+asks for the client's roots 350 ms later; `servers:src/everything/server/index.ts:194` "server.server.oninitialized").
 
 **3. Send `tools/list` before `initialize`.** `exp-list-first.ndjson` sends the list request first.
 

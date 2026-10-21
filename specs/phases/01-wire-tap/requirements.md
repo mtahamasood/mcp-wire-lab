@@ -14,7 +14,7 @@ own stdout, and writes a trace. Any client that launches a stdio server can laun
 instead, unchanged. A usage error, or a trace path that cannot be opened, prints one line
 starting `tap:` (or the usage text) on stderr and exits 2, before any child is started.
 `-h` or `--help` as the first argument of `python3 -m tap`, `tap.show`, `tap.check`, `client` (or
-right after its mode) and `scripts/record.sh` is not an error: it prints the usage text on stdout
+right after its mode), `scripts/record.sh`, `scripts/bootstrap.sh` and `scripts/gate.sh` is not an error: it prints the usage text on stdout
 and exits 0. The same words after `--` belong to the server command and are never read.
 
 *Rationale:* observation must sit on the wire, outside both endpoints, so that the trace

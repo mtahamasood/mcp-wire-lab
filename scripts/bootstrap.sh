@@ -3,6 +3,16 @@
 # submodules are at their pins (D10). Never modifies the submodules' tracked files.
 set -euo pipefail
 
+usage() {
+  echo "usage: scripts/bootstrap.sh"
+  echo "  Takes no arguments. Checks Node and the two pinned submodules, then builds the reference server (about 10 s to a few minutes). Run once after cloning."
+}
+case "${1:-}" in
+  "") ;;
+  -h|--help) usage; exit 0 ;;
+  *) echo "bootstrap: unexpected argument: $1" >&2; usage >&2; exit 1 ;;
+esac
+
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 

@@ -18,6 +18,10 @@ client or a server you would ship.
    lesson is meant to be pasted at the repository root.
 3. If you only want to poke at it, jump to *Record and read a trace* below.
 
+The answers to a lesson's *Predict* and *Check yourself* questions sit at the end of the same
+file, inside a collapsed `<details>` block on GitHub. In a terminal or an editor they are plain
+text, so stop reading at the heading *Answers* until you have written your own.
+
 A lesson's commands print what the lesson says they print; `scripts/gate.sh` checks that.
 After setup nothing needs a network, and the lessons write only inside this folder (setup itself uses npm's cache in your home folder).
 
@@ -55,11 +59,12 @@ scripts/record.sh tests/fixtures/handshake-2025.ndjson
 python3 -m tap.show <the path it printed>
 ```
 
+`record.sh` prints the path of the recording, ending in `trace.jsonl` (and a ready `read it:` line
+to copy); put that path where `<the path it printed>` stands.
+
 To record the raw client instead of a fixture, use `scripts/record.sh --client tour` (or
 `--client manual` to type messages yourself), and validate a recording against the spec's schema
 with `python3 -m tap.check <the path> --revision 2025-11-25`.
-
-`record.sh` prints that path ending in `trace.jsonl` (and a ready `read it:` line to copy).
 
 `python3 -m tap.show` also takes `--full` (every frame's decoded JSON, pretty-printed), `--mermaid` (a sequence diagram) and
 `--explain <walkthrough.md>` (a note after every frame). A walkthrough that explains several
@@ -69,6 +74,14 @@ experiments has one section per experiment: add `#<section>`, as in
 Reading a trace line: `->` is the client's frame, `<-` the server's, `!!` the server's stderr and
 `..` an event of the tap itself (spawn, exit, an injected fault). The number on the left is the
 frame's `seq`; walkthrough notes and citations refer to frames by it.
+
+To compare two recordings (the lessons' "change it, predict the difference" experiments), strip the
+timings and diff the decoded frames; no output means they are identical:
+
+```console
+strip() { python3 -m tap.show "$1" --full | sed -E 's/^ *[0-9]+ +[0-9.]+ ms +//; s/, [0-9.]+ ms\)/)/; s#runs/[^/ ]+#runs/X#g'; }
+diff <(strip runs/<first>/trace.jsonl) <(strip runs/<second>/trace.jsonl)
+```
 
 Recordings go to `runs/`, which git ignores. This repository never holds run output: your traces
 stay on your machine. Nothing runs at commit time: the pre-push hook refuses a push that would
