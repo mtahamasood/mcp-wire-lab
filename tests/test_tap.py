@@ -629,6 +629,16 @@ class FaultModeTest(TapTestCase):
         self.assertGreater(fault["seq"], fault["frame_seq"], "the frame is recorded first")
         self.assertIs(fault["forwarded"], False)
 
+    def test_drop_matches_the_method_member_only(self) -> None:
+        # The word appears in params and in a non-JSON line; only a `method` equal to it counts.
+        lines = (
+            b'{"jsonrpc":"2.0","id":1,"method":"a","params":{"text":"b"}}\n'
+            b"not json: b\n"
+            b'{"jsonrpc":"2.0","id":2,"method":"b"}\n'
+        )
+        self.faulty(lines, "--drop", "c2s:b")
+        self.assertEqual(self.received.read_bytes(), lines.rsplit(b"{", 1)[0])
+
     def test_drop_with_no_match_changes_nothing(self) -> None:
         run = self.faulty(self.LINES, "--drop", "c2s:nothing")
         self.assertEqual(self.received.read_bytes(), self.LINES)
