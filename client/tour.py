@@ -16,6 +16,7 @@ import time
 from collections.abc import Callable, Sequence
 from typing import Any, TextIO
 
+from client.handlers import Handlers
 from client.session import Session
 from client.wire import Cancelled, Message, classify, stderr_report
 
@@ -29,8 +30,9 @@ class TourFailure(Exception):
 
 
 class Tour:
-    def __init__(self, session: Session, out: TextIO) -> None:
+    def __init__(self, session: Session, out: TextIO, capabilities: Message | None = None) -> None:
         self.session = session
+        self.capabilities = capabilities
         self.out = out
         self.step_no = 0
         self._print_lock = threading.Lock()
@@ -112,7 +114,7 @@ class Tour:
         `spec:docs/specification/2025-11-25/basic/utilities/ping.mdx:23`
         "method": "ping"
         """
-        result = self.session.initialize()
+        result = self.session.initialize(self.capabilities)
         info = result.get("serverInfo", {})
         self.step("initialize", f"version {result['protocolVersion']}, server {info.get('name')}")
         self.step("notifications/initialized", "sent")
@@ -258,9 +260,14 @@ class Tour:
 
 
 def run_tour(
-    command: Sequence[str], out: TextIO, report: Callable[[str], None] | None = None
+    command: Sequence[str], out: TextIO, report: Callable[[str], None] | None = None,
+    caps: Sequence[str] = (),
 ) -> int:
-    """Run the tour against the server command; 0 if every step got its expected reply."""
+    """Run the tour against the server command; 0 if every step got its expected reply.
+
+    With `caps` the client declares them and answers what the server then asks (phase 3), so the
+    server's re-lists and requests interleave with the tour's and its ids no longer run 0 to 16.
+    """
     holder: list[Tour] = []
 
     def observe(arrow: str, message: Any) -> None:
@@ -270,8 +277,14 @@ def run_tour(
     kwargs: dict[str, Any] = {"observer": observe}
     if report is not None:
         kwargs["report"] = report
+    handlers = Handlers(caps, report=report or stderr_report) if caps else None
+    if handlers is not None:
+        kwargs.update(on_request=handlers.handle_request,
+                      on_notification=handlers.handle_notification)
     session = Session.open(command, **kwargs)
-    tour = Tour(session, out)
+    if handlers is not None:
+        handlers.attach(session.wire)
+    tour = Tour(session, out, None if handlers is None else handlers.capabilities)
     holder.append(tour)
     status = 0
     try:

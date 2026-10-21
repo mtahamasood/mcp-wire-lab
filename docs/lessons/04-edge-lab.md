@@ -1,5 +1,7 @@
 # Lesson 04: the edge lab
 
+<!-- exercises: initialize, notifications/initialized, ping, tools/list -->
+
 ## Goal
 
 Learn the protocol's contract from its error paths. For a malformed or out-of-order message you

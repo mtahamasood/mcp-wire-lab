@@ -1,5 +1,7 @@
 # Lesson 02: a client with no library
 
+<!-- exercises: initialize, notifications/initialized, ping, tools/list, tools/call, resources/list, resources/templates/list, resources/read, resources/subscribe, resources/unsubscribe, prompts/list, prompts/get, completion/complete, logging/setLevel, notifications/cancelled, notifications/message, notifications/progress -->
+
 ## Goal
 
 Speak MCP yourself. The raw client in `client/` frames JSON-RPC over a child process's stdin and

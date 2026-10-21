@@ -32,10 +32,10 @@ def record(fixture: str, name: str, env: dict[str, str] | None = None) -> Path:
     return ROOT / first.removeprefix("recorded: ").removesuffix("/trace.jsonl")
 
 
-def record_client(name: str, env: dict[str, str] | None = None) -> Path:
-    """Run `scripts/record.sh --client tour`; return the run directory it reports."""
+def record_client(name: str, env: dict[str, str] | None = None, mode: str = "tour") -> Path:
+    """Run `scripts/record.sh --client <mode>`; return the run directory it reports."""
     done = subprocess.run(
-        ["scripts/record.sh", "--client", "tour", name],
+        ["scripts/record.sh", "--client", mode, name],
         cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT, env=env,
     )
     assert done.returncode == 0, done.stderr
@@ -156,8 +156,15 @@ class E2ETest(unittest.TestCase):
 class AtlasClaimsTest(unittest.TestCase):
     """C9, real half: a lesson's `exercises` line is true of a fresh trace of its recording."""
 
-    # Lesson file -> the fixtures it records. Lessons 02-04 are added when they are written.
-    LESSON_FIXTURES = {"01-the-wire-and-the-handshake.md": ["handshake-2025.ndjson"]}
+    # Lesson file -> what it records: a fixture file name, or ("client", <mode>) for a run of
+    # the raw client recorded by `scripts/record.sh --client <mode>`.
+    LESSON_FIXTURES: dict[str, list[str | tuple[str, str]]] = {
+        "01-the-wire-and-the-handshake.md": ["handshake-2025.ndjson"],
+        "02-raw-client.md": [("client", "tour")],
+        "03-server-initiated.md": [("client", "server-tour")],
+        "04-edge-lab.md": ["edge-unknown-method.ndjson", "edge-batch-array.ndjson",
+                           "handshake-2025.ndjson"],
+    }
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -172,7 +179,8 @@ class AtlasClaimsTest(unittest.TestCase):
             self.assertIn(lesson, self.LESSON_FIXTURES, f"{lesson} has no fixture mapped")
             seen: set[str] = set()
             for fixture in self.LESSON_FIXTURES[lesson]:
-                run = record(fixture, "test-c9")
+                run = (record_client("test-c9", mode=fixture[1]) if isinstance(fixture, tuple)
+                       else record(fixture, "test-c9"))
                 try:
                     for line in (run / "trace.jsonl").read_text().splitlines():
                         message = json.loads(line).get("json")
@@ -341,6 +349,97 @@ class RawClientTest(unittest.TestCase):
                              capture_output=True, text=True, timeout=10)
         self.assertEqual(bad.returncode, 1)
         self.assertIn("unknown client mode", bad.stderr)
+
+
+# D4: the methods the server sends the client, and what the server tour's trace must hold.
+SERVER_REQUESTS = {"roots/list", "sampling/createMessage", "elicitation/create"}
+SERVER_NOTES = {
+    "notifications/tools/list_changed", "notifications/prompts/list_changed",
+    "notifications/resources/list_changed", "notifications/resources/updated",
+    "notifications/message",
+}
+MATRIX_EXPECTED = {
+    "none": set(),
+    "roots": {"get-roots-list"},
+    "sampling": {"trigger-sampling-request"},
+    "elicitation": {"trigger-elicitation-request", "trigger-multi-step-elicitation"},
+    "elicitation-url": {"trigger-url-elicitation"},
+    "all": {"get-roots-list", "trigger-sampling-request", "trigger-elicitation-request",
+            "trigger-multi-step-elicitation", "trigger-url-elicitation"},
+}
+
+
+class ServerTourTest(unittest.TestCase):
+    """Phase 3: the raw client answering the real server's requests, recorded through the tap."""
+
+    run_dir: Path
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        assert SERVER.is_file(), f"{SERVER} missing: run scripts/bootstrap.sh"
+        cls.run_dir = record_client("test-server-tour", mode="server-tour")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.run_dir, ignore_errors=True)
+
+    def test_server_tour_sees_every_server_initiated_method(self) -> None:
+        # record_client already asserted exit status 0: record.sh passes on the client's status.
+        recs = frames(self.run_dir)
+        from_server = [r["json"] for r in recs if r.get("dir") == "s2c" and "json" in r]
+        requests = [m for m in from_server if "method" in m and "id" in m]
+        notes = {m["method"] for m in from_server if "method" in m and "id" not in m}
+        self.assertEqual({m["method"] for m in requests}, SERVER_REQUESTS)
+        self.assertTrue(SERVER_NOTES <= notes, SERVER_NOTES - notes)
+        # every server request is answered, once, with its own id (order is not assumed)
+        answers = [r["json"] for r in recs if r.get("dir") == "c2s" and "method" not in r["json"]]
+        self.assertEqual(sorted(a["id"] for a in answers), sorted(m["id"] for m in requests))
+        self.assertTrue(all("result" in a for a in answers), answers)
+        sent = [r["json"] for r in recs if r.get("dir") == "c2s"]
+        self.assertIn("notifications/roots/list_changed", {m.get("method") for m in sent})
+        called = [m["params"]["name"] for m in sent if m.get("method") == "tools/call"]
+        self.assertFalse([n for n in called if n.startswith("toggle-")], called)
+        for tool in ("get-roots-list", "trigger-sampling-request", "trigger-elicitation-request",
+                     "trigger-multi-step-elicitation", "trigger-url-elicitation",
+                     "trigger-log-messages", "trigger-list-changed", "trigger-resource-update"):
+            self.assertIn(tool, called)
+        self.assertEqual((self.run_dir / "stderr.txt").read_text().count("client:"), 0)
+
+    def test_capability_matrix(self) -> None:
+        done = subprocess.run(
+            [sys.executable, "-m", "client", "matrix", "--", "node", str(SERVER), "stdio"],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT,
+        )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        table: dict[str, tuple[set[str], set[str]]] = {}
+        for line in done.stdout.splitlines()[2:]:
+            name, tools, seen = (cell.strip() for cell in line.split("|"))
+            table[name] = ({t.strip() for t in tools.split(",")} - {"-"},
+                           {m.strip() for m in seen.split(",")} - {"-"})
+        self.assertEqual({k: v[0] for k, v in table.items()}, MATRIX_EXPECTED)
+        # a capability that unlocks a tool also makes the server speak first
+        self.assertEqual(table["none"][1], set())
+        self.assertIn("roots/list", table["roots"][1])
+        self.assertIn("notifications/tools/list_changed", table["sampling"][1])
+        self.assertNotIn("roots/list", table["sampling"][1])
+
+    def test_server_tour_trace_checks_and_is_explained(self) -> None:
+        trace = str(self.run_dir / "trace.jsonl")
+        checked = subprocess.run(
+            [sys.executable, "-m", "tap.check", trace, "--revision", "2025-11-25"],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT,
+        )
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+        self.assertRegex(checked.stdout, r"check: ok \(\d+ frames\)")
+        explained = subprocess.run(
+            [sys.executable, "-m", "tap.show", trace, "--explain",
+             str(ROOT / "docs/walkthrough/03-server-initiated.md")],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT,
+        )
+        self.assertEqual(explained.returncode, 0, explained.stdout + explained.stderr)
+        self.assertNotIn("(no note)", explained.stdout)
+        self.assertNotIn("(no frame)", explained.stdout)
+        self.assertIn("legacy shim", explained.stdout)
 
 
 if __name__ == "__main__":
