@@ -31,7 +31,9 @@ uses a timer tool, or if the matrix output is committed.
 
 ## Result
 
-- Status: open
+- Status: closed
+
+Closed 2026-10-21 by the agent under the owner's delegation (register row 2026-10-21, spec batch approval): every C row passes on `main` with the gate green (G1-G5, G7-G12; G12 checks this phase). G6, the learner walk and J rows are deferred (LP5).
 - Mutation (LP4), 13 hand-applied mutants of `client/handlers.py`, each run against
   `tests/test_client_handlers.py`: 13 killed, 0 survived. Id echo: result id fixed to 0, error id
   fixed to 0, id turned into a string (3, by `test_reply_echoes_id_and_type`). Capability check:
@@ -51,4 +53,14 @@ uses a timer tool, or if the matrix output is committed.
 
 ### Owner learning check (LP6)
 
-Prompts written at close; answers by the owner only.
+Optional (register row 2026-10-21, learning check). Answers by the owner only.
+
+1. *Explain.* Record `scripts/record.sh --client server-tour lc3` and, from `tap.show` alone,
+   explain why a `tools/call` of `trigger-sampling-request` is followed by a request from the
+   server before its own response arrives, and how the client tells the two directions' ids apart.
+2. *Change.* Run `python3 -m client matrix -- …` (see lesson 03) after removing `roots` from the
+   `all` set in your own branch; predict which tools and server requests disappear first.
+3. *Debug.* Make the sampling handler reply with a different `id` than the request's, predict
+   what the server does, then record and check your prediction against the trace.
+
+Answers:
