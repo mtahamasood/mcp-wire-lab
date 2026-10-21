@@ -158,7 +158,7 @@ CI-only gates (the owner must be able to run the same thing locally).
 matches words, not meaning: a Source that negates its reference ("not yet in mission.md") still
 resolves (finding B9, accepted); each Source is read at review.
 *Source:* owner decision, 2026-10-20 — registered in mission.md (SDD; repo); amended by register
-row 2026-10-21 (fourth of that date; findings B9, B14).
+row 2026-10-21 (fifth of that date; findings B9, B14).
 
 ### D8 — The phase ships a walkthrough of the 2025-era handshake, checked against a fresh run
 
@@ -264,7 +264,7 @@ lesson is their way in, and predict-then-observe is the method A2's reader alrea
 *Cost accepted:* experiment outcomes are measurements taken on this phase's walk; the
 lesson must say they were measured at the pins, not promised by the spec.
 *Source:* owner decision, 2026-10-20 — registered in mission.md (A4, delegated; roadmap
-L1, L4, L14); amended by register row 2026-10-21 (fourth of that date; finding B11).
+L1, L4, L14); amended by register row 2026-10-21 (fifth of that date; finding B11).
 
 ### D13 — Citations and lesson commands are gated
 
@@ -292,7 +292,7 @@ pins (finding R12, accepted), so a local run after a pin moves, without `git sub
 checks the old revision.
 *Source:* owner decision, 2026-10-20 — registered in mission.md (A4, delegated; roadmap
 L3, L4); amended by register row 2026-10-21 (third of that date; findings R7, R12, R20, T15)
-and by register row 2026-10-21 (fourth of that date; findings B10, B13).
+and by register row 2026-10-21 (fifth of that date; findings B10, B13).
 
 ### D14 — One recording script, with a minimal environment
 
@@ -321,7 +321,7 @@ told about; not recording the secret is stronger).
 not see it until the allowlist names it; the allowlist is part of each phase's spec.
 *Source:* A5, 2026-10-20; owner decision, 2026-10-20 — registered in mission.md (A4,
 delegated; roadmap L16); amended by register row 2026-10-21 (third of that date; findings R15,
-S17, T14, T17) and by register row 2026-10-21 (fourth of that date; findings B2, B7).
+S17, T14, T17) and by register row 2026-10-21 (fifth of that date; findings B2, B7).
 
 ### D15 — Run output cannot reach git
 
@@ -346,7 +346,7 @@ gate that actually prevents publication; CI catches a push made without the hook
 *Cost accepted:* hooks are per-clone and skippable with `--no-verify`; CI is the backstop,
 and the law's admitted limit (pattern-based recognition) is signed in `tech-stack.md`.
 *Source:* A5, 2026-10-20 — standing law 1 in specs/tech-stack.md; amended by register row
-2026-10-21 (third of that date; findings R1, R2) and by register row 2026-10-21 (fourth of that
+2026-10-21 (third of that date; findings R1, R2) and by register row 2026-10-21 (fifth of that
 date; findings B4, B5, B16; R1 as implemented by A4).
 
 ### D16 — Nothing else is added

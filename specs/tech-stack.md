@@ -15,7 +15,7 @@ dated register row in `mission.md`.
 | Python lint | ruff 0.17.1, run via `uvx ruff@0.17.1` | P6 |
 | Python typecheck | mypy 2.4.0 `--strict`, run via `uvx mypy@2.4.0` | P6 |
 | Python tests | `unittest` (stdlib) | P4 |
-| CI | GitHub Actions on `mtahamasood/mcp-wire-lab`, Ubuntu, Node 24, Python 3.12, submodules checked out. Accepted limit (R21): the actions are pinned by major tag, and the `uv` and Python patch versions CI installs float; CI prints the versions it used | Register 2026-10-20 (repo); register row 2026-10-21 (third and fourth of that date) |
+| CI | GitHub Actions on `mtahamasood/mcp-wire-lab`, Ubuntu, Node 24, Python 3.12, submodules checked out. Accepted limit (R21): the actions are pinned by major tag, and the `uv` and Python patch versions CI installs float; CI prints the versions it used | Register 2026-10-20 (repo); register row 2026-10-21 (third and fifth of that date) |
 
 ## Quality gates
 

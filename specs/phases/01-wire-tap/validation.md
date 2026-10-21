@@ -184,7 +184,7 @@ Any of these standing means the phase is NOT done, whatever else passes:
     asks for and the tool skips; a probe found a token there, and a tracked link retargeted at a home path
     but not staged, both missed (`[]`). Not killed, as a killing test would pin the gap; the push hook still
     reads the committed blob. Totals: 43 run, 39 killed, 3 signed equivalent, 1 open. The gap is
-    finding B19 in `audits/step-b-review.md`, disposed there (fix; register row 2026-10-21, fourth).
+    finding B19 in `audits/step-b-review.md`, disposed there (fix; register row 2026-10-21, fifth).
   - C1-C6 (2026-10-20): each mutation applied to `tap/__main__.py` in a temp copy of `tap/` and `tests/`, and
     that row's test class run; every baseline exit 0, every mutant exit 1.
     C1, forwarding `json.dumps(json.loads(frame))`: `test_both_directions_are_byte_exact` fails on the c2s sha256.

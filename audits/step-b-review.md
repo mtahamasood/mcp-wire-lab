@@ -51,7 +51,7 @@ Counts: 0 blocker, 1 major, 7 minor, 10 nit. B16 is CONFIRMED for a normal user 
 for root; the other 17 are CONFIRMED.
 
 Dispositions were written on 2026-10-21 by the agent, under the owner's delegation (register row
-2026-10-21, fourth of that date; decisions A11 to A18 in `audits/autonomous-decisions.md`). B19
+2026-10-21, fifth of that date; decisions A11 to A18 in `audits/autonomous-decisions.md`). B19
 was added then, from the C15 mutation run. Fixed: B1-B8, B10-B16, B18 and B19. Accepted as a
 documented limit: B9. Already done after the review: B17. The spec and record parts (B5, B8, B13,
 B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
@@ -80,7 +80,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   three-key JSON dump that includes `PWD`. Add `PrePushHookTest` cases that edit `README.md` to
   hold a token and push, and that push a token in the root commit. Re-run the six T18 mutants and
   record them under C15.
-- Disposition: fix (A11; C15 amended by register row 2026-10-21, fourth of that date). Tests
+- Disposition: fix (A11; C15 amended by register row 2026-10-21, fifth of that date). Tests
   first, in `tests/test_no_run_output.py`: (a) a `github_pat_` sample in `LEAKS`, assembled from
   parts like the others, named `GitHub fine-grained token`; (b) a JSON environment dump of exactly
   three keys, one of them `PWD`, named as an environment dump; (c) a `PrePushHookTest` case that
@@ -203,7 +203,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   (`git rev-parse --git-common-dir`, shared by linked worktrees, the same place as
   `--git-path hooks` when `core.hooksPath` is unset), never a directory that `core.hooksPath`
   names, and warns when `core.hooksPath` resolves elsewhere. C15 says the same. The register row
-  2026-10-21 (fourth of that date) amends the third row's "follows `git rev-parse --git-path
+  2026-10-21 (fifth of that date) amends the third row's "follows `git rev-parse --git-path
   hooks`" and records R1 as implemented by A4. No behaviour change; the existing `InstallerTest`
   cases already pin it.
 
@@ -271,7 +271,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   the G9 row (order, fences, `-eo pipefail`) or correct the row's list. Amend B5 to "only appended
   register rows, proposal status changes, and edits each named by a register row".
 - Disposition: fix in the records, done in this commit (A11). The register row 2026-10-21
-  (fourth of that date) names the SDK client row and G3 (phase 4 to 5), the `audits/` conventions
+  (fifth of that date) names the SDK client row and G3 (phase 4 to 5), the `audits/` conventions
   line, and every tech-stack edit of this commit. The G9 row is amended now (headings outside
   fences and in order, `bash -eo pipefail`, the fence rule of B10), so the third row's claim that G9
   was amended holds. Boundary check B5 now reads "only appended register rows, proposal status
@@ -405,7 +405,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   row to "not done; open for the owner". The licence faces outward, so the owner should see it
   before it is published.
 - Disposition: fix in the records, done in this commit (A18). A2 and A3 now say that their
-  records do not exist yet. The register row 2026-10-21 (fourth of that date) corrects the
+  records do not exist yet. The register row 2026-10-21 (fifth of that date) corrects the
   delegation row: R17 and R18 are decided by the agent but not yet written. The close-out step
   writes all three before the phase-close merge: a `LICENSE` file (MIT); the J2 note in
   `validation.md` ("agent-proposed, owner to confirm"); and the acceptance of learner-walk items 3
@@ -628,5 +628,3 @@ Rules for every group:
   Group 2 needs `vendor/servers` built in its worktree (`scripts/bootstrap.sh`) or linked from the
   main checkout and left untracked.
 - Commit only the files of your group. The message ends with the attribution trailer.
-
-TODO (resume): not yet written: the register row in `specs/mission.md` (2026-10-21, fourth of that date) that the amended D7, D12-D15, C12, C15, C16, C18, B5 and tech-stack CI/G1/G8/G9/G11/law 1 edits cite (it must also name the SDK row, G3 and conventions edits, R1 as A4, and correct the delegation row on R17/R18); decision rows A11-A18 in `audits/autonomous-decisions.md`, and the A2/A3/A8 rewording (B15, B18). Then run `scripts/gate.sh`.
