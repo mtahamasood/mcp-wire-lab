@@ -39,6 +39,23 @@ any C row names a check that does not exist, or if run output is tracked.
 
 - Status: open
 
+### Mutation run (LP4, builder, hand-applied)
+
+33 single-edit mutants on the claim code: 13 on `client/wire.py` (type-blind id key, response
+shape tested before method, notification taken as request, boolean and float ids accepted, late
+replies not recognised, wrong refusal code and id, notifications not queued, no write lock, ids
+not advanced, non-ASCII output, junk not reported), 8 on `client/session.py` (no guard before
+initialized, ready set early, version check removed, `initialized` not sent, cancel without
+abandon, wrong `requestId`, `initialize` cancellable, no SIGTERM step) and 12 on `tap/check.py`
+(result definition choice, `required`, unknown keywords ignored, `anyOf`, `const`, integer, error
+frame definition, unknown method passing, `additionalProperties`, response envelope, partial
+frames, `minimum`). First run: 30 killed, 3 survived: boolean ids on a server request (M4),
+non-ASCII output of `notify` (M12) and the response envelope check (K10). Each got a test
+(`ClassifyTest.test_junk_line_is_reported_and_ignored`, `FramingTest.test_one_compact_line_per_message`,
+`CheckTest.test_invalid_frame_reports_seq_path_definition`) and was re-run: 33 of 33 killed. The
+write-lock mutant is killed by a concurrent writer that splits each write; it was run three
+times. C4 (shutdown timing) is not mutated, as the table says.
+
 ### Accepted limits
 
 - Learner walk L15 and J rows: deferred (LP5).

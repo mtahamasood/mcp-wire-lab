@@ -1,13 +1,25 @@
 #!/usr/bin/env bash
-# Record one fixture against the pinned, built everything server (D14).
+# Record one fixture, or one run of the raw client, against the pinned, built everything server
+# (D14; phase 2 D5).
 # Usage: scripts/record.sh <fixture> [name]
+#        scripts/record.sh --client <tour|manual> [name]
 # Writes runs/<UTC timestamp>-<name>/{trace.jsonl,stderr.txt}. runs/ is git-ignored (A5).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-fixture="${1:?usage: scripts/record.sh <fixture> [name]}"
-[ -f "$fixture" ] || { echo "record: no such fixture: $fixture" >&2; exit 1; }
-name="${2:-$(basename "$fixture" | sed 's/\..*$//')}"
+client=""
+if [ "${1:-}" = "--client" ]; then
+  client="${2:?usage: scripts/record.sh --client <tour|manual> [name]}"
+  case "$client" in
+    tour|manual) ;;
+    *) echo "record: unknown client mode: $client (use tour or manual)" >&2; exit 1 ;;
+  esac
+  name="${3:-client-$client}"
+else
+  fixture="${1:?usage: scripts/record.sh <fixture> [name]}"
+  [ -f "$fixture" ] || { echo "record: no such fixture: $fixture" >&2; exit 1; }
+  name="${2:-$(basename "$fixture" | sed 's/\..*$//')}"
+fi
 server=vendor/servers/src/everything/dist/index.js
 [ -f "$server" ] || { echo "record: $server missing (run scripts/bootstrap.sh)" >&2; exit 1; }
 node_bin="$(command -v node)" || { echo "record: node not found" >&2; exit 1; }
@@ -31,16 +43,36 @@ mkdir "$dir/home" "$dir/bin"
 ln -s "$node_bin" "$dir/bin/node"
 
 # The server sees only this allowlist (D14); nothing from the caller's environment.
+server_cmd=(
+  python3 -m tap --trace "$dir/trace.jsonl" --
+  env -i "PATH=$dir/bin:/usr/bin:/bin" "HOME=$dir/home" LANG=C.UTF-8 MCP_WIRE_LAB=1
+  node "$server" stdio
+)
+
 # A server may exit non-zero on purpose (the everything server does after a transport error,
-# which the edge experiments provoke). The trace is the product and its last record is the exit
-# code, so a non-zero status is reported, not fatal.
+# which the edge experiments provoke). For a fixture the trace is the product and its last
+# record is the exit code, so a non-zero status is reported, not fatal. A client run's status
+# is the client's verdict on its own steps, so it is passed on after the lines below.
 status=0
-python3 tests/drive.py "$fixture" -- \
-  python3 -m tap --trace "$dir/trace.jsonl" -- \
-  env -i "PATH=$dir/bin:/usr/bin:/bin" "HOME=$dir/home" LANG=C.UTF-8 MCP_WIRE_LAB=1 \
-  node "$server" stdio 2> "$dir/stderr.txt" > /dev/null || status=$?
+case "$client" in
+  "")
+    python3 tests/drive.py "$fixture" -- "${server_cmd[@]}" 2> "$dir/stderr.txt" > /dev/null \
+      || status=$?
+    ;;
+  tour)
+    # The tour prints its own progress; here it is only the recording that matters.
+    python3 -m client tour -- "${server_cmd[@]}" 2> "$dir/stderr.txt" > /dev/null || status=$?
+    ;;
+  manual)
+    # Interactive: the learner's terminal is the client's stdin and stdout; stderr is shown
+    # and kept.
+    python3 -m client manual -- "${server_cmd[@]}" 2> >(tee "$dir/stderr.txt" >&2) || status=$?
+    ;;
+esac
 [ -s "$dir/trace.jsonl" ] || { echo "record: no trace was written (exit $status)" >&2; exit 1; }
 [ "$status" -eq 0 ] || echo "record: the run ended with exit code $status (see the exit record)" >&2
 
 echo "recorded: $dir/trace.jsonl"
 echo "read it:  python3 -m tap.show $dir/trace.jsonl"
+# A client run's failure is the client's verdict (see above), so it is the script's status too.
+[ -z "$client" ] || exit "$status"

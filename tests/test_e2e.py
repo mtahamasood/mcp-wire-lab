@@ -32,6 +32,32 @@ def record(fixture: str, name: str, env: dict[str, str] | None = None) -> Path:
     return ROOT / first.removeprefix("recorded: ").removesuffix("/trace.jsonl")
 
 
+def record_client(name: str, env: dict[str, str] | None = None) -> Path:
+    """Run `scripts/record.sh --client tour`; return the run directory it reports."""
+    done = subprocess.run(
+        ["scripts/record.sh", "--client", "tour", name],
+        cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT, env=env,
+    )
+    assert done.returncode == 0, done.stderr
+    first = done.stdout.splitlines()[0]
+    return ROOT / first.removeprefix("recorded: ").removesuffix("/trace.jsonl")
+
+
+def frames(run: Path) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = [
+        json.loads(ln) for ln in (run / "trace.jsonl").read_text().splitlines()
+    ]
+    return out
+
+
+# What the tour sends, in order (D3): every request, and the one notification after initialize.
+TOUR_METHODS = [
+    "initialize", "notifications/initialized", "ping", "tools/list", "tools/call", "tools/call",
+    "resources/list", "resources/templates/list", "resources/read", "resources/subscribe",
+    "resources/unsubscribe", "prompts/list", "prompts/get", "prompts/get", "completion/complete",
+    "logging/setLevel", "tools/call", "tools/call", "notifications/cancelled",
+]
+
 class E2ETest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -236,6 +262,85 @@ class EdgeLabTest(unittest.TestCase):
             self.assertEqual(replies[0]["error"]["code"], -32601)
         finally:
             shutil.rmtree(run, ignore_errors=True)
+
+
+
+class RawClientTest(unittest.TestCase):
+    """Phase 2: the raw client against the real server, recorded through the tap."""
+
+    run_dir: Path
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        assert SERVER.is_file(), f"{SERVER} missing: run scripts/bootstrap.sh"
+        cls.run_dir = record_client("test-tour")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.run_dir, ignore_errors=True)
+
+    def test_tour_runs_every_client_initiated_method(self) -> None:
+        recs = frames(self.run_dir)
+        sent = [r["json"] for r in recs if r.get("dir") == "c2s"]
+        self.assertEqual([m["method"] for m in sent], TOUR_METHODS)
+        self.assertEqual([m["params"]["name"] for m in sent if m["method"] == "tools/call"],
+                         ["echo", "get-sum", "trigger-long-running-operation",
+                          "trigger-long-running-operation"])
+        self.assertEqual([m["id"] for m in sent if "id" in m], list(range(17)))
+        replies = {r["json"]["id"]: r["json"] for r in recs
+                   if r.get("dir") == "s2c" and "id" in r["json"] and "method" not in r["json"]}
+        self.assertEqual(set(replies), set(range(17)) - {16}, "every request but the cancelled")
+        self.assertTrue(all("result" in m for m in replies.values()))
+        exits = [r for r in recs if r.get("dir") == "tap" and r.get("event") == "exit"]
+        self.assertEqual([e.get("code") for e in exits], [0])
+        self.assertEqual((self.run_dir / "stderr.txt").read_text().count("client:"), 0)
+
+    def test_tour_trace_passes_schema_check(self) -> None:
+        done = subprocess.run(
+            [sys.executable, "-m", "tap.check", str(self.run_dir / "trace.jsonl"),
+             "--revision", "2025-11-25"],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT,
+        )
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertRegex(done.stdout, r"check: ok \(\d+ frames\)")
+
+    def test_tour_walkthrough_explains_fresh_trace(self) -> None:
+        done = subprocess.run(
+            [sys.executable, "-m", "tap.show", str(self.run_dir / "trace.jsonl"), "--explain",
+             str(ROOT / "docs/walkthrough/02-raw-client-tour.md")],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT,
+        )
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertNotIn("(no note)", done.stdout)
+        self.assertNotIn("(no frame)", done.stdout)
+        self.assertIn("The first thing any client says", done.stdout)
+
+    def test_record_client_tour(self) -> None:
+        # A secret in the caller's environment reaches neither the server nor the trace (D14).
+        env = {**os.environ, "FAKE_SECRET_FOR_C8": "leak"}
+        run = record_client("test-c8", env)
+        try:
+            text = (run / "trace.jsonl").read_text()
+            self.assertNotIn("FAKE_SECRET_FOR_C8", text)
+            self.assertNotIn(os.environ["HOME"], text)
+            spawn = next(r for r in frames(run) if r.get("event") == "spawn")
+            argv = spawn["argv"]
+            after_env = argv[argv.index("env") + 1 : argv.index("node")]
+            self.assertEqual(after_env[0], "-i")
+            self.assertEqual(sorted(a.split("=")[0] for a in after_env[1:]), sorted(ALLOWLIST))
+            self.assertTrue((run / "stderr.txt").is_file())
+        finally:
+            shutil.rmtree(run, ignore_errors=True)
+        # the fixture form is unchanged, and a bad mode fails fast
+        fixture_run = record("handshake-2025.ndjson", "test-c8-fixture")
+        try:
+            self.assertTrue((fixture_run / "trace.jsonl").is_file())
+        finally:
+            shutil.rmtree(fixture_run, ignore_errors=True)
+        bad = subprocess.run(["scripts/record.sh", "--client", "nope"], cwd=ROOT,
+                             capture_output=True, text=True, timeout=10)
+        self.assertEqual(bad.returncode, 1)
+        self.assertIn("unknown client mode", bad.stderr)
 
 
 if __name__ == "__main__":
