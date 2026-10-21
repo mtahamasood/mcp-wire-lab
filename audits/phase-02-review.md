@@ -166,6 +166,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   names the envelopes `JSONRPCResponse` and `JSONRPCError`. Fix: look the envelope names up in
   `load_schema` and raise `CheckError` (exit 2) when they are missing, or reject revisions other
   than 2025-11-25 in the usage check. Disposition: fix (A30): an unknown or unavailable revision exits 2. Passes when `CheckTest::test_unknown_revision_exits_2` (C9) passes.
+  Status: fixed aa656e3
 - **P2-R7** (minor) `specs/phases/02-raw-client/validation.md:28`, `tests/test_check.py`: C9's
   named tests do not hold the validator's keyword checks or the definition choice for
   notifications and error frames. Mutants on `tap/check.py` (my runs): `enum`, `items`, `allOf`
@@ -178,12 +179,14 @@ Counts: 0 blockers, 2 majors, 7 minors.
   example a string `error.code`) and an invalid notification (for example a string
   `params.progress` in `notifications/progress`) to `test_invalid_frame_reports_seq_path_definition`.
   Disposition: fix (A30): C9 names `test_keywords_are_checked`; error frames are validated against `JSONRPCErrorResponse` and notifications against their method's definition. Passes when `CheckTest::test_error_frames_are_validated` and `CheckTest::test_notification_checked_against_its_method` (C9) pass.
+  Status: fixed aa656e3
 - **P2-R8** (minor) `tools/check_claims.py:32-35`: G12 picks the Checks cell by position after
   splitting on `|`. A `|` in a claim cell shifts the columns, and a false pass follows. In a
   throwaway repo, the row ``| C1 | Ids 1 | "1" differ, in `tests` | `tests/test_gone.py::GoneTest::test_gone` | yes |``
   gave `claims: ok`, exit 0, although the named test does not exist. Fix: fail a row whose cell
   count differs from the header's, and find the Checks column by its header name.
   Disposition: fix (A30): G12 finds the Checks column from the table header and splits cells on unescaped `|` outside code spans. Passes when `ClaimsTest::test_pipe_in_claim_cell_does_not_shift_columns` (C10) passes.
+  Status: fixed 2c04037
 - **P2-R9** (minor) `README.md:57-68`: under "Do them in order.", the merge put lesson 04 (the
   edge lab) before lesson 02. A CommonMark render (`markdown_it`) of the section is one `<ol>`
   linking `01-the-wire-and-the-handshake.md`, `04-edge-lab.md`, `02-raw-client.md`, numbered

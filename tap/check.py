@@ -40,6 +40,9 @@ ASSERTIONS = {
 # own bookkeeping (`$schema`, `$defs`) and prose (`description`).
 ANNOTATIONS = {"format", "$schema", "$defs", "description"}
 
+# The definitions every revision checked here must carry (older revisions name them differently).
+ENVELOPES = ("JSONRPCResultResponse", "JSONRPCErrorResponse", "JSONRPCMessage")
+
 Error = tuple[str, str]  # (JSON path, reason)
 
 
@@ -191,9 +194,14 @@ class Schema:
 def load_schema(spec_root: Path, revision: str) -> Schema:
     path = spec_root / "schema" / revision / "schema.json"
     try:
-        return Schema(json.loads(path.read_text(encoding="utf-8")))
+        schema = Schema(json.loads(path.read_text(encoding="utf-8")))
     except (OSError, ValueError) as exc:
         raise CheckError(f"cannot read the schema {path}: {exc}") from exc
+    missing = [n for n in ENVELOPES if n not in schema.defs]
+    if missing:
+        raise CheckError(f"revision {revision} cannot be checked: its schema {path} has no "
+                         f"definition named {', '.join(missing)}")
+    return schema
 
 
 def check_frame(

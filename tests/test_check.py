@@ -36,13 +36,13 @@ def trace_of(*frames: tuple[str, Any]) -> list[dict[str, Any]]:
 
 
 def run_check(
-    records: list[dict[str, Any]], spec_root: Path | None = None
+    records: list[dict[str, Any]], spec_root: Path | None = None, revision: str = REVISION
 ) -> tuple[int, str, str]:
     """Write the records as a trace file and run `tap.check` on it: (exit, stdout, stderr)."""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "trace.jsonl"
         path.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
-        argv = [str(path), "--revision", REVISION]
+        argv = [str(path), "--revision", revision]
         if spec_root is not None:
             argv += ["--spec-root", str(spec_root)]
         out, err = io.StringIO(), io.StringIO()
@@ -147,6 +147,33 @@ class CheckTest(unittest.TestCase):
         for schema, instance, ok in cases:
             errors = check.validate(instance, schema, "$", defs)
             self.assertEqual(errors == [], ok, (schema, instance, errors))
+
+    def test_unknown_revision_exits_2(self) -> None:
+        """A revision that is missing, or names its envelopes differently, cannot be checked."""
+        records = trace_of(
+            ("c2s", {"jsonrpc": "2.0", "id": 2, "method": "ping"}),
+            ("s2c", {"jsonrpc": "2.0", "id": 2, "result": {}}),
+            ("s2c", {"jsonrpc": "2.0", "id": 3, "error": {"code": -1, "message": "no"}}))
+        for revision in ("2025-06-18", "1999-01-01"):
+            code, out, err = run_check(records, revision=revision)
+            self.assertEqual((code, out), (2, ""), (revision, err))
+            self.assertTrue(err.startswith("check: "), err)
+            self.assertNotIn("Traceback", err)
+            self.assertNotIn("KeyError", err)
+
+    def test_error_frames_are_validated(self) -> None:
+        bad = {"jsonrpc": "2.0", "id": 3, "error": {"code": "oops", "message": "no"}}
+        code, out, _ = run_check(trace_of(("s2c", bad)))
+        self.assertEqual(code, 1)
+        self.assertRegex(out, r"^seq 1  \$\.error\.code  JSONRPCErrorResponse  ")
+
+    def test_notification_checked_against_its_method(self) -> None:
+        bad = {"jsonrpc": "2.0", "method": "notifications/progress",
+               "params": {"progressToken": "t", "progress": "half"}}
+        code, out, _ = run_check(trace_of(("s2c", bad)))
+        self.assertEqual(code, 1)
+        self.assertRegex(
+            out, r"^seq 1  \$\.params\.progress  ProgressNotification  ")
 
 
 if __name__ == "__main__":
