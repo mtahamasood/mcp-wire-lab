@@ -72,6 +72,19 @@ class ClaimsTest(unittest.TestCase):
         self.assertEqual(self.run_on(validation("nothing"), phase="01-old"), [])
         self.assertEqual(len(self.run_on("# Phase\n\nno table\n")), 1)
 
+    def test_pipe_in_claim_cell_does_not_shift_columns(self) -> None:
+        gone = "`tests/test_gone.py::GoneTest::test_gone`"
+        for claim in ('"1" differ, in `a | b`', r"a \| b"):
+            text = (
+                f"# Phase\n\n## C. Phase-specific correctness\n\n{HEADER}"
+                f"| C1 | {claim} | {gone} | yes |\n"
+            )
+            errors = self.run_on(text)
+            self.assertEqual(len(errors), 1, (claim, errors))
+            self.assertIn("file does not exist", errors[0])
+        head = f"# Phase\n\n## C. Phase-specific correctness\n\n{HEADER}"
+        self.assertEqual(self.run_on(f"{head}| C1 | `a | b` | {OK} | yes |\n"), [])
+
     def test_repository_passes(self) -> None:
         self.assertEqual(check_claims.check(ROOT, phases=["02"]), [])
 
