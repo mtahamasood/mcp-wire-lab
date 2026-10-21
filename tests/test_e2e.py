@@ -1,9 +1,10 @@
-"""C7, C14 (real half) and C16: tap, driver, viewer and record.sh against the real server (G5)."""
+"""C7, C14 (real half), C16, phase 4 C5: tap, driver, viewer, record.sh vs the real server (G5)."""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -155,6 +156,86 @@ class AtlasClaimsTest(unittest.TestCase):
                     shutil.rmtree(run, ignore_errors=True)
             for method in methods:
                 self.assertIn(method, seen, f"{lesson} declares {method}, absent from its trace")
+
+
+# The edge experiments (phase 4 D1): walkthrough section -> fixture. `before-initialize` reuses
+# phase 1's `exp-list-first`; `oversized-frame` has no committed fixture (the test writes it).
+EDGE_FIXTURES = {
+    "missing-jsonrpc": "edge-missing-jsonrpc.ndjson",
+    "before-initialize": "exp-list-first.ndjson",
+    "unknown-method": "edge-unknown-method.ndjson",
+    "duplicate-id": "edge-duplicate-id.ndjson",
+    "string-id": "edge-string-id.ndjson",
+    "notification-with-id": "edge-notification-with-id.ndjson",
+    "batch-array": "edge-batch-array.ndjson",
+}
+OVERSIZED = "oversized-frame"
+VERDICT = re.compile(r"^\*\*Verdict: (follows the spec|stricter|looser|spec silent)\.", re.M)
+
+
+def write_oversized_fixture(path: Path) -> None:
+    """The handshake and one `echo` call whose argument is a 1 MiB string (D1)."""
+    handshake = (FIXTURES / "handshake-2025.ndjson").read_text().splitlines()[:2]
+    call = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "echo", "arguments": {"message": "x" * 1024 * 1024}}}
+    path.write_text("\n".join([*handshake, json.dumps(call, separators=(",", ":"))]) + "\n")
+
+
+class EdgeLabTest(unittest.TestCase):
+    WALKTHROUGH = ROOT / "docs/walkthrough/04-edge-lab.md"
+
+    def explain(self, run: Path, name: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-m", "tap.show", str(run / "trace.jsonl"), "--explain",
+             f"{self.WALKTHROUGH}#{name}"],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT,
+        )
+
+    def check_explained(self, run: Path, name: str) -> None:
+        done = self.explain(run, name)
+        self.assertEqual(done.returncode, 0, f"{name}:\n{done.stdout}{done.stderr}")
+        self.assertNotIn("(no note)", done.stdout, name)
+        self.assertNotIn("(no frame)", done.stdout, name)
+
+    def test_every_edge_fixture_is_explained(self) -> None:
+        # No edge fixture without an experiment, none without a fixture, a verdict for each.
+        committed = {p.name for p in FIXTURES.glob("edge-*.ndjson")}
+        expected = {f for f in EDGE_FIXTURES.values() if f.startswith("edge-")}
+        self.assertEqual(committed, expected)
+        text = self.WALKTHROUGH.read_text()
+        sections = dict(re.findall(r"^## (\S+)\n(.*?)(?=^## |\Z)", text, re.M | re.S))
+        self.assertEqual(set(sections) - {"shared"}, {*EDGE_FIXTURES, OVERSIZED})
+        for name, body in sections.items():
+            if name != "shared":
+                self.assertEqual(len(VERDICT.findall(body)), 1, f"{name}: one verdict line")
+        runs = []
+        try:
+            for name, fixture in EDGE_FIXTURES.items():
+                runs.append(record(fixture, f"test-edge-{name}"))
+                self.check_explained(runs[-1], name)
+            with tempfile.TemporaryDirectory() as tmp:
+                big = Path(tmp) / "edge-oversized-frame.ndjson"
+                write_oversized_fixture(big)
+                self.assertGreaterEqual(big.stat().st_size, 1024 * 1024)
+                done = subprocess.run(["scripts/record.sh", str(big), "test-edge-oversized"],
+                                      cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT)
+                self.assertEqual(done.returncode, 0, done.stderr)
+                first = done.stdout.splitlines()[0]
+                runs.append(ROOT / first.removeprefix("recorded: ").removesuffix("/trace.jsonl"))
+            self.check_explained(runs[-1], OVERSIZED)
+        finally:
+            for r in runs:
+                shutil.rmtree(r, ignore_errors=True)
+
+    def test_unknown_method_gets_method_not_found(self) -> None:
+        run = record("edge-unknown-method.ndjson", "test-edge-unknown")
+        try:
+            frames = [json.loads(ln) for ln in (run / "trace.jsonl").read_text().splitlines()]
+            replies = [r["json"] for r in frames if r["dir"] == "s2c" and r["json"].get("id") == 1]
+            self.assertEqual(len(replies), 1)
+            self.assertEqual(replies[0]["error"]["code"], -32601)
+        finally:
+            shutil.rmtree(run, ignore_errors=True)
 
 
 if __name__ == "__main__":

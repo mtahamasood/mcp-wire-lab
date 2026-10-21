@@ -580,6 +580,119 @@ class TraceFileTest(TapTestCase):
                     self.assertEqual(done.stderr, b"w\n")
 
 
+class FaultModeTest(TapTestCase):
+    """Phase 4 C2, C3 (D3): --drop and --delay, opt-in, recorded on the timeline."""
+
+    LINES = (
+        b'{"jsonrpc":"2.0","id":1,"method":"a"}\n'
+        b'{"jsonrpc":"2.0","id":2,"method":"b"}\n'
+        b'{"jsonrpc":"2.0","id":3,"method":"b"}\n'
+    )
+
+    def child(self) -> list[str]:
+        return [sys.executable, str(CHILDREN / "echo.py"), str(self.received), str(self.sent),
+                "--prefix", ""]  # fmt: skip
+
+    def faulty(self, stdin: bytes, *faults: str) -> TapRun:
+        """Run the tap with fault options around echo.py (which echoes every line unchanged)."""
+        trace_path = self.tmp / "trace.jsonl"
+        argv = [sys.executable, "-m", "tap", "--trace", str(trace_path), *faults, "--",
+                *self.child()]  # fmt: skip
+        done = subprocess.run(argv, cwd=ROOT, input=stdin, capture_output=True, timeout=TIMEOUT)
+        run = TapRun.__new__(TapRun)
+        run.trace_path, run.command = trace_path, self.child()
+        run.wall_ns, run.code = 0, done.returncode
+        run.stdout, run.stderr = done.stdout, done.stderr
+        run.trace = trace_path.read_bytes()
+        run.records = strict_records(run.trace)
+        self.assertEqual(run.code, 0, run.stderr)
+        return run
+
+    def faults(self, run: TapRun) -> list[dict[str, Any]]:
+        return [r for r in run.records if r["dir"] == "tap" and r["event"] == "fault"]
+
+    def test_drop_first_matching_frame_only(self) -> None:
+        run = self.faulty(self.LINES, "--drop", "c2s:b")
+        lines = self.LINES.splitlines(keepends=True)
+        self.assertEqual(self.received.read_bytes(), lines[0] + lines[2], "what the child got")
+        self.assertEqual(run.stdout, lines[0] + lines[2], "what came back")
+        self.assertEqual(run.stream("c2s"), self.LINES, "a dropped frame is still a frame")
+        self.assertEqual(len(self.faults(run)), 1, "only the first match is dropped")
+
+    def test_drop_records_fault_with_seq(self) -> None:
+        run = self.faulty(self.LINES, "--drop", "c2s:b")
+        (fault,) = self.faults(run)
+        self.assertEqual(fault["kind"], "drop")
+        frame = next(r for r in run.records if r["seq"] == fault["frame_seq"])
+        self.assertEqual(frame["dir"], "c2s")
+        self.assertEqual(frame["json"]["id"], 2)
+        self.assertGreater(fault["seq"], fault["frame_seq"], "the frame is recorded first")
+        self.assertIs(fault["forwarded"], False)
+
+    def test_drop_matches_the_method_member_only(self) -> None:
+        # The word appears in params and in a non-JSON line; only a `method` equal to it counts.
+        lines = (
+            b'{"jsonrpc":"2.0","id":1,"method":"a","params":{"text":"b"}}\n'
+            b"not json: b\n"
+            b'{"jsonrpc":"2.0","id":2,"method":"b"}\n'
+        )
+        self.faulty(lines, "--drop", "c2s:b")
+        self.assertEqual(self.received.read_bytes(), lines.rsplit(b"{", 1)[0])
+
+    def test_drop_with_no_match_changes_nothing(self) -> None:
+        run = self.faulty(self.LINES, "--drop", "c2s:nothing")
+        self.assertEqual(self.received.read_bytes(), self.LINES)
+        self.assertEqual(self.faults(run), [])
+
+    def test_delay_keeps_order_and_delays(self) -> None:
+        trace_path = self.tmp / "trace.jsonl"
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "tap", "--trace", str(trace_path), "--delay", "s2c:300",
+             "--", *self.child()],
+            cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )  # fmt: skip
+        self.addCleanup(proc.wait)
+        self.addCleanup(proc.kill)
+        assert proc.stdin and proc.stdout
+        start = time.monotonic()
+        proc.stdin.write(self.LINES)
+        proc.stdin.flush()
+        got: list[bytes] = []
+        arrived: list[float] = []
+        for _ in range(3):
+            got.append(proc.stdout.readline())
+            arrived.append(time.monotonic() - start)
+        proc.stdin.close()
+        proc.wait(timeout=TIMEOUT)
+        for pipe in (proc.stdout, proc.stderr):
+            if pipe is not None:
+                pipe.close()
+        self.assertEqual(b"".join(got), self.LINES, "order kept")
+        self.assertGreaterEqual(arrived[0], 0.3, "the first frame was not held")
+        self.assertGreaterEqual(arrived[2], 0.9, "each frame is held, one after another")
+        records = strict_records(trace_path.read_bytes())
+        faults = [r for r in records if r["dir"] == "tap" and r.get("event") == "fault"]
+        self.assertEqual([f["kind"] for f in faults], ["delay"] * 3)
+        s2c = [r["seq"] for r in records if r["dir"] == "s2c"]
+        self.assertEqual([f["frame_seq"] for f in faults], s2c)
+
+    def test_without_options_there_is_no_fault_record(self) -> None:
+        run = self.faulty(self.LINES)
+        self.assertEqual(self.faults(run), [])
+        self.assertEqual(run.stdout, self.LINES)
+
+    def test_bad_fault_options_are_usage_errors(self) -> None:
+        for bad in (["--delay", "stderr:5"], ["--delay", "s2c:x"], ["--drop", "c2s"],
+                    ["--drop", "up:m"], ["--delay", "s2c:-1"], ["--delay"]):
+            done = subprocess.run(
+                [sys.executable, "-m", "tap", "--trace", str(self.tmp / "t.jsonl"), *bad,
+                 "--", "true"],
+                cwd=ROOT, capture_output=True, timeout=TIMEOUT,
+            )  # fmt: skip
+            self.assertEqual(done.returncode, 2, bad)
+            self.assertIn(b"usage:", done.stderr, bad)
+
+
 class UsageTest(unittest.TestCase):
     """C5: usage and start-up errors."""
 

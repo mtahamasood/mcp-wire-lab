@@ -1,13 +1,17 @@
 """The wire tap (D1-D4).
 
 Usage:
-  python3 -m tap --trace <file> -- <server command...>
+  python3 -m tap --trace <file> [--delay <dir>:<ms>] [--drop <dir>:<method>] -- <server command...>
 
 Spawns the server command as a child and relays bytes unchanged: the tap's stdin to the
 child's stdin, the child's stdout to the tap's stdout, the child's stderr to the tap's
 stderr. Every frame (a run of bytes ending in a newline, or a final run without one) is
 written to the trace as one JSON Lines record, on a single timeline (D3). Forwarding never
 depends on recording: if the trace fails, the tap says so once and keeps relaying (D2).
+
+Fault mode (phase 4 D3), off unless asked: --delay holds every frame of one direction (c2s or
+s2c) for <ms> milliseconds before forwarding it; --drop does not forward the first frame of one
+direction whose "method" is <method>. Each fault is a `fault` record on the timeline.
 """
 
 from __future__ import annotations
@@ -28,7 +32,11 @@ from types import FrameType
 from typing import Any
 
 CHUNK = 65536
-USAGE = "usage: python3 -m tap --trace <file> -- <server command...>"
+USAGE = (
+    "usage: python3 -m tap --trace <file> [--delay <dir>:<ms>] [--drop <dir>:<method>]"
+    " -- <server command...>\n  <dir> is c2s or s2c"
+)
+FAULT_DIRECTIONS = ("c2s", "s2c")
 FORWARDED_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)
 # JSON leaves these unescaped in strings, but many line readers split on them (D3).
 LINE_BREAKS = ("\x85", " ", " ")
@@ -36,6 +44,28 @@ LINE_BREAKS = ("\x85", " ", " ")
 
 class UsageError(Exception):
     pass
+
+
+class Faults:
+    """The fault options for one direction (D3): an optional delay and an optional drop."""
+
+    def __init__(self, delay_ms: int | None = None, drop_method: str | None = None) -> None:
+        self.delay_ms = delay_ms
+        self.drop_method = drop_method
+        self.dropped = False
+
+    def drops(self, frame: bytes) -> bool:
+        """True once, for the first frame whose JSON `method` equals the drop method."""
+        if self.drop_method is None or self.dropped:
+            return False
+        try:
+            message = json.loads(frame)
+        except (ValueError, RecursionError):
+            return False
+        if isinstance(message, dict) and message.get("method") == self.drop_method:
+            self.dropped = True
+            return True
+        return False
 
 
 def say(message: str) -> None:
@@ -104,9 +134,10 @@ class Trace:
         self._seq = 0
         self._closed = False
 
-    def _write(self, direction: str, fields: dict[str, Any]) -> None:
+    def _write(self, direction: str, fields: dict[str, Any]) -> int | None:
+        """Write one record; return its seq, or None if nothing was written."""
         if self._closed:
-            return
+            return None
         rec = {"seq": self._seq, "t_ns": time.monotonic_ns() - self._start, "dir": direction}
         rec.update(fields)
         try:
@@ -114,8 +145,9 @@ class Trace:
         except OSError as exc:  # fail open (D2): stop recording, keep forwarding
             say(f"tap: trace write failed, recording stopped: {exc}")
             self._close()
-            return
+            return None
         self._seq += 1
+        return self._seq - 1
 
     def _close(self) -> None:
         if not self._closed:
@@ -125,11 +157,11 @@ class Trace:
             except OSError:
                 pass
 
-    def record(self, direction: str, fields: dict[str, Any]) -> None:
+    def record(self, direction: str, fields: dict[str, Any]) -> int | None:
         with self._lock:
-            self._write(direction, fields)
+            return self._write(direction, fields)
 
-    def frame(self, direction: str, frame: bytes, partial: bool = False) -> None:
+    def frame(self, direction: str, frame: bytes, partial: bool = False) -> int | None:
         try:
             fields = frame_fields(frame)
         except Exception as exc:  # describing a frame must never stop its direction (D2)
@@ -141,7 +173,7 @@ class Trace:
             }
         if partial:
             fields["partial"] = True
-        self.record(direction, fields)
+        return self.record(direction, fields)
 
     def event(self, event: str, **fields: Any) -> None:
         self.record("tap", {"event": event, **fields})
@@ -168,6 +200,66 @@ def write_all(fd: int, data: bytes) -> None:
             view = view[os.write(fd, view) :]
         except BlockingIOError:
             select.select([], [fd], [])
+
+
+def relay_with_faults(
+    src: int,
+    dst: int,
+    direction: str,
+    trace: Trace,
+    faults: Faults,
+    at_eof: Callable[[], None] | None = None,
+) -> None:
+    """relay() for a direction with a fault option: forwards one frame at a time (D3).
+
+    Each frame is recorded, then (if a fault applies) a `fault` record names its seq, then the
+    frame is held for the delay or not forwarded at all. One thread handles the direction, so
+    a delay keeps order. A final frame without a newline is forwarded at end of file.
+    """
+    pending = b""
+    forwarding = True
+
+    def handle(frame: bytes, partial: bool = False) -> None:
+        nonlocal forwarding
+        seq = trace.frame(direction, frame, partial=partial)
+        if faults.drops(frame):
+            trace.event(
+                "fault", kind="drop", on=direction, method=faults.drop_method, frame_seq=seq,
+                forwarded=False,
+            )  # fmt: skip
+            return
+        if faults.delay_ms is not None:
+            trace.event(
+                "fault", kind="delay", on=direction, ms=faults.delay_ms, frame_seq=seq
+            )  # fmt: skip
+            time.sleep(faults.delay_ms / 1000)
+        if forwarding:
+            try:
+                write_all(dst, frame)
+            except BrokenPipeError:
+                forwarding = False
+            except OSError as exc:
+                say(f"tap: forwarding {direction} failed, still recording: {exc}")
+                forwarding = False
+
+    try:
+        while True:
+            try:
+                chunk = read_some(src)
+            except OSError as exc:
+                say(f"tap: reading {direction} failed, treated as end of file: {exc}")
+                break
+            if not chunk:
+                break
+            pending += chunk
+            while (end := pending.find(b"\n")) >= 0:
+                frame, pending = pending[: end + 1], pending[end + 1 :]
+                handle(frame)
+        if pending:
+            handle(pending, partial=True)
+    finally:
+        if at_eof is not None:
+            at_eof()
 
 
 def relay(
@@ -213,14 +305,36 @@ def relay(
             at_eof()
 
 
-def parse_args(argv: list[str]) -> tuple[Path, list[str]]:
+def parse_fault(option: str, value: str, faults: dict[str, Faults]) -> None:
+    """Add one `--delay <dir>:<ms>` or `--drop <dir>:<method>` value to the per-direction faults."""
+    direction, colon, argument = value.partition(":")
+    if direction not in FAULT_DIRECTIONS or not colon or not argument:
+        raise UsageError(f"{USAGE}\ntap: {option} needs <dir>:<value>, got {value!r}")
+    entry = faults.setdefault(direction, Faults())
+    if option == "--delay":
+        if not argument.isascii() or not argument.isdigit():
+            raise UsageError(f"{USAGE}\ntap: --delay needs whole milliseconds, got {argument!r}")
+        entry.delay_ms = int(argument)
+    else:
+        entry.drop_method = argument
+
+
+def parse_args(argv: list[str]) -> tuple[Path, list[str], dict[str, Faults]]:
     if "--" not in argv:
         raise UsageError(f"{USAGE}\ntap: missing -- before the server command")
     split = argv.index("--")
     options, command = argv[:split], argv[split + 1 :]
-    if len(options) != 2 or options[0] != "--trace" or not command:
+    if len(options) < 2 or options[0] != "--trace" or not command:
         raise UsageError(USAGE)
-    return Path(options[1]), command
+    faults: dict[str, Faults] = {}
+    rest = options[2:]
+    if len(rest) % 2:
+        raise UsageError(USAGE)
+    for option, value in zip(rest[::2], rest[1::2], strict=True):
+        if option not in ("--delay", "--drop"):
+            raise UsageError(USAGE)
+        parse_fault(option, value, faults)
+    return Path(options[1]), command, faults
 
 
 def exit_code(returncode: int) -> int:
@@ -250,7 +364,7 @@ def close_stdout() -> None:
 def main(argv: list[str]) -> int:
     open_standard_fds()
     try:
-        trace_path, command = parse_args(argv)
+        trace_path, command, faults = parse_args(argv)
     except UsageError as exc:
         say(str(exc))
         return 2
@@ -293,15 +407,22 @@ def main(argv: list[str]) -> int:
 
     assert child.stdin and child.stdout and child.stderr
     to_child = child.stdin
+
+    def relay_for(direction: str, src: int, dst: int, at_eof: Callable[[], None]) -> Any:
+        """The plain relay, or the per-frame one if this direction has a fault option."""
+        if direction in faults:
+            return relay_with_faults, (src, dst, direction, trace, faults[direction], at_eof)
+        return relay, (src, dst, direction, trace, at_eof)
+
+    c2s_target, c2s_args = relay_for("c2s", 0, to_child.fileno(), to_child.close)
+    s2c_target, s2c_args = relay_for("s2c", child.stdout.fileno(), 1, close_stdout)
     relays = [
         threading.Thread(
-            target=relay,
-            args=(0, to_child.fileno(), "c2s", trace, to_child.close),
+            target=c2s_target,
+            args=c2s_args,
             daemon=True,  # a client that never closes stdin must not keep the tap alive
         ),
-        threading.Thread(
-            target=relay, args=(child.stdout.fileno(), 1, "s2c", trace, close_stdout)
-        ),
+        threading.Thread(target=s2c_target, args=s2c_args),
         threading.Thread(target=relay, args=(child.stderr.fileno(), 2, "stderr", trace)),
     ]
     for thread in relays:

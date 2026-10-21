@@ -31,6 +31,29 @@ change, or if the fault mode alters a run that did not ask for it.
 
 - Status: open
 
+### Mutation (LP4)
+
+15 hand-applied mutants on the `_drive` removal (`tests/drive.py`, M1-M8) and the drop path
+(`tap/__main__.py`, M9-M15), run against `tests/test_drive.py` and `FaultModeTest`. 14 killed on
+the first run; 1 survived: M15 (a drop that matches any frame whose text contains the method, not
+its `method` member). Resolution: added `FaultModeTest::test_drop_matches_the_method_member_only`;
+M15 is then killed. No mutant survives. Killed: the `_drive` member left in; no handling of a
+first, middle or last member; `expect: none` treated as `reply`; `wait_ms` ignored; the id wait
+kept after the timed wait; the cut line re-serialized; every matching frame dropped; the drop
+recorded but the frame forwarded; client-to-server faults ignored; a fault record naming the wrong
+frame or claiming `forwarded: true`; the first non-matching frame dropped.
+
+### Builder decisions (candidates for the register)
+
+- `tap.show --explain <file>#<section>` (notes under `## <section>` plus `## shared`) and range
+  anchors (`stderr.1-106`): one walkthrough explains eight traces, and the server's stack traces
+  on stderr are over a hundred records. Phase 1's behaviour without `#` is unchanged.
+- `scripts/record.sh` reports a non-zero server exit instead of failing, because the pinned
+  server exits 1 after a transport error (`servers:src/everything/transports/stdio.ts:66`).
+- `before-initialize` is walkthrough section for phase 1's `exp-list-first.ndjson` (no copy).
+- The fault record's fields: `kind`, `on`, `frame_seq`, plus `ms` (delay) or `method` and
+  `forwarded: false` (drop).
+
 ### Accepted limits
 
 - Learner walk L15, J rows, G6 walk: deferred (LP5).
