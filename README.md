@@ -55,6 +55,9 @@ Do them in order.
 1. [The wire and the handshake](docs/lessons/01-the-wire-and-the-handshake.md): what crosses
    stdio, the 2025 opening exchange, and three ways to break it.
    Walkthrough: [the handshake, frame by frame](docs/walkthrough/01-handshake-2025.md).
+4. [The edge lab](docs/lessons/04-edge-lab.md): malformed and out-of-order messages, what the
+   server answers against what the spec says, and losing a message at the tap.
+   Walkthrough: [the edge experiments](docs/walkthrough/04-edge-lab.md).
 
 More lessons arrive with later phases; [`specs/roadmap.md`](specs/roadmap.md) lists what each
 phase adds.
