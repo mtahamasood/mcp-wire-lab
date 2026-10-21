@@ -1,5 +1,7 @@
 # Lesson 01: the wire and the handshake
 
+<!-- exercises: initialize, notifications/initialized, tools/list, ping -->
+
 ## Goal
 
 See what actually crosses a stdio connection between an MCP client and an MCP server, and

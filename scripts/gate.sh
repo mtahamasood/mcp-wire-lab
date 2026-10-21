@@ -13,6 +13,7 @@ gate G4 python3 -m unittest discover -s tests -t . -v
 gate G5 python3 -m unittest tests.test_e2e -v
 gate G8 python3 tools/check_citations.py
 gate G9 python3 tools/check_lessons.py
+gate G10 python3 tools/atlas.py --check
 gate G11 python3 tools/check_no_run_output.py
 
 echo "gate: all green"
