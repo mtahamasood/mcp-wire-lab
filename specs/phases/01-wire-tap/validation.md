@@ -145,6 +145,44 @@ Any of these standing means the phase is NOT done, whatever else passes:
     commit. Real-trace variant (2026-10-20,
     group 4): a trace recorded by `scripts/record.sh` was `git add -f`'d in a temp clone; the push was refused
     (exit 1; G11 named the file for all three rules) and the bare remote kept only the earlier clean commit.
+    After the G11 fixes of step (b) (b8ca145; 2026-10-21): 43 mutants of the added behaviour, each applied
+    in place to `tools/check_no_run_output.py` or `scripts/install-pre-push.sh` (restored and `git diff`
+    clean after each), with `PYTHONDONTWRITEBYTECODE=1` and no `__pycache__`, then the whole of
+    `tests.test_no_run_output` run; baseline exit 0 (30 tests). First run: 26 killed, 17 survived.
+    Killed at once, with the tests that fail: R10 home path, the bare-name boundary dropped, or without
+    whitespace, a quote or end of text: `test_bare_home_directory_forms`. R10 env, the KEY=VALUE form
+    dropped, `export` dropped, `re.M` dropped, or only `group(1)` read: `test_key_value_env_dump`.
+    R10 decode, the old skip on `UnicodeDecodeError`: `test_undecodable_byte_does_not_hide_a_secret`.
+    R3, the content rule dropped or limited to `.jsonl`, or matched by exact key set: the name-and-case and
+    fixtures-marker tests; `t_ns` not required: the `seq`-and-`dir` test; `.lower()` dropped: the same;
+    `all` for `any` in the `.jsonl` rule: `test_each_leak_is_named_by_file`. R11, the index not read: the
+    staged, deleted-from-disk and symlink tests; the working tree not read: the working-tree test; gitlinks
+    not skipped: `test_real_repo_is_clean` (error). R2, no `-m`: both merge tests and the merge push test;
+    no dedupe: the not-duplicated test; symlinks skipped again: the symlink test. R1, the old
+    `--absolute-git-dir`: the linked-worktree test; writing into `--git-path hooks`: 7 installer and hook
+    tests; no warning: the warns test; a warning whenever `core.hooksPath` is set: the own-directory test;
+    `|| true` dropped from `config --get`: the unset and linked-worktree tests.
+    The 17 survivors, and the test that now kills each (41 tests, baseline exit 0): an unanchored KEY=
+    (MANPATH=, OLDPWD=, SUDO_USER= counted): `test_key_value_env_key_is_the_whole_name`; `export ` with one
+    space only: `test_export_with_any_whitespace_is_an_env_dump`; `errors="ignore"`:
+    `test_marker_line_with_an_undecodable_byte_is_not_the_marker`; strict decode of the `ls-files` and
+    `diff-tree` output, and `git show commit:path` for the blob: `test_non_utf8_file_name_is_checked`
+    (crash); `all` for `any` in the content rule: `test_one_trace_record_among_other_json_lines_is_trace_shaped`;
+    the index-and-working-tree dedupe dropped: `test_leak_in_index_and_working_tree_is_named_once`;
+    working-tree symlinks followed: `test_working_tree_symlink_content_is_not_read`; gitlinks not skipped in
+    the hook: `test_commit_adding_a_submodule_gitlink_is_skipped` (crash); `pwd` for `pwd -P`:
+    `test_no_warning_when_the_repo_is_reached_through_a_symlink`; no `mkdir -p` of the hooks directory:
+    `test_missing_hooks_directory_is_created`; `|| true` dropped from the active-path lookup:
+    `test_hooks_path_to_a_missing_directory_warns_and_installs`.
+    Signed equivalent: comparing index and working tree unconditionally (the dedupe drops the identical
+    problems); deduping merge entries by path alone (every per-parent entry of a path carries the merge
+    commit's blob, seen in `diff-tree -m -z` output); `not parts` for `len(parts) < 4` (without `-M` or `-C`
+    every record has five fields; the trailing empty field is unpaired and dropped by `zip`).
+    Survived, open: dropping `mode != "120000"` in gate mode. Not equivalent: the mutant also reads a
+    working-tree regular file that replaced a tracked symlink, which G11 ("as well as the working tree")
+    asks for and the tool skips; a probe found a token there, and a tracked link retargeted at a home path
+    but not staged, both missed (`[]`). Not killed, as a killing test would pin the gap; the push hook still
+    reads the committed blob. Totals: 43 run, 39 killed, 3 signed equivalent, 1 open.
   - C1-C6 (2026-10-20): each mutation applied to `tap/__main__.py` in a temp copy of `tap/` and `tests/`, and
     that row's test class run; every baseline exit 0, every mutant exit 1.
     C1, forwarding `json.dumps(json.loads(frame))`: `test_both_directions_are_byte_exact` fails on the c2s sha256.
