@@ -29,7 +29,12 @@ from typing import Any
 
 from tap import show
 
-USAGE = "usage: python3 -m tap.check <trace> --revision <revision> [--spec-root <dir>]"
+USAGE = (
+    "usage: python3 -m tap.check <trace> --revision <revision> [--spec-root <dir>]\n"
+    "  Checks every frame of a trace against that revision's JSON Schema in the pinned spec\n"
+    "  (vendor/spec/schema/<revision>/; the lessons use 2025-11-25). Prints `check: ok` and\n"
+    "  exits 0, or lists each frame that is not valid."
+)
 DEFAULT_SPEC_ROOT = Path(__file__).resolve().parent.parent / "vendor/spec"
 # Keywords that assert something; each has a branch in `validate`.
 ASSERTIONS = {

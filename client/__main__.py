@@ -25,7 +25,12 @@ MODES = ("tour", "manual", "server-tour", "matrix")
 USAGE = (
     "usage: python3 -m client <tour|manual|server-tour> [--caps <list>] -- <server command...>\n"
     "       python3 -m client matrix -- <server command...>\n"
-    f"  --caps: comma-separated from {', '.join(CAPABILITIES)}, or none"
+    f"  --caps: comma-separated from {', '.join(CAPABILITIES)}, or none\n"
+    "  tour: a scripted conversation (exits 0 if every reply was as expected). manual: type your\n"
+    "  own lines (`{...}` raw JSON, `:req <method> [<params>]`, `:note <method> [<params>]`,\n"
+    "  `:sample <text>`, `:quit`). server-tour: the server-initiated traffic of lesson 03.\n"
+    "  matrix: one session per capability set, printed as a table.\n"
+    "  To record a run with the tap in between, use scripts/record.sh --client <mode>."
 )
 
 

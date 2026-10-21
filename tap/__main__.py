@@ -34,7 +34,13 @@ from typing import Any
 CHUNK = 65536
 USAGE = (
     "usage: python3 -m tap --trace <file> [--delay <dir>:<ms>] [--drop <dir>:<method>]"
-    " -- <server command...>\n  <dir> is c2s or s2c"
+    " -- <server command...>\n"
+    "  Runs the server command between your client (this process's stdin and stdout) and the\n"
+    "  server, and records every byte to the trace file.\n"
+    "  <dir> is c2s (client to server) or s2c (server to client).\n"
+    "  --delay <dir>:<ms>      hold every frame in that direction for <ms> after recording it\n"
+    "  --drop <dir>:<method>   record the first such frame but never forward it\n"
+    "  Read the trace with: python3 -m tap.show <file>"
 )
 FAULT_DIRECTIONS = ("c2s", "s2c")
 FORWARDED_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)

@@ -9,6 +9,18 @@ It is for anyone who wants to understand MCP below the SDK: how a connection ope
 message means, and where the spec and a real implementation agree or differ. Nothing here is a
 client or a server you would ship.
 
+## Start here
+
+1. Set up once (below): clone, then `scripts/bootstrap.sh`.
+2. Open [lesson 01](docs/lessons/01-the-wire-and-the-handshake.md) and do the lessons in order.
+   Each one has the same shape: *Goal*, *Predict* (write your answers down first), *Run*,
+   *Read the trace*, *Read the source*, *Experiments*, *Check yourself*. Every command in a
+   lesson is meant to be pasted at the repository root.
+3. If you only want to poke at it, jump to *Record and read a trace* below.
+
+A lesson's commands print what the lesson says they print; `scripts/gate.sh` checks that.
+After setup nothing needs a network, and the lessons write only inside this folder (setup itself uses npm's cache in your home folder).
+
 ## What you need
 
 - Linux or WSL (tested); macOS untested. You need `bash`, `git` and `python3` (3.12 or newer)
@@ -30,6 +42,8 @@ runs locally under the tap, and nothing here is exposed. Bootstrap may also warn
 `core.hooksPath` is set, so git might not run the repo's pre-push hook; that matters only if you
 push, and it is safe to ignore otherwise.
 
+If bootstrap stops, it says why in one line. The common causes are in *Troubleshooting* below.
+
 Citations in the docs look like `servers:path:line "fragment"` or `spec:path:line "fragment"`.
 `servers:` means under `vendor/servers/` and `spec:` means under `vendor/spec/`; the quoted
 fragment is the text you should find on that line.
@@ -48,11 +62,60 @@ with `python3 -m tap.check <the path> --revision 2025-11-25`.
 `record.sh` prints that path ending in `trace.jsonl` (and a ready `read it:` line to copy).
 
 `python3 -m tap.show` also takes `--full` (every frame's decoded JSON, pretty-printed), `--mermaid` (a sequence diagram) and
-`--explain <walkthrough.md>` (a note after every frame).
+`--explain <walkthrough.md>` (a note after every frame). A walkthrough that explains several
+experiments has one section per experiment: add `#<section>`, as in
+`--explain docs/walkthrough/04-edge-lab.md#unknown-method`. A wrong section name lists the right ones.
+
+Reading a trace line: `->` is the client's frame, `<-` the server's, `!!` the server's stderr and
+`..` an event of the tap itself (spawn, exit, an injected fault). The number on the left is the
+frame's `seq`; walkthrough notes and citations refer to frames by it.
 
 Recordings go to `runs/`, which git ignores. This repository never holds run output: your traces
 stay on your machine. Nothing runs at commit time: the pre-push hook refuses a push that would
 publish one, and `scripts/gate.sh` fails if one is tracked.
+
+## The tools, in one place
+
+Every command prints a usage text when you run it with no arguments (or with `--help`, which
+counts as a usage error and exits 2; the text goes to stderr).
+
+| Command | What it does |
+| --- | --- |
+| `scripts/bootstrap.sh` | Checks Node and the two pinned submodules, builds the reference server. Run once. |
+| `scripts/record.sh <fixture> [name]` | Plays a scripted conversation from `tests/fixtures/` through the tap against the real server; prints the trace path. |
+| `scripts/record.sh --client <tour\|manual\|server-tour> [name]` | The same, with the raw Python client as the conversation. `manual` reads your typed lines on stdin; in a terminal, end it with `:quit` or Ctrl-D. |
+| `python3 -m tap.show <trace> [--full\|--mermaid\|--explain <file>]` | Reads a trace: one line per frame, with replies paired to their requests and latencies. |
+| `python3 -m tap.check <trace> --revision 2025-11-25` | Validates every frame against the spec's JSON Schema. |
+| `python3 -m tap --trace <file> [--delay\|--drop ...] -- <server command>` | The tap itself, for when you want to put it in front of your own command. `--drop` and `--delay` inject faults (lesson 04). |
+| `python3 -m client <tour\|manual\|server-tour\|matrix> -- <server command>` | The raw client without the tap. `--caps` chooses the capabilities it declares. |
+| `scripts/gate.sh` | Every automated check; needs `uv`. Contributors run it before a commit. |
+
+## What is where
+
+- `docs/lessons/`, `docs/walkthrough/`: the lessons and the frame-by-frame notes. `docs/atlas.md` is a generated table of every protocol method.
+- `tap/`: the recorder (`python3 -m tap`), the viewer (`tap.show`) and the schema checker (`tap.check`).
+- `client/`: the raw client, in small files. The lessons say which to read.
+- `tests/`: unit and end-to-end tests, plus `tests/fixtures/` (the scripted conversations).
+- `vendor/`: the pinned reference server and the specification, as git submodules.
+- `runs/`: your recordings (created on first use; git ignores it).
+- `specs/`, `audits/`: why the project is built the way it is, and its review records. You do not need them to do the lessons.
+
+## Troubleshooting
+
+- `need node v24.22.0`: install it with `nvm install 24.22.0 && nvm use 24.22.0`, then run bootstrap again.
+- `... is not checked out` or `... is at <sha>, expected <sha>`: run `git submodule update --init --recursive`.
+- `record: .../index.js missing (run scripts/bootstrap.sh)`: you have not run bootstrap, or it failed.
+- `record: no such fixture`: the path is relative to the repo root; fixtures are in `tests/fixtures/`.
+- A lesson's output differs from its `expect` block: you are probably on a different commit than the
+  submodule pins, or edited a tracked file; `git status` shows it. Undo your edit with `git checkout <file>`.
+- `scripts/gate.sh` says `uvx: command not found`: install [`uv`](https://docs.astral.sh/uv/). Only the gate needs it.
+- To start over, delete `runs/`; it holds nothing else.
+
+## Status
+
+Lessons 01 to 04 are built and checked. Phases 5 to 7 (an SDK client, the 2026 protocol era,
+Streamable HTTP) are written up in `specs/` but not built. Your feedback on the lessons is
+welcome as a GitHub issue.
 
 ## Lessons
 

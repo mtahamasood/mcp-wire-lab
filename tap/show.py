@@ -29,7 +29,14 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-USAGE = "usage: python3 -m tap.show <trace> [--full | --mermaid | --explain <walkthrough.md>]"
+USAGE = (
+    "usage: python3 -m tap.show <trace>"
+    " [--full | --mermaid | --explain <walkthrough.md>[#section]]\n"
+    "  <trace> is the trace.jsonl that scripts/record.sh printed. With no option: one line per\n"
+    "  frame. --full: each frame's decoded JSON. --mermaid: a sequence diagram. --explain: a note\n"
+    "  after every frame, from a walkthrough in docs/walkthrough/; a walkthrough with one section\n"
+    "  per experiment needs its section, e.g. docs/walkthrough/04-edge-lab.md#unknown-method"
+)
 ARROWS = {"c2s": "->", "s2c": "<-", "stderr": "!!", "tap": ".."}
 OTHER = {"c2s": "s2c", "s2c": "c2s"}
 ANCHOR_HEADING = re.compile(r"^#### `([^`]+)`\s*$")

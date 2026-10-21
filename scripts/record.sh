@@ -7,6 +7,13 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+case "${1:-}" in
+  -*) [ "${1:-}" = "--client" ] || { echo "record: unknown option: $1" >&2
+      echo "usage: scripts/record.sh <fixture> [name]   or   scripts/record.sh --client <tour|manual|server-tour> [name]" >&2
+      echo "  Records the run between the tap and the pinned server into runs/<time>-<name>/ and prints the path." >&2
+      echo "  A fixture is a file in tests/fixtures/. Set up once with scripts/bootstrap.sh." >&2
+      exit 1; } ;;
+esac
 client=""
 if [ "${1:-}" = "--client" ]; then
   client="${2:?usage: scripts/record.sh --client <tour|manual|server-tour> [name]}"
