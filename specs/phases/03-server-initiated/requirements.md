@@ -35,13 +35,13 @@ request can still complete while a server request is pending):
   `endTurn`; in manual mode the owner may type the text instead;
 - `elicitation/create` → form mode: `accept` with a value for each requested property
   from its `default`, else the first `enum` value, else a fixed value per type (`string`
-  `"wire-lab"`, `number`/`integer` `1`, `boolean` `true`); URL mode: `decline`;
+  `"wire-lab"`, `number`/`integer` `1`, `boolean` `true`), a non-integer number default sent as its integer part because the 2025-11-25 `ElicitResult` content allows no floats; URL mode: `decline`; a request for an elicitation mode the client did not declare → error `-32602` (invalid params), as the spec's elicitation section requires;
 - `ping` → `{}`;
-- any other method, or a method whose capability the client did not declare → error
-  `-32601` with the same `id`.
+- any other method, or a method whose capability the client did not declare (other than
+  an undeclared elicitation mode, above) → error `-32601` with the same `id`.
 
 *Source:* stakeholder ask A2, 2026-10-20; roadmap.md phase 3 row; mission.md non-goal
-(no real LLM).
+(no real LLM); amended by register row 2026-10-21, phase 3 build.
 
 ### D2 — Reacting to notifications
 
