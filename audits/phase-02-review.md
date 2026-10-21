@@ -77,6 +77,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   a C1 test for an array id and one for a deeply nested line, each followed by a good reply that
   must still be delivered.
 - Disposition: fix (A30): a response is one only if its id is a valid id or null; `RecursionError` caught with `ValueError`; each line handled under a guard; `_fail_all` in a `finally`. Passes when `ClassifyTest::test_bad_id_or_deep_line_does_not_stop_reader` (C1) passes.
+- Status: fixed a453a1d
 
 ### P2-R2: the write lock also guards the pending table, so a blocked write deadlocks the client
 
@@ -130,6 +131,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   write from a small sender thread or queue. Add a C2 test that runs this deadlock scenario with
   a timeout.
 - Disposition: fix (A30): separate write lock and table lock, no table lock held during I/O, refusals and handler replies written off the reader thread. Passes when `FramingTest::test_large_write_does_not_block_reader` (C2) passes.
+- Status: fixed a453a1d
 
 ## Minors
 
@@ -141,6 +143,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   misses it), and 1 `Pending` is left in the table. Fix: set a `closed` failure in `_fail_all`
   and `close_input`, have `start_request` raise it at once, and catch `ValueError` with
   `OSError`. Disposition: fix (A30): the wire gets a closed state; pending and new requests fail at once with `OSError` after EOF or `close()`, and leave no pending entry. Passes when `LifecycleTest::test_request_after_eof_or_close_fails_fast` (C3) passes.
+  Status: fixed a453a1d
 - **P2-R4** (minor) `client/wire.py:107-117`, `client/session.py:115-124`: a timeout neither
   sends `notifications/cancelled` nor forgets the request. `request` cites lifecycle.mdx:248
   ("SHOULD establish timeouts"), but the same paragraph says the sender SHOULD then cancel and
@@ -149,6 +152,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   (`reports: []`), not reported as a late reply. Fix: on `TimeoutError` in `Session.request`,
   call `cancel(pending, "timeout")`, so the late reply is abandoned, dropped and reported.
   Disposition: fix (A30), D2 amended: on timeout the client sends `notifications/cancelled` (reason `timeout`) and forgets the request, so a late reply is reported. Passes when `CancelTest::test_timeout_sends_cancel_and_forgets` (C5) passes.
+  Status: fixed a453a1d
 - **P2-R5** (minor) `client/session.py:148-155`, `client/wire.py:226-236`: `cancel` checks
   `pending.done` outside the lock. If the reply lands between that check and `abandon`, `cancel`
   returns `True` and sends `notifications/cancelled` for a request that has completed, and
@@ -158,6 +162,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   `wait() returns: {'content': []}` and one `notifications/cancelled` line. Fix: have
   `abandon` return whether it removed the entry under the lock, and send the notification only
   then. Disposition: fix (A30): `done` check and abandon under one lock; cancel of a completed request returns False and sends nothing. Passes when `CancelTest::test_cancel_after_completion_returns_false` (C5) passes.
+  Status: fixed a453a1d
 - **P2-R6** (minor) `tap/check.py:213-214,221`: on any revision other than 2025-11-25, an error
   or response frame crashes with `KeyError` and exit 1, which reads as "frames failed". The
   usage advertises `--revision <revision>`, and the docstring says a check that cannot run exits
@@ -192,6 +197,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   linking `01-the-wire-and-the-handshake.md`, `04-edge-lab.md`, `02-raw-client.md`, numbered
   1, 2, 3. A reader who follows "in order" does the edge lab second. Fix: put lesson 02 second
   and lesson 04 third, with no blank line between items. Disposition: fix (A30): README lesson list in order 01-04. No test (docs).
+  Status: fixed c007669
 
 ## Not reported
 
