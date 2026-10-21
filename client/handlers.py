@@ -7,7 +7,8 @@ It plugs into a `Wire` as its `on_request` and `on_notification` callbacks.
 
 - A request is answered on a worker thread, under its own `id` (type included), so a client
   request can still complete while a server request is pending. A method with no handler, or a
-  method whose capability the client did not declare, gets -32601.
+  method whose capability the client did not declare, gets -32601; an elicitation mode it did
+  not declare gets -32602 (invalid params).
 - A notification is recorded and printed on the reader's thread (cheap, never blocking); the
   re-requests it calls for (the changed list, the updated resource) are sent by a second worker,
   the reactor, which waits `debounce` seconds first so a burst becomes one re-list.
@@ -35,6 +36,7 @@ LIST_METHODS = {
     "notifications/resources/list_changed": "resources",
 }
 DEBOUNCE_SECONDS = 0.05
+INVALID_PARAMS = -32602
 
 
 def capability_object(caps: Iterable[str]) -> Message:
@@ -154,23 +156,40 @@ class Handlers:
             self._finish()
 
     def answer(self, message: Message) -> Message:
-        """The reply to one server request: the result for its method, or -32601.
+        """The reply to one server request: the result for its method, or an error.
 
-        Both carry the request's `id` exactly as it came, so `1` and `"1"` stay different.
+        The error is -32601 (method not found), except -32602 (invalid params) for an
+        `elicitation/create` in a mode the client did not declare. Every reply carries the
+        request's `id` exactly as it came, so `1` and `"1"` stay different.
 
         `spec:docs/specification/2025-11-25/basic/index.mdx:69`
         "MUST** include the same ID"
         `spec:docs/specification/2025-11-25/client/roots.mdx:144`
         "Method not found"
+        `spec:docs/specification/2025-11-25/client/elicitation.mdx:700`
+        "-32602"
         """
         method = message["method"]
-        result = self._result(method, message.get("params") or {})
+        params = message.get("params") or {}
+        mode = params.get("mode", "form")
+        if method == "elicitation/create" and not self._declares_mode(mode):
+            return {
+                "jsonrpc": JSON_RPC, "id": message["id"],
+                "error": {"code": INVALID_PARAMS,
+                          "message": f"Elicitation mode not declared: {mode}"},
+            }
+        result = self._result(method, params)
         if result is None:
             return {
                 "jsonrpc": JSON_RPC, "id": message["id"],
                 "error": {"code": METHOD_NOT_FOUND, "message": f"Method not found: {method}"},
             }
         return {"jsonrpc": JSON_RPC, "id": message["id"], "result": result}
+
+    def _declares_mode(self, mode: Any) -> bool:
+        """Whether the client declared the elicitation mode (`form` or `url`) a request asks for."""
+        return (mode == "form" and "elicitation" in self.caps) or (
+            mode == "url" and "elicitation-url" in self.caps)
 
     def _result(self, method: str, params: Message) -> Message | None:
         """The result for a method the client handles and declared, else None (refuse)."""
@@ -184,9 +203,7 @@ class Handlers:
                     "model": CANNED_MODEL, "stopReason": "endTurn"}
         if method == "elicitation/create":
             if params.get("mode", "form") == "url":
-                return {"action": "decline"} if "elicitation-url" in self.caps else None
-            if "elicitation" not in self.caps:
-                return None
+                return {"action": "decline"}
             properties = params.get("requestedSchema", {}).get("properties", {})
             return {"action": "accept",
                     "content": {name: form_value(spec) for name, spec in properties.items()}}

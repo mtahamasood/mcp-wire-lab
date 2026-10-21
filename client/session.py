@@ -124,7 +124,16 @@ class Session:
         "MUST** include the same ID"
         """
         pending = self.start_request(method, params)
-        return pending.wait(self.timeout if timeout is None else timeout)
+        try:
+            return pending.wait(self.timeout if timeout is None else timeout)
+        except TimeoutError:
+            # Stop waiting, and say so: cancel the request (reason "timeout") and forget it, so a
+            # late reply is dropped and reported.
+            try:
+                self.cancel(pending, "timeout")
+            except OSError:
+                pass  # the wire is gone; the timeout is still what the caller should see
+            raise
 
     def notify(self, method: str, params: Message | None = None) -> None:
         """Send a notification (a message with a method and no id).
@@ -137,8 +146,9 @@ class Session:
     def cancel(self, pending: Pending, reason: str | None = None) -> bool:
         """Cancel an in-flight request: tell the server, and stop waiting for the reply.
 
-        Returns False, sending nothing, if the request already has its reply. A reply that
-        arrives after the cancellation is dropped and reported by the wire. `initialize` is
+        Returns False, sending nothing, if the request already has its reply: the wire decides
+        that and forgets the request in one step, so a reply cannot land in between. A reply
+        that arrives after the cancellation is dropped and reported by the wire. `initialize` is
         never cancelled.
 
         `spec:docs/specification/2025-11-25/basic/utilities/cancellation.mdx:13`
@@ -148,9 +158,8 @@ class Session:
         """
         if pending.method == "initialize":
             raise ValueError("the initialize request must not be cancelled")
-        if pending.done:
+        if not self.wire.abandon(pending):
             return False
-        self.wire.abandon(pending)
         params: Message = {"requestId": pending.id}
         if reason is not None:
             params["reason"] = reason

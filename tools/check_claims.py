@@ -19,20 +19,55 @@ SPAN = re.compile(r"`([^`]+)`")
 FIRST_PHASE = 2
 
 
+def _split_cells(line: str) -> list[str]:
+    """Cells of a table row: split on `|` outside backtick spans and not escaped as `\\|`."""
+    cells: list[str] = []
+    cur: list[str] = []
+    in_code = False
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\" and not in_code and line[i + 1 : i + 2] == "|":
+            cur.append("|")
+            i += 2
+            continue
+        if ch == "`":
+            in_code = not in_code
+        if ch == "|" and not in_code:
+            cells.append("".join(cur).strip())
+            cur = []
+        else:
+            cur.append(ch)
+        i += 1
+    cells.append("".join(cur).strip())
+    return cells[1:-1] if line.rstrip().endswith("|") else cells[1:]
+
+
 def _c_rows(text: str) -> list[tuple[str, str]] | None:
-    """(row id, Checks cell) for each table row under `## C.`, or None if there is no table."""
+    """(row id, Checks cell) for each table row under `## C.`, or None if there is no table.
+
+    The Checks column is the one headed `Checks`. A row whose cell count differs from the
+    header's gets an empty Checks cell, so it fails as naming no check.
+    """
     rows: list[tuple[str, str]] = []
     in_section = False
+    checks_at: int | None = None
+    width = 0
     for line in text.split("\n"):
         if line.startswith("## "):
             in_section = line.startswith("## C.")
+            checks_at = None
             continue
         if not in_section or not line.startswith("|"):
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) < 3 or cells[0] == "Row" or set(cells[0]) <= {"-", " "}:
+        cells = _split_cells(line)
+        if cells and cells[0] == "Row":
+            width = len(cells)
+            checks_at = cells.index("Checks") if "Checks" in cells else None
             continue
-        rows.append((cells[0], cells[2]))
+        if not cells or set(cells[0]) <= {"-", " ", ":"} or checks_at is None:
+            continue
+        rows.append((cells[0], cells[checks_at] if len(cells) == width else ""))
     return rows or None
 
 
@@ -103,6 +138,9 @@ def main(argv: list[str]) -> int:
         phases = args[1].split(",")
         args = args[2:]
     root = Path(args[0]) if args else Path(__file__).resolve().parent.parent
+    if not (root / "specs").is_dir():
+        print(f"claims: {root} is not a directory containing specs/", file=sys.stderr)
+        return 2
     errors = check(root, phases)
     for e in errors:
         print(e, file=sys.stderr)

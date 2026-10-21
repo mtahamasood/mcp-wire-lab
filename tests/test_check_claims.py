@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -71,6 +73,30 @@ class ClaimsTest(unittest.TestCase):
     def test_phase_one_is_skipped_and_a_table_is_required(self) -> None:
         self.assertEqual(self.run_on(validation("nothing"), phase="01-old"), [])
         self.assertEqual(len(self.run_on("# Phase\n\nno table\n")), 1)
+
+    def test_pipe_in_claim_cell_does_not_shift_columns(self) -> None:
+        gone = "`tests/test_gone.py::GoneTest::test_gone`"
+        for claim in ('"1" differ, in `a | b`', r"a \| b"):
+            text = (
+                f"# Phase\n\n## C. Phase-specific correctness\n\n{HEADER}"
+                f"| C1 | {claim} | {gone} | yes |\n"
+            )
+            errors = self.run_on(text)
+            self.assertEqual(len(errors), 1, (claim, errors))
+            self.assertIn("file does not exist", errors[0])
+        head = f"# Phase\n\n## C. Phase-specific correctness\n\n{HEADER}"
+        self.assertEqual(self.run_on(f"{head}| C1 | `a | b` | {OK} | yes |\n"), [])
+
+    def test_bad_root_argument_exits_2(self) -> None:
+        # A31: a root that is not a directory holding specs/ is a usage error, not "claims: ok".
+        with tempfile.TemporaryDirectory() as tmp:
+            for bad in (str(Path(tmp) / "no-such-dir"), tmp):  # missing; an empty directory
+                proc = subprocess.run(
+                    [sys.executable, str(ROOT / "tools/check_claims.py"), bad],
+                    capture_output=True, text=True, check=False)
+                self.assertEqual(proc.returncode, 2, (bad, proc.stdout, proc.stderr))
+                self.assertIn("specs/", proc.stderr)
+                self.assertNotIn("claims: ok", proc.stdout)
 
     def test_repository_passes(self) -> None:
         self.assertEqual(check_claims.check(ROOT, phases=["02"]), [])

@@ -92,24 +92,31 @@ class HandlersTest(unittest.TestCase):
         cases = {
             "roots/list": ("sampling", "elicitation", "elicitation-url"),
             "sampling/createMessage": ("roots", "elicitation", "elicitation-url"),
-            "elicitation/create": ("roots", "sampling"),
         }
         for method, caps in cases.items():
             rig = self.rig(caps)
             reply = rig.ask(3, method, {"message": "m", "requestedSchema": {"properties": {}}})
             self.assertEqual(reply["id"], 3, method)
             self.assertEqual(reply["error"]["code"], -32601, method)
-        # form and url are separate declarations
-        form_only = self.rig(("elicitation",))
-        self.assertEqual(form_only.ask(
-            4, "elicitation/create", {"mode": "url", "message": "m", "url": "https://x.test"}
-        )["error"]["code"], -32601)
-        url_only = self.rig(("elicitation-url",))
-        self.assertEqual(url_only.ask(
-            5, "elicitation/create", {"message": "m", "requestedSchema": {"properties": {}}}
-        )["error"]["code"], -32601)
         # ping needs no capability
         self.assertEqual(self.rig(()).ask(6, "ping")["result"], {})
+
+    def test_undeclared_elicitation_mode_is_invalid_params(self) -> None:
+        # The spec (elicitation.mdx, Error Handling) asks for -32602, not -32601, here.
+        form: dict[str, Any] = {"message": "m", "requestedSchema": {"properties": {}}}
+        url: dict[str, Any] = {
+            "mode": "url", "message": "m", "url": "https://x.test", "elicitationId": "i"}
+        cases: list[tuple[tuple[str, ...], dict[str, Any]]] = [
+            (("elicitation",), url), (("elicitation-url",), form),
+            (("elicitation-url",), {**form, "mode": "form"}),
+            (("roots", "sampling"), form), ((), url),
+            (ALL, {**form, "mode": "weird"}),
+        ]
+        for n, (caps, params) in enumerate(cases):
+            reply = self.rig(caps).ask(n, "elicitation/create", params)
+            self.assertEqual(reply["id"], n, (caps, params))
+            self.assertEqual(reply["error"]["code"], -32602, (caps, params))
+            self.assertNotIn("result", reply)
 
     def test_unknown_method_is_refused(self) -> None:
         rig = self.rig()

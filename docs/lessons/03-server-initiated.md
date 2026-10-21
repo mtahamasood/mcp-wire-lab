@@ -139,7 +139,8 @@ Run the same command without the redirect and read every note against your predi
 
 - `client/handlers.py`, `Handlers.answer`: one table, keyed by method. The reply carries the
   request's `id` untouched, so `1` and `"1"` stay different. A method the client has no handler
-  for, or whose capability it did not declare, gets `-32601`, method not found.
+  for, or whose capability it did not declare, gets `-32601`, method not found; an
+  `elicitation/create` in a mode it did not declare gets `-32602`, invalid params.
 - `Handlers.handle_request`: the reply is built and sent on a worker thread, so the reader can go
   on reading. That is the answer to Predict 3: on one thread the client would wait for its own
   reader to deliver the reply to a request that the reader is itself busy answering.
@@ -205,8 +206,8 @@ Answer from your own trace, then open the answers.
 2. How many `tools/list` requests did the client send after `initialized`, and how many
    `notifications/tools/list_changed` did the server send?
 3. Which capability makes the server ask a question without being asked, and after how long?
-4. The client answers `-32601` to a method it did not declare. What does the spec say for an
-   elicitation mode the client did not declare?
+4. The client answers `-32601` to a method whose capability it did not declare. What does it
+   answer, and what does the spec say, for an elicitation mode it did not declare?
 5. Why does the tour not call the server's `toggle-simulated-logging`?
 
 <details>
@@ -221,8 +222,9 @@ Answer from your own trace, then open the answers.
    triggered change.
 3. `roots`: the server asks `roots/list` 350 ms after `initialized`. The other capabilities only
    unlock tools.
-4. `-32602`, invalid params (`spec:docs/specification/2025-11-25/client/elicitation.mdx:700` "-32602"). This client uses
-   `-32601` for every undeclared capability, as the roots page does.
+4. `-32602`, invalid params (`spec:docs/specification/2025-11-25/client/elicitation.mdx:700` "-32602"),
+   and this client sends exactly that. Only the other undeclared capabilities get `-32601`, as the
+   roots page says.
 5. It sends a log message every five seconds at a random level, so two runs would never match
    frame for frame.
 
