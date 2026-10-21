@@ -6,7 +6,10 @@ of its code. Every phase after the first ends with something demonstrable. Exit 
 are binary. Every phase also ships its lesson (L1) and walkthrough, and closes with a
 `lesson-NN` tag (L14) and a learner walk (L15). Nothing a run produces is ever committed
 (A5): learners record their own traces with `scripts/record.sh` (L16), and CI records
-fresh ones to check the docs against.
+fresh ones to check the docs against. Phases 2–7 are reviewed under the review profile in
+`mission.md` (RP1–RP7; register row 2026-10-21, review profile): one adversarial review
+round on the phase's new code before close, mutation testing on its claim code only, and
+a review budget stated in its plan. Phase 1 ran a heavier profile.
 
 | # | Phase | Learning features | Exit criteria (all must hold) |
 | --- | --- | --- | --- |

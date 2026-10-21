@@ -61,6 +61,53 @@ Declined, so they need not be re-argued:
 - Committing anything a run produces — traces, logs, transcripts, tool output, learner-walk
   logs — or shipping such data any other way (A5).
 
+## Review profile for phases 2–7
+
+How review, mutation testing and hardening run from phase 2 on (register row 2026-10-21,
+review profile). It sets how this project applies the field guide's review and mutation
+steps; it does not drop any of them. Phase 1 ran a heavier profile (two review lenses, a
+review of the fixes, mutation runs on every C row) and its records stay as they were.
+
+- **RP1 Spec first, tests first, the gate.** A phase's requirements, plan and validation
+  are approved by the owner before any of its code; each test is written before the code it
+  checks; the phase closes only with `scripts/gate.sh` green on the inherited gates
+  (G1–G11 in `tech-stack.md`) and the gates the phase adds.
+- **RP2 One review round.** One adversarial review per phase, of the phase's new code only
+  (its diff from the phase's base on `main`), by a different model from the builder, run
+  after the phase's tests pass and before close; its corpus goes to
+  `audits/<lens>-review.md`. The fixes get no second review round: each fix is verified by
+  its own test and by the gate. Reviewer reports are model output: each finding is
+  reproduced before it is fixed, and one that cannot be reproduced is recorded as such and
+  not fixed.
+- **RP3 Mutation testing on claim code only.** Each phase's `validation.md` names its
+  *claim code*: the functions or files that carry the phase's central claim. Mutation
+  testing runs on that code, not on docs, wording or glue; a C row that checks no claim
+  code writes `not claim code (RP3)` in its Mutation column. A survivor is killed by a test
+  that pins behaviour the spec specifies, or signed as an equivalent mutant with its
+  reason; never by a test that pins unspecified behaviour only to kill the mutant. If a
+  survivor shows a gap in the spec, the row is amended first (by a register row), then the
+  test is written.
+- **RP4 Severity triage.** Blockers and majors are fixed. A minor is fixed only when the fix
+  is cheap or the finding touches claim code. Nits are not fixed: each is accepted as a
+  documented limit, with a one-line reason, in the phase's one *Accepted limits* list in its
+  `validation.md` Result; an unfixed minor goes on the same list.
+- **RP5 No claim without its check.** A validation row may not name a sample, test or check
+  that does not exist (incident: step (b) finding B1, `audits/step-b-review.md`, a C row
+  whose cases were never written). Before close, a mechanical check confirms that every
+  test, fixture or script each C row names exists: gate G12 (`tech-stack.md`) once the phase 2 plan
+  implements it, and until then an explicit close-out step in the plan.
+- **RP6 Review budget.** Each phase plan states its review budget, with the unit it is
+  measured in (for example sessions or commits). The target: review plus hardening take at
+  most about one third of the phase's effort. When the budget is spent, the work stops and
+  a register row records why, instead of another round starting; the owner decides what
+  follows.
+- **RP7 Owner override.** The owner may override any of RP1–RP6 for one phase by a
+  register row that names the rule and the phase.
+
+Each phase plan's close group states the builder's model, the reviewer's model (a
+different one), the review budget (RP6), and the RP5 check; its `validation.md` names the
+claim code (RP3) and holds the *Accepted limits* list (RP4).
+
 ## Decision register
 
 Append-only. Never edit a row; correct by a new dated row that names the one it amends.
@@ -84,6 +131,7 @@ Append-only. Never edit a row; correct by a new dated row that names the one it 
 | 2026-10-21 | The owner delegated every remaining Phase 1 decision to the agent, to be reviewed by the owner at the end: no questions, the agent commits and pushes, and uses subagents at models and efforts it chooses. Every such decision is a row in `audits/autonomous-decisions.md` (id, choice, reason, confidence, what breaks, how to overrule); a decision that changes a requirement, validation row or gate also gets its own register row. The method is unchanged: spec first, then tests, then code. Owner-only items R17 and R18 are resolved provisionally (A2, A3) and stay open for the owner's overrule. | The owner: "do it entirely automatically with no input from me ... log it in relevant places" |
 | 2026-10-21 | Phase 1 D7, D12, D13, D14, D15, validation rows C12, C15, C16, boundary check B5, and tech-stack CI, G1, G8, G9, G11 and standing law 1 are amended, and row C18 is added, to dispose of the step (b) review findings B1-B19 (`audits/step-b-review.md`; decisions A11-A18 in `audits/autonomous-decisions.md`). `record.sh` exits 1 with a `record: cannot create ` line when a run folder cannot be created, and a lesson takes its run folder from the `recorded:` line or the newest `runs/*-<name>*` (C18). G11's home rule becomes a negative lookahead; a KEY=VALUE env line may be indented or prefixed by `export` or `declare -x`; the hook reads every added, modified or type-changed file; gate mode reads a working-tree entry that differs from the index whatever its type, a symlink as its target path. G9 follows CommonMark fences. C16 requires exactly the allowlist (node adds no variable, measured). The installer fails on a directory that is not a repo and creates nothing. D7 and G1 describe G1 as the code has it. Accepted as documented limits: G1 matches words, not meaning (B9); JSON-escaped and Windows-style home paths (B3, in G11 and standing law 1); G8 reads the submodule as checked out and bootstrap checks the pin (R12); CI's action tags and `uv` and Python patch versions float (R21). B5 now also allows edits each named by a register row. This row amends the third row of this date: the pre-push installer does not follow `git rev-parse --git-path hooks`; it writes the repo's own hooks directory, `$(git rev-parse --git-common-dir)/hooks`, never a directory that `core.hooksPath` names, and warns when `core.hooksPath` resolves elsewhere (R1 as implemented by A4); and that row's claim that G9 was amended now holds. It also names the earlier tech-stack edits on this branch that no row named: the SDK client row and G3 (the SDK test tool and `tsc --strict` move from phase 4 to phase 5, after the A4 reorder) and the conventions line (`audits/<lens>-review.md`, `audits/learner-walk-lesson-NN.md`). It corrects the fourth row of this date: R17 and R18 are decided by the agent (A2, A3) but their records are not yet written; the close-out step writes `LICENSE` (MIT), the J2 note in `validation.md` ("agent-proposed, owner to confirm") and the acceptance of learner-walk items 3 and 7 before the phase-close merge, and both stay open for the owner's overrule. Decided by the agent under the owner's delegation (the fourth row of this date). | Independent review of step (b) (`audits/step-b-review.md`, B1-B18) and the C15 mutation run (B19); the owner's delegation |
 | 2026-10-21 | The repository's own content is licensed MIT: `LICENSE` at the root, copyright 2026 M. Taha Masood (the git author name), and a licence line in `README.md`. The submodules under `vendor/` keep their upstream licences and are not relicensed. This resolves finding R18 provisionally: decided by the agent under the owner's delegation (A2 in `audits/autonomous-decisions.md`), open for the owner's overrule by a later row that names another licence and replaces `LICENSE`. No requirement, validation row or gate changes. | Finding R18 (`audits/rest-review.md`); A2 and A18; the owner's delegation (the fourth row of this date) |
+| 2026-10-21 | **Review profile.** Phases 2–7 run the lighter review profile in this file's section *Review profile for phases 2–7* (RP1–RP7): spec first, tests first and the gate are kept; one adversarial review round per phase, on its new code, by a different model, with no review of the fixes; mutation testing on the phase's claim code only; blockers and majors fixed, minors when cheap or in claim code, nits accepted in one *Accepted limits* list; no validation row may name a check that does not exist, confirmed mechanically before close (gate G12, proposed in `tech-stack.md`, to implement in the phase 2 plan); a review budget in each plan, at most about one third of the phase's effort, and a register row instead of another round when it is spent; the owner may override any rule per phase by a register row. This amends how the field guide's review and mutation steps are applied (the SDD row of 2026-10-20) from phase 2 on; `tech-stack.md` and `roadmap.md` reference the section. Phase 1 ran the heavier profile and its records are unchanged. The owner articulated the rules; the agent wrote them as RP1–RP7, and its calls in the wording are A23 in `audits/autonomous-decisions.md`. | The owner, 2026-10-21: "I want to incorporate the things mentioned in My judgement ... customize the methodology accordingly for the remainder of the project". Phase 1's review and hardening were about two thirds of its work, with diminishing returns in the later rounds (step (b) review: 1 major, 7 minor, 10 nits; the major, B1, was a C row claiming tests that were never written) |
 
 ## Proposals awaiting ratification
 

@@ -21,7 +21,9 @@ dated register row in `mission.md`.
 
 Every phase inherits these. One entry point, `scripts/gate.sh`, runs the automated ones in
 order and fails on the first failure; CI runs exactly that script. Source: the SDD field
-guide §3 (adopted by register row 2026-10-20, SDD).
+guide §3 (adopted by register row 2026-10-20, SDD). From phase 2 on, review, mutation
+testing and hardening follow the review profile in `mission.md` (*Review profile for
+phases 2–7*, RP1–RP7; register row 2026-10-21, review profile).
 
 | Gate | What | Kind |
 | --- | --- | --- |
@@ -36,15 +38,18 @@ guide §3 (adopted by register row 2026-10-20, SDD).
 | G9 | Lessons: every lesson has the L1 sections, as headings outside fenced blocks and in order (a fence opens on a line of three or more backticks or tildes and closes only on a line of the same character, at least as long; an unclosed fence runs to the end of the file); every block marked runnable exits 0 under `bash -eo pipefail -c` and its expected-output block appears in its output (L1, L4) | check |
 | G10 | Atlas: regenerating `docs/atlas.md` from the pinned schemas and the lessons' declared methods produces the committed file (L8; from phase 2) | check |
 | G11 | No run output in git: no tracked file under `runs/`; every tracked trace-shaped file (a text file, whatever its name or case, whose JSON lines carry `seq`, `dir` and `t_ns`, or `*.jsonl` whose records carry `seq` and `dir`) is under `tests/fixtures/` and opens with a `{"dir":"tap","event":"synthetic"}` record; no tracked text file (read from the index and, where it differs, from the working tree, whatever either entry's type; undecodable bytes replaced; a symlink, in the index or the working tree, read as its target path and never followed) contains an environment dump (a JSON object, or three or more `KEY=VALUE` lines, each optionally indented and prefixed by `export` or `declare -x`, with three or more of `PATH`, `HOME`, `USER`, `SHELL`, `PWD`), a home-directory path (regex `/(home/[A-Za-z0-9._-]+|Users/[A-Za-z0-9._-]+|root)` not followed by a name character `[A-Za-z0-9._-]`), or a secret (regexes `gh[opsu]_[A-Za-z0-9]{30,}`, `github_pat_[A-Za-z0-9_]{30,}`, `sk-[A-Za-z0-9_-]{20,}`, `AKIA[0-9A-Z]{16}`, `xox[abprs]-[A-Za-z0-9-]{10,}`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`). The patterns are written so this row does not match itself. Runs in `scripts/gate.sh`, in CI, and as a pre-push hook that `scripts/bootstrap.sh` installs in the repo's own hooks directory, which reads every file a pushed commit adds, modifies or changes the type of, and the files a merge commit adds against each parent. Accepted limits (B3): JSON with escaped slashes and a Windows-style home path are not recognized | check |
+| G12 | Claimed checks exist (RP5): in each phase from 02 on, every C row of `validation.md` names at least one test, fixture or script, and each one it names exists in the repository (a test as its file, class and method; a fixture or script as its file). The form a C row uses to name them is fixed in the phase 2 spec; phase 1's rows name none and are not checked. **Proposed, not implemented: to implement in the phase 2 plan**; until then RP5's close-out step stands in | check (from phase 2) |
 
 G8–G10 come from the learning-feature catalogue in `roadmap.md` (register row 2026-10-20, A4);
-G11 from A5 (register row 2026-10-20, run output never committed).
+G11 from A5 (register row 2026-10-20, run output never committed); G12 from the review
+profile (register row 2026-10-21, review profile).
 
 ## Standing conventions
 
 - Specs live in `specs/`; phase specs in `specs/phases/NN-<name>/{requirements,plan,validation}.md`.
 - Review corpora live in `audits/<lens>-review.md`; a learner walk's findings list in
-  `audits/learner-walk-lesson-NN.md`.
+  `audits/learner-walk-lesson-NN.md`. From phase 2 on, one review round per phase
+  (RP2 in `mission.md`).
 - Runs are recorded by `scripts/record.sh` into `runs/` (git-ignored, never committed).
   Walkthroughs live in `docs/walkthrough/`, lessons in `docs/lessons/`, hand-written
   synthetic trace fixtures in `tests/fixtures/`.
