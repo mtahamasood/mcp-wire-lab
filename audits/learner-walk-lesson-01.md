@@ -67,7 +67,7 @@ stand as accepted. Gate green after the edits (31 citations checked).
 
 ## 6. Acceptance of items 3 and 7 (close-out, 2026-10-21)
 
-Agent-proposed, owner to confirm (decision A3 in `audits/autonomous-decisions.md`; finding R17 in
+Agent-proposed, confirmed by the owner on 2026-10-21 (decision A3 in `audits/autonomous-decisions.md`; finding R17 in
 `audits/rest-review.md`). Section 5 says the owner chose to leave items 3 and 7 unchanged, but that
 sentence was written by the agent and is not the owner's signature. Under the owner's delegation of
 2026-10-21, the agent records both as accepted:
