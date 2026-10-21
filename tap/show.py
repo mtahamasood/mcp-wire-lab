@@ -11,7 +11,8 @@ its note from a walkthrough and exits non-zero on a frame with no note or a note
 A walkthrough note is a heading `#### `<anchor>`` followed by the note's text. A walkthrough
 that explains several traces (phase 4) groups notes under `## <name>` headings: `--explain
 <file>#<name>` reads the notes under that heading plus those under `## shared`, and a shared
-note a trace does not use is not reported as extra. An anchor is
+note a trace does not use is not reported as extra. An anchor `<key>.<a>-<b>` is one note for
+the occurrences a to b of that key (a server's stack trace on stderr is many records). An anchor is
 `<dir>.<method-or-response>.<id-or-occurrence>`: requests and responses are keyed by id,
 notifications by occurrence (counted from 0 per direction and method); stderr is
 `stderr.<occurrence>` and tap events are `tap.<event>.<occurrence>`.
@@ -233,13 +234,32 @@ def parse_notes(path: Path, section: str | None = None) -> tuple[dict[str, str],
     return notes, shared
 
 
+RANGE_ANCHOR = re.compile(r"^(.+)\.(\d+)-(\d+)$")
+
+
+def expand_ranges(notes: dict[str, str]) -> dict[str, str]:
+    """Turn each `<key>.<a>-<b>` note into one note per occurrence; the first has the text."""
+    out: dict[str, str] = {}
+    for anchor, text in notes.items():
+        found = RANGE_ANCHOR.match(anchor)
+        if not found:
+            out[anchor] = text
+            continue
+        key, first, last = found.group(1), int(found.group(2)), int(found.group(3))
+        for n in range(first, last + 1):
+            out[f"{key}.{n}"] = text if n == first else f"(continues the note on {key}.{first})"
+    return out
+
+
 def explain(
     items: list[dict[str, Any]], notes: dict[str, str], shared: dict[str, str] | None = None
 ) -> tuple[list[str], bool]:
     out, ok, used = [], True, set()
+    notes = expand_ranges(notes)
+    shared = expand_ranges(shared or {})
     for item in items:
         out.append(line_for(item))
-        note = notes.get(item["anchor"]) or (shared or {}).get(item["anchor"])
+        note = notes.get(item["anchor"]) or shared.get(item["anchor"])
         used.add(item["anchor"])
         if note:
             out.append(f"        {note}")

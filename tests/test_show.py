@@ -384,6 +384,26 @@ class ExplainTest(unittest.TestCase):
         self.assertEqual(nope.returncode, 2)
         self.assertIn("no section", nope.stderr)
 
+    def test_a_range_anchor_covers_consecutive_occurrences(self) -> None:
+        # Phase 4: `stderr.1-3` is one note for stderr.1, stderr.2 and stderr.3 (a stack trace).
+        with tempfile.TemporaryDirectory() as tmp:
+            trace, notes = Path(tmp) / "t.jsonl", Path(tmp) / "w.md"
+            records = [rec(0, "stderr", raw="boot\n")] + [
+                rec(n, "stderr", raw=f"line {n}\n") for n in range(1, 4)
+            ]
+            trace.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
+            notes.write_text("#### `stderr.0`\nBoot.\n\n#### `stderr.1-3`\nA trace.\n",
+                             encoding="utf-8")
+            done = show(trace, "--explain", notes)
+            notes.write_text("#### `stderr.0`\nBoot.\n\n#### `stderr.1-4`\nToo far.\n",
+                             encoding="utf-8")
+            over = show(trace, "--explain", notes)
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertNotIn("(no note)", done.stdout)
+        self.assertEqual(done.stdout.count("A trace."), 1, "the note is printed once")
+        self.assertNotEqual(over.returncode, 0)
+        self.assertIn("(no frame)  [stderr.4]", over.stdout)
+
     def test_usage_errors(self) -> None:
         self.assertEqual(show().returncode, 2)
         self.assertEqual(show(TRACE, "--explain").returncode, 2)

@@ -31,10 +31,16 @@ mkdir "$dir/home" "$dir/bin"
 ln -s "$node_bin" "$dir/bin/node"
 
 # The server sees only this allowlist (D14); nothing from the caller's environment.
+# A server may exit non-zero on purpose (the everything server does after a transport error,
+# which the edge experiments provoke). The trace is the product and its last record is the exit
+# code, so a non-zero status is reported, not fatal.
+status=0
 python3 tests/drive.py "$fixture" -- \
   python3 -m tap --trace "$dir/trace.jsonl" -- \
   env -i "PATH=$dir/bin:/usr/bin:/bin" "HOME=$dir/home" LANG=C.UTF-8 MCP_WIRE_LAB=1 \
-  node "$server" stdio 2> "$dir/stderr.txt" > /dev/null
+  node "$server" stdio 2> "$dir/stderr.txt" > /dev/null || status=$?
+[ -s "$dir/trace.jsonl" ] || { echo "record: no trace was written (exit $status)" >&2; exit 1; }
+[ "$status" -eq 0 ] || echo "record: the run ended with exit code $status (see the exit record)" >&2
 
 echo "recorded: $dir/trace.jsonl"
 echo "read it:  python3 -m tap.show $dir/trace.jsonl"
