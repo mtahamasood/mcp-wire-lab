@@ -116,7 +116,8 @@ not which response answers which request once several are in flight.
 *Rejected:* `jq` recipes alone (no correlation); an HTML viewer (parked in the backlog).
 *Cost accepted:* a second tool to keep correct; its correlation logic needs its own
 discriminating fixture (responses out of order).
-*Source:* stakeholder ask A2, 2026-10-20.
+*Source:* stakeholder ask A2, 2026-10-20; amended by register row 2026-10-21 (third of that
+date; findings S1-S4, S6, S7, S10, S12-S14, T5).
 
 ### D6 — The pinned server is built from a fresh clone by one command
 
@@ -139,18 +140,25 @@ not just the everything server, unless measurement shows a narrower install work
 first failure.
 `.github/workflows/ci.yml` checks out with submodules, sets up Node and Python, runs
 `scripts/bootstrap.sh`, then `scripts/gate.sh`, on every push and pull request.
-`tools/check_provenance.py` implements G1 (and G7): every `### D<n>` record in
-`specs/phases/*/requirements.md` must carry a `*Source:*` line containing a `YYYY-MM-DD`
-date and naming an ask `A<n>` that exists in `mission.md`, a register row whose date
-exists in `mission.md`, or a constitution file; every phase directory with a `validation.md`
-whose Result says closed must have a `CHANGELOG.md` entry. Missing inputs fail loudly.
+`tools/check_provenance.py` implements G1 and G7 as their rows in `tech-stack.md` say. G1: every
+`##` to `####` heading `D<n>` in `specs/phases/*/requirements.md` is a record and must carry a
+`*Source:*` paragraph (from the marker to the next blank line) holding a `YYYY-MM-DD` date that is
+a row date in `mission.md`, naming only asks `A<n>` that exist there, and resolving to an ask, a
+register row (`register row` or `registered in mission.md`), or a constitution file (any mention
+of `mission.md`, `roadmap.md` or `tech-stack.md`). G7: the `## Result` section of every phase's
+`validation.md`, up to the next `##` heading, holds exactly one line `Status: open` or
+`Status: closed` (a `-` or `*` bullet allowed); when it is `closed`, `CHANGELOG.md` names the
+phase directory. Missing inputs fail loudly.
 
 *Rationale:* the field guide's rule — a rule in prose is not a gate — applied on day one to
 the one rule this project already has (provenance).
 *Rejected:* a third-party markdown linter (dependency, and it cannot check provenance);
 CI-only gates (the owner must be able to run the same thing locally).
-*Cost accepted:* about 100 lines of gate code that need their own seen-to-fail record.
-*Source:* owner decision, 2026-10-20 — registered in mission.md (SDD; repo).
+*Cost accepted:* about 100 lines of gate code that need their own seen-to-fail record. G1
+matches words, not meaning: a Source that negates its reference ("not yet in mission.md") still
+resolves (finding B9, accepted); each Source is read at review.
+*Source:* owner decision, 2026-10-20 — registered in mission.md (SDD; repo); amended by register
+row 2026-10-21 (fourth of that date; findings B9, B14).
 
 ### D8 — The phase ships a walkthrough of the 2025-era handshake, checked against a fresh run
 
@@ -175,7 +183,8 @@ the walkthrough explains (forbidden by A5; it also froze the docs to one recordi
 trace, until they run the lesson; the fixture driver (D9) is the one place in this phase
 that sends protocol messages, and must not grow into a client.
 *Source:* stakeholder ask A2, 2026-10-20; A5, 2026-10-20 (no committed trace); per-phase
-walkthroughs are proposal P3, valid only once the owner ratifies it.
+walkthroughs are proposal P3, valid only once the owner ratifies it; amended by register row
+2026-10-21 (third of that date; findings R4, R5).
 
 ### D9 — The fixture driver is not a client
 
@@ -230,7 +239,8 @@ check flaps. `--explain` parses notes leniently, and a label that is hostile to 
 break the fence; both are accepted for a local trace. A trace or notes file that cannot be read
 exits 2.
 *Source:* owner decision, 2026-10-20 — registered in mission.md (A4, delegated; roadmap L5;
-amended by A5 to identity keys).
+amended by A5 to identity keys); amended by register row 2026-10-21 (third of that date;
+findings S3, S5, S8, S9).
 
 ### D12 — Lesson 01 and the learning path
 
@@ -243,7 +253,10 @@ stdio transport and `initialize` handling, cited); *Experiments* (at least three
 offered `protocolVersion`, drop `notifications/initialized`, send `tools/list` before
 `initialize` — each a fixture the learner records and reads, with the outcome measured at
 the pins stated in the lesson); *Check yourself* (questions answered by
-the trace, with answers in a collapsed block). Phase close tags `lesson-01`.
+the trace, with answers in a collapsed block). Phase close tags `lesson-01`. A lesson block
+that records takes its run folder from the `recorded:` line `scripts/record.sh` prints; a block
+that reads an earlier recording takes the newest folder by modification time among
+`runs/*-<name>*`, so a folder with a numeric suffix (D14) is found.
 
 *Rationale:* A4 widens the audience to learners who were not in this conversation; the
 lesson is their way in, and predict-then-observe is the method A2's reader already uses.
@@ -251,7 +264,7 @@ lesson is their way in, and predict-then-observe is the method A2's reader alrea
 *Cost accepted:* experiment outcomes are measurements taken on this phase's walk; the
 lesson must say they were measured at the pins, not promised by the spec.
 *Source:* owner decision, 2026-10-20 — registered in mission.md (A4, delegated; roadmap
-L1, L4, L14).
+L1, L4, L14); amended by register row 2026-10-21 (fourth of that date; finding B11).
 
 ### D13 — Citations and lesson commands are gated
 
@@ -261,7 +274,9 @@ missing or outside the submodule, the line does not exist, the fragment is short
 not on that line, or a doc cannot be decoded.
 `tools/check_lessons.py` (G9) fails if a lesson lacks an L1 section, runs each block marked
 runnable from the repo root under `bash -eo pipefail -c` with a timeout, requires the headings
-outside fenced blocks and in order, and fails on a non-zero exit or an expected
+outside fenced blocks and in order (a fence opens on a line of three or more backticks or tildes
+and closes only on a line of the same character, at least as long, followed by nothing but spaces or tabs; an
+unclosed fence runs to the end of the file), and fails on a non-zero exit or an expected
 block that does not appear in the output. Both fail loudly on missing inputs and are wired
 into `scripts/gate.sh`.
 
@@ -271,19 +286,27 @@ learning.
 *Rejected:* checking citations by hand at review (the incident shows it fails); link-checker
 tools (they check URLs, not line content).
 *Cost accepted:* lessons must avoid commands whose output is nondeterministic, or match it
-only on stable fragments; runnable blocks lengthen `scripts/gate.sh`.
+only on stable fragments; runnable blocks lengthen `scripts/gate.sh`. G8 reads each submodule
+as it is checked out and does not compare it with the pin; `scripts/bootstrap.sh` checks the
+pins (finding R12, accepted), so a local run after a pin moves, without `git submodule update`,
+checks the old revision.
 *Source:* owner decision, 2026-10-20 — registered in mission.md (A4, delegated; roadmap
-L3, L4).
+L3, L4); amended by register row 2026-10-21 (third of that date; findings R7, R12, R20, T15)
+and by register row 2026-10-21 (fourth of that date; findings B10, B13).
 
 ### D14 — One recording script, with a minimal environment
 
 `scripts/record.sh <fixture> [name]` creates `runs/<UTC timestamp>-<name>/` (a numeric suffix is added
-when that folder exists), runs the tap
+when that folder exists; if the folder cannot be created for any other reason, such as a missing
+parent, a read-only `runs/` or a full disk, it prints one line starting `record: cannot create `
+on stderr and exits 1), runs the tap
 with D9's driver over the fixture against the pinned server, and writes `trace.jsonl` and
 `stderr.txt` there, then prints the `tap.show` commands to read it. The server is started
 under `env -i` with only an allowlist: a fixed `PATH` (a directory in the run folder linking the `node` found at
 record time, plus `/usr/bin:/bin`), `HOME` set to an empty directory inside the run folder,
-`LANG=C.UTF-8`, and `MCP_WIRE_LAB=1`. The tap's `spawn` record shows argv relative to the
+`LANG=C.UTF-8`, and `MCP_WIRE_LAB=1`. The server's environment is exactly that allowlist: node
+adds no variable (measured 2026-10-21 by a `get-env` recording at the pins); a platform found to
+add one is named here with its measurement. The tap's `spawn` record shows argv relative to the
 repo root. `runs/` is in `.gitignore`. G5, the lessons, and the learner walk all record
 through this script.
 
@@ -297,16 +320,23 @@ told about; not recording the secret is stronger).
 *Cost accepted:* a server feature that needs a variable from the user's environment will
 not see it until the allowlist names it; the allowlist is part of each phase's spec.
 *Source:* A5, 2026-10-20; owner decision, 2026-10-20 — registered in mission.md (A4,
-delegated; roadmap L16).
+delegated; roadmap L16); amended by register row 2026-10-21 (third of that date; findings R15,
+S17, T14, T17) and by register row 2026-10-21 (fourth of that date; findings B2, B7).
 
 ### D15 — Run output cannot reach git
 
 `tools/check_no_run_output.py` implements G11 exactly as written in `tech-stack.md`, over
 `git ls-files` (and, as the pre-push hook, over the commits being pushed). Every hand-written
 trace fixture opens with a `{"dir":"tap","event":"synthetic"}` record. `scripts/bootstrap.sh`
-installs `pre-push` in `git rev-parse --git-path hooks` running it, refuses to overwrite a different existing hook, and warns
-when `core.hooksPath` is set to a directory other than the repo's own hooks (it must chain the hook).
-The hook also scans files that a merge commit adds.
+runs `scripts/install-pre-push.sh`, which installs `pre-push` running G11 in the repo's own hooks
+directory, `$(git rev-parse --git-common-dir)/hooks` (shared by linked worktrees, and the same
+place as `git rev-parse --git-path hooks` when `core.hooksPath` is unset). It never writes into a
+directory that `core.hooksPath` names; when `core.hooksPath` resolves to another directory, it
+still installs and warns that the hooks there must chain to it. It refuses to overwrite a
+different existing hook, and run on a directory that is not a git repo it fails with git's
+message and creates nothing. The hook reads every file that a pushed commit adds, modifies or
+changes the type of (a file that becomes a symlink, or the reverse), including the files a merge
+commit adds against each parent.
 The learner walk (L15) runs in a directory outside the repo; only the agent's written list
 of findings is committed.
 
@@ -315,7 +345,9 @@ gate that actually prevents publication; CI catches a push made without the hook
 *Rejected:* `.gitignore` alone (`git add -f` and new paths bypass it); CI alone (too late).
 *Cost accepted:* hooks are per-clone and skippable with `--no-verify`; CI is the backstop,
 and the law's admitted limit (pattern-based recognition) is signed in `tech-stack.md`.
-*Source:* A5, 2026-10-20 — standing law 1 in specs/tech-stack.md.
+*Source:* A5, 2026-10-20 — standing law 1 in specs/tech-stack.md; amended by register row
+2026-10-21 (third of that date; findings R1, R2) and by register row 2026-10-21 (fourth of that
+date; findings B4, B5, B16; R1 as implemented by A4).
 
 ### D16 — Nothing else is added
 
