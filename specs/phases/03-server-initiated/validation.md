@@ -32,6 +32,16 @@ uses a timer tool, or if the matrix output is committed.
 ## Result
 
 - Status: open
+- Mutation (LP4), 13 hand-applied mutants of `client/handlers.py`, each run against
+  `tests/test_client_handlers.py`: 13 killed, 0 survived. Id echo: result id fixed to 0, error id
+  fixed to 0, id turned into a string (3, by `test_reply_echoes_id_and_type`). Capability check:
+  roots, sampling, form and URL elicitation each treated as declared (4, by
+  `test_undeclared_capability_is_refused`); unknown method answered `{}` (1, by
+  `test_unknown_method_is_refused`). Non-blocking dispatch: reply built inline on the reader (1, by
+  `test_server_request_does_not_block_reader`). Reactions: debounce removed (killed by
+  `test_list_changed_burst_coalesces`), progress never matched, wrong URI re-read, prompts
+  re-listed as tools (the last killed by a hang of the test, which waits for a `prompts/list` that
+  never comes; no clean failure). No resolutions needed.
 
 ### Accepted limits
 
