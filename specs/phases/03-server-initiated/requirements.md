@@ -102,7 +102,8 @@ L1, L5, L10); per-phase walkthrough P3.
 `tools/atlas.py` generates `docs/atlas.md` from the pinned schemas of `2025-11-25` and
 `2026-07-28` only (never from run output): one table row per method, with its kind
 (request or notification), its direction (from membership in the schema's
-`ClientRequest`, `ServerRequest`, `ClientNotification`, `ServerNotification` unions), the
+`ClientRequest`, `ServerRequest`, `ClientNotification`, `ServerNotification` unions, and
+`InputRequest` for the 2026-07-28 methods the server asks inside an `InputRequiredResult`), the
 revisions that define it, and the lessons that declare it. A lesson declares the methods
 it exercises in one line `<!-- exercises: <method>, <method>, … -->`; unexercised methods
 are listed as such. The roadmap's "capability that gates it" column is not generated,
