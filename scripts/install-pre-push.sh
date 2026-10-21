@@ -6,7 +6,9 @@ set -euo pipefail
 repo="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # The repo's own hooks directory: shared by linked worktrees, and what git uses when
 # core.hooksPath is unset (`git rev-parse --git-path hooks` then prints the same place).
-own="$(cd "$repo" && mkdir -p "$(git rev-parse --git-common-dir)/hooks" && cd "$(git rev-parse --git-common-dir)/hooks" && pwd -P)"
+# Its own assignment, so that `set -e` stops the script outside a repo (B16).
+common="$(git -C "$repo" rev-parse --git-common-dir)"
+own="$(cd "$repo" && mkdir -p "$common/hooks" && cd "$common/hooks" && pwd -P)"
 hook="$own/pre-push"
 configured="$(git -C "$repo" config --get core.hooksPath || true)"
 if [ -n "$configured" ]; then
