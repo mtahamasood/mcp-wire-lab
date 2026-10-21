@@ -8,7 +8,10 @@ messages the kind, method and id. A response is paired with its request by id an
 not by adjacency. --mermaid prints a sequenceDiagram; --explain prints each frame followed by
 its note from a walkthrough and exits non-zero on a frame with no note or a note with no frame.
 
-A walkthrough note is a heading `#### `<anchor>`` followed by the note's text. An anchor is
+A walkthrough note is a heading `#### `<anchor>`` followed by the note's text. A walkthrough
+that explains several traces (phase 4) groups notes under `## <name>` headings: `--explain
+<file>#<name>` reads the notes under that heading plus those under `## shared`, and a shared
+note a trace does not use is not reported as extra. An anchor is
 `<dir>.<method-or-response>.<id-or-occurrence>`: requests and responses are keyed by id,
 notifications by occurrence (counted from 0 per direction and method); stderr is
 `stderr.<occurrence>` and tap events are `tap.<event>.<occurrence>`.
@@ -202,26 +205,41 @@ def mermaid(items: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def parse_notes(path: Path) -> dict[str, str]:
+def parse_notes(path: Path, section: str | None = None) -> tuple[dict[str, str], dict[str, str]]:
+    """The notes, and the shared notes. With a section only its notes (and the shared ones)."""
+    text = read_text(path)
+    if section is not None and not re.search(rf"^## {re.escape(section)}\s*$", text, re.M):
+        raise ShowError(f"{path} has no section `## {section}`")
     notes: dict[str, str] = {}
+    shared: dict[str, str] = {}
     anchor: str | None = None
-    for line in read_text(path).split("\n"):
+    heading = ""
+    for line in text.split("\n"):
         found = ANCHOR_HEADING.match(line)
         if found:
             anchor = found.group(1)
-            notes[anchor] = ""
+            target = shared if section is not None and heading == "shared" else notes
+            if section is not None and heading not in (section, "shared"):
+                anchor = None
+                continue
+            target[anchor] = ""
+            current = target
         elif line.startswith("#"):
             anchor = None
+            if line.startswith("## "):
+                heading = line[3:].strip()
         elif anchor is not None:
-            notes[anchor] = (notes[anchor] + " " + line.strip()).strip()
-    return notes
+            current[anchor] = (current[anchor] + " " + line.strip()).strip()
+    return notes, shared
 
 
-def explain(items: list[dict[str, Any]], notes: dict[str, str]) -> tuple[list[str], bool]:
+def explain(
+    items: list[dict[str, Any]], notes: dict[str, str], shared: dict[str, str] | None = None
+) -> tuple[list[str], bool]:
     out, ok, used = [], True, set()
     for item in items:
         out.append(line_for(item))
-        note = notes.get(item["anchor"])
+        note = notes.get(item["anchor"]) or (shared or {}).get(item["anchor"])
         used.add(item["anchor"])
         if note:
             out.append(f"        {note}")
@@ -250,7 +268,9 @@ def run(argv: list[str]) -> int:
         print(mermaid(annotate(records)))
         return 0
     if flags[:1] == ["--explain"]:
-        lines, ok = explain(annotate(records), parse_notes(Path(flags[1])))
+        target, _, section = flags[1].partition("#")
+        notes, shared = parse_notes(Path(target), section or None)
+        lines, ok = explain(annotate(records), notes, shared)
         print("\n".join(lines))
         return 0 if ok else 1
     for item in annotate(records):

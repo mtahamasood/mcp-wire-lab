@@ -357,6 +357,33 @@ class ExplainTest(unittest.TestCase):
         self.assertNotIn("(no note)", done.stdout)
         self.assertNotIn("(no frame)", done.stdout)
 
+    def test_sections_select_notes_and_shared_notes_may_go_unused(self) -> None:
+        # Phase 4: `--explain file.md#name` reads the notes under `## name` plus those under
+        # `## shared`; a shared note a trace does not use is not "extra", a section's is.
+        with tempfile.TemporaryDirectory() as tmp:
+            trace, notes = Path(tmp) / "t.jsonl", Path(tmp) / "w.md"
+            records = [rec(1, "c2s", req(1)), rec(2, "s2c", res(1))]
+            trace.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
+            text = (
+                "# Title\n\n## shared\n\n#### `s2c.response.1`\nShared answer.\n\n"
+                "#### `c2s.initialize.0`\nUnused shared note.\n\n"
+                "## one\n\n#### `c2s.ping.1`\nOne asks.\n\n"
+                "## two\n\n#### `c2s.ping.1`\nTwo asks.\n\n#### `c2s.ping.5`\nExtra.\n"
+            )
+            notes.write_text(text, encoding="utf-8")
+            one = show(trace, "--explain", f"{notes}#one")
+            two = show(trace, "--explain", f"{notes}#two")
+            nope = show(trace, "--explain", f"{notes}#three")
+        self.assertEqual(one.returncode, 0, one.stdout)
+        self.assertIn("One asks.", one.stdout)
+        self.assertIn("Shared answer.", one.stdout)
+        self.assertNotIn("Two asks.", one.stdout)
+        self.assertNotEqual(two.returncode, 0)
+        self.assertIn("(no frame)  [c2s.ping.5]", two.stdout)
+        self.assertNotIn("(no frame)  [c2s.initialize.0]", two.stdout)
+        self.assertEqual(nope.returncode, 2)
+        self.assertIn("no section", nope.stderr)
+
     def test_usage_errors(self) -> None:
         self.assertEqual(show().returncode, 2)
         self.assertEqual(show(TRACE, "--explain").returncode, 2)
