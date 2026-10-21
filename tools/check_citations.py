@@ -12,6 +12,7 @@ from pathlib import Path
 CITATION = re.compile(r'`([A-Za-z0-9_-]+):([^`\s:]+):(\d+)`\s+"((?:[^"\\]|\\.)*)"')
 SUBMODULES = {"servers": "vendor/servers", "spec": "vendor/spec"}
 SCANNED = ("README.md", "docs", "tap")
+MIN_FRAGMENT = 6
 
 
 def _unescape(fragment: str) -> str:
@@ -41,14 +42,24 @@ def check_text(root: Path, label: str, text: str) -> tuple[int, list[str]]:
         if sub not in SUBMODULES:
             errors.append(f"{cite}: unknown submodule {sub!r}")
             continue
-        target = root / SUBMODULES[sub] / rel
+        base = (root / SUBMODULES[sub]).resolve()
+        target = (base / rel).resolve()
+        if not target.is_relative_to(base):
+            errors.append(f"{cite}: path is outside {SUBMODULES[sub]}")
+            continue
+        fragment = _unescape(raw)
+        if len(fragment) < MIN_FRAGMENT:
+            errors.append(f"{cite}: fragment must be at least {MIN_FRAGMENT} characters")
+            continue
         if not target.is_file():
             errors.append(f"{cite}: file does not exist in {SUBMODULES[sub]}")
             continue
         lines = target.read_text(encoding="utf-8", errors="replace").split("\n")
+        if lines and lines[-1] == "":
+            lines.pop()  # a final newline ends the last line; it does not start another
         if line_no < 1 or line_no > len(lines):
             errors.append(f"{cite}: line {line_no} is past the end ({len(lines)} lines)")
-        elif _unescape(raw) not in lines[line_no - 1]:
+        elif fragment not in lines[line_no - 1]:
             errors.append(f"{cite}: fragment is not on line {line_no}")
     return count, errors
 
@@ -64,6 +75,8 @@ def check(root: Path) -> tuple[int, list[str]]:
         try:
             text = f.read_text(encoding="utf-8")
         except UnicodeDecodeError:
+            total_label = str(f.relative_to(root))
+            errors.append(f"{total_label}: not valid UTF-8, citations cannot be checked")
             continue
         n, errs = check_text(root, str(f.relative_to(root)), text)
         total += n

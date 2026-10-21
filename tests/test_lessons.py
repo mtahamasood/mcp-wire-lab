@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools import check_lessons
 
@@ -68,6 +71,53 @@ class LessonsTest(unittest.TestCase):
     def test_no_lessons_passes_when_none_are_required(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(check_lessons.check(Path(tmp), 0), (0, []))
+
+    def test_failing_command_that_is_not_last_fails_the_block(self) -> None:
+        # R7: without -e, only the last command's status counted.
+        _, errors = self.run_on(lesson(block("$ false\n$ echo ok", "ok")))
+        self.assertEqual(len(errors), 1)
+        self.assertIn("exited 1", errors[0])
+
+    def test_failing_pipeline_stage_fails_the_block(self) -> None:
+        _, errors = self.run_on(lesson(block("$ cat no-such-file-here | wc -l")))
+        self.assertEqual(len(errors), 1)
+        self.assertIn("exited", errors[0])
+
+    def test_sections_in_reverse_order_fail(self) -> None:
+        reverse = "\n".join(f"## {s}\n\ntext\n" for s in reversed(check_lessons.SECTIONS))
+        _, errors = self.run_on(lesson(sections=reverse))
+        self.assertTrue(errors)
+        self.assertTrue(any("order" in e for e in errors))
+
+    def test_headings_inside_a_fence_do_not_count(self) -> None:
+        fenced = "```markdown\n" + SECTIONS + "```\n"
+        _, errors = self.run_on(lesson(sections=fenced))
+        self.assertEqual(len(errors), len(check_lessons.SECTIONS))
+        self.assertTrue(all("missing section" in e for e in errors))
+
+    def run_main(self, root: Path, *args: str) -> tuple[int, str]:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = check_lessons.main(["check_lessons.py", *args, str(root)])
+        return code, err.getvalue()
+
+    def test_main_on_empty_root_fails_by_default(self) -> None:
+        # T19: the default is --min-lessons 1; deleting docs/lessons must not turn G9 green.
+        with tempfile.TemporaryDirectory() as tmp:
+            code, err = self.run_main(Path(tmp))
+            self.assertEqual(code, 1)
+            self.assertIn("need 1", err)
+            self.assertEqual(self.run_main(Path(tmp), "--min-lessons", "0")[0], 0)
+
+    def test_main_reports_a_timed_out_block(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs/lessons").mkdir(parents=True)
+            (root / "docs/lessons/01-x.md").write_text(lesson(block("$ sleep 5")), encoding="utf-8")
+            with mock.patch.object(check_lessons, "TIMEOUT_S", 0.2):
+                code, err = self.run_main(root)
+        self.assertEqual(code, 1)
+        self.assertIn("timed out", err)
 
 
 if __name__ == "__main__":

@@ -39,13 +39,24 @@ def _script(block: str) -> str:
     return "\n".join(line[2:] if line.startswith("$ ") else line for line in lines)
 
 
+FENCE = re.compile(r"^```.*?^```[ \t]*$", re.DOTALL | re.MULTILINE)
+
+
 def check_sections(label: str, text: str) -> list[str]:
-    headings = [h.strip().lower() for h in re.findall(r"^##\s+(.+)$", text, re.MULTILINE)]
-    return [
-        f"{label}: missing section '{s}'"
-        for s in SECTIONS
-        if not any(h.startswith(s.lower()) for h in headings)
-    ]
+    """The seven L1 headings must exist, outside code fences, in this order."""
+    prose = FENCE.sub("", text)
+    headings = [h.strip().lower() for h in re.findall(r"^##\s+(.+)$", prose, re.MULTILINE)]
+    errors: list[str] = []
+    positions: list[int] = []
+    for s in SECTIONS:
+        at = next((i for i, h in enumerate(headings) if h.startswith(s.lower())), None)
+        if at is None:
+            errors.append(f"{label}: missing section '{s}'")
+        else:
+            positions.append(at)
+    if positions != sorted(positions):
+        errors.append(f"{label}: sections are out of order (expected {' -> '.join(SECTIONS)})")
+    return errors
 
 
 def check_blocks(root: Path, label: str, text: str) -> list[str]:
@@ -55,7 +66,7 @@ def check_blocks(root: Path, label: str, text: str) -> list[str]:
         where = f"{label}: runnable block {n}"
         try:
             done = subprocess.run(
-                ["bash", "-c", script],
+                ["bash", "-eo", "pipefail", "-c", script],
                 cwd=root,
                 capture_output=True,
                 text=True,

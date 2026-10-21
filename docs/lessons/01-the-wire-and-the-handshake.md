@@ -118,7 +118,9 @@ supports). What does the server answer, in each case?
 $ for f in exp-old-version exp-bogus-version; do
     scripts/record.sh tests/fixtures/$f.ndjson $f > /dev/null
     run=$(ls -d runs/*-$f | tail -1)
-    python3 -m tap.show "$run/trace.jsonl" --full | grep -o '"protocolVersion": "[^"]*"' | tail -1
+    python3 -m tap.show "$run/trace.jsonl" --full |
+      awk '/<-  response id=0/ {reply=1} reply && /"protocolVersion"/ {print; reply=0}' |
+      grep -o '"protocolVersion": "[^"]*"'
   done
 ```
 
@@ -129,7 +131,7 @@ $ for f in exp-old-version exp-bogus-version; do
 ```
 
 Measured: for a version it supports, the server echoes the offer back. For one it does not, it
-replies with the newest version it speaks and carries on; it does not refuse the connection. Deciding
+replies with `2025-11-25`, the newest `initialize`-era version it speaks, and carries on; it does not refuse the connection. Deciding
 whether to continue is then the client's job (`spec:docs/specification/2025-11-25/basic/lifecycle.mdx:174` "does not support the version").
 
 **2. Never send `notifications/initialized`.** `exp-no-initialized.ndjson` is the handshake without it.
@@ -192,6 +194,9 @@ Answer from your own trace, then open the answers.
 3. The `Starting default (STDIO) server...` line, on stderr, which the tap records as its own stream.
 4. The client: the server answers with a version it supports and the client should disconnect if it
    cannot speak that one.
-5. Experiments 2 and 3: the spec says "MUST" or "SHOULD NOT", and this server answered anyway.
+5. Experiments 2 and 3: the rules cited there ("MUST" send `initialized`, "SHOULD NOT" send other
+   requests first) bind the client. The spec gives the server no duty to refuse, so this server is
+   lenient, and the spec allows that. The lesson is that a client cannot count on the server to
+   catch its mistakes.
 
 </details>
