@@ -414,5 +414,13 @@ Any of these standing means the phase is NOT done, whatever else passes:
   - Every review corpus in `audits/` has a disposition for each finding (tap 19, viewer 17, rest 22,
     step (b) 19).
   - The line numbers of the unchecked list above hold at close-out (lesson 01 lines 11, 56-73, 90-92).
-- Status: open
-- Where it stands:
+- Status: closed
+- Where it stands: closed 2026-10-21 by the agent under the owner's delegation (register row 2026-10-21,
+  fourth of that date). Section E holds: every C row has a recorded mutation, the measurements were taken
+  on this phase's walks, every review corpus is deposited with each finding disposed, J1 and J2 carry owner
+  verdicts, the learner walk's findings list is in `audits/` and its log is not committed, unchecked lesson
+  and README commands are listed above, the submodules are untouched, nothing secret or produced is in the
+  branch's history, and P3 and P7 are ratified. `CHANGELOG.md` has the `lesson-01` entry; the merge to `main`
+  and the `lesson-01` tag follow this commit. Open for the owner's end review, each with its overrule in
+  `audits/autonomous-decisions.md`: the MIT licence (A2), the J2 note and the acceptance of learner-walk
+  items 3 and 7 (A3), and decisions A4-A22.

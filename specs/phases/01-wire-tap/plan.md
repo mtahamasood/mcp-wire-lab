@@ -134,5 +134,6 @@ Who runs what (the owner switches models with `/model`; an agent cannot):
   to the end of lesson 01", run in a new directory outside the repo; its log stays there
   for the owner to read; the agent's written findings list goes into `audits/`.
 - [x] **[human]** Owner verdicts on J1 and J2.
-- [ ] `CHANGELOG.md` entry; merge the phase branch to `main` with CI green; tag `lesson-01`
-  on the merge commit and push the tag.
+- [x] `CHANGELOG.md` entry; merge the phase branch to `main` with CI green; tag `lesson-01`
+  on the merge commit and push the tag. (The entry is in the commit that closes the Result; the merge
+  and the tag are made from it, so this box is ticked in that commit, before they exist.)

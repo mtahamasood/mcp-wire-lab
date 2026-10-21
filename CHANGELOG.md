@@ -1,0 +1,45 @@
+# Changelog
+
+All notable changes to this repository are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The project publishes no releases;
+each phase ends with a git tag named after its lesson (`lesson-NN`) instead of a version number.
+
+## [Unreleased]
+
+## [lesson-01] - 2026-10-21
+
+Phase 1, wire tap (stdio) and learning scaffold (`specs/phases/01-wire-tap/`). It answers: what
+exactly crosses the pipe between an MCP client and the everything server over stdio, and how
+does a learner come to read it?
+
+### Added
+
+- `vendor/servers` (the everything server) and `vendor/spec` (the MCP specification) as
+  submodules at fixed pins; `scripts/bootstrap.sh` checks the pins, builds the server and
+  installs the pre-push hook.
+- The wire tap, `python3 -m tap`: a transparent stdio wrapper that forwards bytes unchanged
+  and writes a JSON Lines trace (every frame, the server's stderr, spawn and exit) with mode 0600.
+  It keeps the child's exit code and forwards SIGINT, SIGTERM, SIGHUP and SIGQUIT. If the trace
+  cannot be written, it keeps forwarding.
+- The viewer, `python3 -m tap.show`: a timeline that pairs responses with requests by `id`, with
+  `--full`, `--mermaid` (a sequence diagram) and `--explain <walkthrough>` (a note after every frame).
+- `scripts/record.sh`: records a fixture against the built server into `runs/<timestamp>-<name>/`,
+  with the server under a minimal environment (`PATH`, `HOME`, `LANG`, `MCP_WIRE_LAB` only).
+- Walkthrough `docs/walkthrough/01-handshake-2025.md`: each frame of the 2025-era handshake with the
+  spec section and server source line behind it.
+- Lesson 01, `docs/lessons/01-the-wire-and-the-handshake.md`: predict, run, read the trace, read the
+  source, three experiments (another `protocolVersion`, no `notifications/initialized`, `tools/list`
+  before `initialize`), and check-yourself questions.
+- `scripts/gate.sh`, run locally and in GitHub Actions CI: provenance (G1), ruff (G2), mypy
+  `--strict` (G3), unit tests (G4), end-to-end against the real server (G5), the CHANGELOG check (G7),
+  citations (G8), runnable lesson blocks (G9) and no run output in git (G11).
+- `LICENSE` (MIT) for the repository's own content.
+
+### Security
+
+- Run output never reaches git: `runs/` is ignored, G11 rejects tracked traces, environment dumps,
+  home-directory paths and secret-shaped strings, and the pre-push hook runs G11 over every pushed
+  commit.
+
+[Unreleased]: https://github.com/mtahamasood/mcp-wire-lab/compare/lesson-01...HEAD
+[lesson-01]: https://github.com/mtahamasood/mcp-wire-lab/tree/lesson-01
