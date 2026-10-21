@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,9 @@ ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "tests/fixtures"
 SERVER = ROOT / "vendor/servers/src/everything/dist/index.js"
 TIMEOUT = 120
+# record.sh's environment allowlist (D14), and the variables node itself may add to a process.
+ALLOWLIST = {"PATH", "HOME", "LANG", "MCP_WIRE_LAB"}
+NODE_ADDS = {"PWD", "SHLVL", "_"}
 
 
 def record(fixture: str, name: str, env: dict[str, str] | None = None) -> Path:
@@ -79,10 +83,35 @@ class E2ETest(unittest.TestCase):
         env = {**os.environ, "FAKE_SECRET_FOR_C16": "leak"}
         run = record("get-env.ndjson", "test-c16", env)
         text = (run / "trace.jsonl").read_text()
-        # Presence first: an empty or failed get-env result must not pass.
-        self.assertIn("MCP_WIRE_LAB", text)
+        # Presence first, in the frame that answers get-env (id 1), so neither the spawn record's
+        # argv (which names MCP_WIRE_LAB=1) nor an empty or failed reply can satisfy it.
+        frames = [json.loads(ln) for ln in text.splitlines()]
+        replies = [r for r in frames if r.get("dir") == "s2c"
+                   and isinstance(r.get("json"), dict) and r["json"].get("id") == 1]
+        self.assertEqual(len(replies), 1, "s2c frames answering get-env")
+        self.assertIn("MCP_WIRE_LAB", json.dumps(replies[0]["json"]))
+        variables = json.loads(replies[0]["json"]["result"]["content"][0]["text"])
+        self.assertTrue(ALLOWLIST <= set(variables), f"allowlist missing from {sorted(variables)}")
+        self.assertLessEqual(set(variables) - ALLOWLIST, NODE_ADDS, "variables beyond allowlist")
         self.assertNotIn("FAKE_SECRET_FOR_C16", text)
         self.assertNotIn(os.environ["HOME"], text)
+
+    def test_r15_same_name_twice_in_one_second(self) -> None:
+        # A fake `date` pins the timestamp, so both runs want the same folder name (D14).
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp) / "date"
+            fake.write_text("#!/bin/sh\necho 19990101T000000Z\n")
+            fake.chmod(0o755)
+            env = {**os.environ, "PATH": f"{tmp}:{os.environ['PATH']}"}
+            runs = [record("get-env.ndjson", "test-dup", env) for _ in range(2)]
+        try:
+            self.assertEqual(len({r.name for r in runs}), 2, "two distinct run folders")
+            for r in runs:
+                self.assertTrue(r.name.startswith("19990101T000000Z-test-dup"))
+                self.assertTrue((r / "trace.jsonl").is_file())
+        finally:
+            for r in runs:
+                shutil.rmtree(r, ignore_errors=True)
 
 
 if __name__ == "__main__":

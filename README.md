@@ -11,7 +11,7 @@ client or a server you would ship.
 
 ## What you need
 
-- Linux, macOS or WSL, with `bash`, `git` and `python3` (3.12 or newer)
+- Linux or WSL (tested); macOS untested. You need `bash`, `git` and `python3` (3.12 or newer)
 - Node `v24.22.0`, exactly (`scripts/bootstrap.sh` checks); `npm`
 - [`uv`](https://docs.astral.sh/uv/) for the lint and type gates (only needed to run `scripts/gate.sh`)
 
@@ -45,7 +45,8 @@ python3 -m tap.show <the path it printed>
 `--explain <walkthrough.md>` (a note after every frame).
 
 Recordings go to `runs/`, which git ignores. This repository never holds run output: your traces
-stay on your machine, and the pre-push hook and `scripts/gate.sh` fail if one is about to be published or tracked.
+stay on your machine. Nothing runs at commit time: the pre-push hook refuses a push that would
+publish one, and `scripts/gate.sh` fails if one is tracked.
 
 ## Lessons
 
@@ -60,8 +61,11 @@ phase adds.
 
 ## How it is checked
 
-`scripts/gate.sh` runs every automated check: the unit and end-to-end tests, a check that every
-`servers:path:line "fragment"` citation in the docs resolves in the pinned source, and a check that
-every runnable block in a lesson runs and prints what the lesson says it prints.
+`scripts/gate.sh` runs every automated check: the provenance of each recorded decision (G1), lint
+and type checks (G2, G3), the unit and end-to-end tests (G4, G5), a check that every
+`servers:path:line "fragment"` citation in the docs resolves in the pinned source (G8), a check that
+every runnable block in a lesson runs and prints what the lesson says it prints (G9), and a check
+that no run output is tracked (G11). Some things are not checked by any gate: see the Result in
+[`specs/phases/01-wire-tap/validation.md`](specs/phases/01-wire-tap/validation.md).
 
 The reasoning behind the project lives in [`specs/`](specs/).

@@ -12,8 +12,17 @@ server=vendor/servers/src/everything/dist/index.js
 [ -f "$server" ] || { echo "record: $server missing (run scripts/bootstrap.sh)" >&2; exit 1; }
 node_bin="$(command -v node)" || { echo "record: node not found" >&2; exit 1; }
 
-dir="runs/$(date -u +%Y%m%dT%H%M%SZ)-$name"
-mkdir -p "$dir/home" "$dir/bin"
+# A numeric suffix is added until the folder is new, so two recordings of one name in the same
+# second never share a folder (D14). mkdir without -p is the atomic claim.
+mkdir -p runs
+base="runs/$(date -u +%Y%m%dT%H%M%SZ)-$name"
+dir="$base"
+n=1
+until mkdir "$dir" 2> /dev/null; do
+  n=$((n + 1))
+  dir="$base-$n"
+done
+mkdir "$dir/home" "$dir/bin"
 # node is reached through a link in the run folder so the caller's install path (often under
 # their home directory) never appears in the server's PATH or the trace.
 ln -s "$node_bin" "$dir/bin/node"

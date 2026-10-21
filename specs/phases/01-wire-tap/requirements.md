@@ -224,7 +224,8 @@ non-zero exit turns "every frame has an entry" (J1) into a check.
 dependency).
 *Cost accepted:* identity keys tolerate timing and interleaving changes but not a change in
 what is sent; traffic the server emits unprompted and in varying number (e.g. simulated
-log notifications) must be kept out of the fixture or keyed by occurrence, one note each, or the
+log notifications) must be kept out of the fixture or noted per occurrence: a note keyed by
+occurrence covers exactly one frame, so there is no note that covers "any number"; otherwise the
 check flaps. `--explain` parses notes leniently, and a label that is hostile to Mermaid can still
 break the fence; both are accepted for a local trace. A trace or notes file that cannot be read
 exits 2.
