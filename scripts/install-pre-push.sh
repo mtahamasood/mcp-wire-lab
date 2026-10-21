@@ -4,7 +4,18 @@
 set -euo pipefail
 
 repo="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-hook="$(git -C "$repo" rev-parse --absolute-git-dir)/hooks/pre-push"
+# The repo's own hooks directory: shared by linked worktrees, and what git uses when
+# core.hooksPath is unset (`git rev-parse --git-path hooks` then prints the same place).
+own="$(cd "$repo" && mkdir -p "$(git rev-parse --git-common-dir)/hooks" && cd "$(git rev-parse --git-common-dir)/hooks" && pwd -P)"
+hook="$own/pre-push"
+configured="$(git -C "$repo" config --get core.hooksPath || true)"
+if [ -n "$configured" ]; then
+  active="$(cd "$repo" && cd "$(git rev-parse --git-path hooks)" 2>/dev/null && pwd -P || true)"
+  if [ "$active" != "$own" ]; then
+    echo "install-pre-push: warning: core.hooksPath is set to $configured, so git does not run" >&2
+    echo "install-pre-push: $hook unless the hooks in that directory chain to it" >&2
+  fi
+fi
 
 body='#!/usr/bin/env bash
 # Installed by scripts/install-pre-push.sh: G11, run output never reaches git.

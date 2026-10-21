@@ -24,6 +24,7 @@ HOME = "/ho" + "me/someone/project"
 ENV_KEYS = ["PA" + "TH", "HO" + "ME", "US" + "ER", "SHE" + "LL"]
 ENV_DUMP = json.dumps({k: "x" for k in ENV_KEYS})
 TRACE_LINE = json.dumps({"seq": 0, "dir": "c2s", "raw": "{}\n"})
+TRACE_NS = json.dumps({"seq": 3, "dir": "s2c", "t_ns": 1, "raw": "{}\n"})
 MARKER = json.dumps({"dir": "tap", "event": "synthetic"})
 
 LEAKS = {
@@ -60,14 +61,249 @@ class CheckFileTest(unittest.TestCase):
             g11.check_file("docs/a.md", json.dumps({k: "x" for k in ENV_KEYS[:2]}).encode()), []
         )
 
-    def test_binary_files_are_skipped(self) -> None:
-        self.assertEqual(g11.check_file("docs/a.bin", b"\xff\xfe" + GH_TOKEN.encode()), [])
+    def test_undecodable_byte_does_not_hide_a_secret(self) -> None:
+        # R10: one Latin-1 byte used to skip every text rule for the whole file.
+        problems = g11.check_file(
+            "docs/a.log", b"caf\xe9 " + GH_TOKEN.encode() + b" " + HOME.encode()
+        )
+        self.assertEqual(len(problems), 2, problems)
+
+    def test_trace_shape_ignores_name_and_case(self) -> None:
+        # R3: a real trace renamed .ndjson, .JSONL, no extension or .md is still a trace.
+        for path in ("plant/e1.ndjson", "plant/e2.JSONL", "plant/trace", "plant/t.md", "x/T.TXT"):
+            with self.subTest(path=path):
+                problems = g11.check_file(path, (TRACE_NS + "\n").encode())
+                self.assertTrue(any("trace-shaped" in p for p in problems), problems)
+
+    def test_trace_shape_in_fixtures_needs_the_marker(self) -> None:
+        bad = g11.check_file("tests/fixtures/a.ndjson", (TRACE_NS + "\n").encode())
+        self.assertTrue(any("synthetic marker" in p for p in bad), bad)
+        ok = g11.check_file("tests/fixtures/a.ndjson", (MARKER + "\n" + TRACE_NS + "\n").encode())
+        self.assertEqual(ok, [])
+
+    def test_seq_and_dir_without_t_ns_is_trace_shaped_only_as_jsonl(self) -> None:
+        data = (TRACE_LINE + "\n").encode()
+        self.assertEqual(g11.check_file("docs/a.ndjson", data), [])
+        self.assertTrue(g11.check_file("docs/a.JSONL", data))
+
+    def test_plain_json_lines_fixture_is_not_trace_shaped(self) -> None:
+        data = b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n'
+        self.assertEqual(g11.check_file("tests/fixtures/exp.ndjson", data), [])
+
+    def test_bare_home_directory_forms(self) -> None:
+        for text in (
+            "/ho" + "me/someone",
+            "HOME=/ho" + "me/someone\n",
+            'x "/ho' + 'me/someone" y',
+            "'/ho" + "me/someone'",
+            "cd /ho" + "me/someone now",
+            "/ro" + "ot",
+            "dir: /ro" + "ot\n",
+            'is "/ro' + 'ot"',
+            "/ro" + "ot/.ssh",
+            "/Us" + "ers/someone",
+        ):
+            with self.subTest(text=text):
+                self.assertTrue(g11.check_file("docs/a.md", text.encode()), text)
+
+    def test_home_lookalikes_pass(self) -> None:
+        for text in ("/ro" + "oted", "/ho" + "mework/x", "/ho" + "me/", "/ro" + "ot-cause"):
+            with self.subTest(text=text):
+                self.assertEqual(g11.check_file("docs/a.md", text.encode()), [], text)
+
+    def test_key_value_env_dump(self) -> None:
+        keys = ["PA" + "TH", "HO" + "ME", "US" + "ER", "SHE" + "LL", "PW" + "D"]
+        three = "\n".join(f"{k}=x" for k in keys[:3]) + "\n"
+        self.assertTrue(any("environment" in p for p in g11.check_file("d/a.md", three.encode())))
+        exported = "\n".join(f"export {k}=x" for k in keys[2:]) + "\n"
+        self.assertTrue(
+            any("environment" in p for p in g11.check_file("d/b.md", exported.encode()))
+        )
+        two = "\n".join(f"{k}=x" for k in keys[:2]) + "\n"
+        self.assertEqual(g11.check_file("d/c.md", two.encode()), [])
+        self.assertEqual(g11.check_file("d/d.md", (three.replace("=", ":")).encode()), [])
 
 
 def git(
     cwd: Path, *args: str, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, env=env)
+
+
+def make_env() -> dict[str, str]:
+    return {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+    }
+
+
+class TrackedAndMergeTest(unittest.TestCase):
+    """R2, R10 (symlinks), R11 against a throwaway repo."""
+
+    def setUp(self) -> None:
+        self.repo = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.repo)
+        self.env = make_env()
+        self.run_git("init", "-b", "main", ".")
+        (self.repo / "README.md").write_text("hello\n", encoding="utf-8")
+        self.run_git("add", "-A")
+        self.run_git("commit", "-m", "base")
+
+    def run_git(self, *args: str) -> subprocess.CompletedProcess[str]:
+        done = git(self.repo, *args, env=self.env)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return done
+
+    def test_symlink_to_a_home_path_is_checked(self) -> None:
+        os.symlink(HOME, self.repo / "link")
+        self.run_git("add", "link")
+        self.assertTrue(any("link" in p for p in g11.check_tracked(self.repo)))
+        self.run_git("commit", "-m", "link")
+        head = self.run_git("rev-parse", "HEAD").stdout.strip()
+        self.assertTrue(any("link" in p for p in g11.check_commit(self.repo, head)))
+
+    def test_staged_leak_hidden_by_the_working_tree_is_found(self) -> None:
+        (self.repo / "staged.md").write_text(GH_TOKEN, encoding="utf-8")
+        self.run_git("add", "staged.md")
+        (self.repo / "staged.md").write_text("clean\n", encoding="utf-8")
+        self.assertTrue(any("staged.md" in p for p in g11.check_tracked(self.repo)))
+
+    def test_working_tree_leak_is_still_found(self) -> None:
+        (self.repo / "README.md").write_text(GH_TOKEN, encoding="utf-8")
+        self.assertTrue(any("README.md" in p for p in g11.check_tracked(self.repo)))
+
+    def test_staged_file_deleted_from_disk_is_found(self) -> None:
+        (self.repo / "gone.md").write_text(GH_TOKEN, encoding="utf-8")
+        self.run_git("add", "gone.md")
+        (self.repo / "gone.md").unlink()
+        self.assertTrue(any("gone.md" in p for p in g11.check_tracked(self.repo)))
+
+    def test_clean_repo_has_no_problems(self) -> None:
+        self.assertEqual(g11.check_tracked(self.repo), [])
+
+    def merge_adding(self, rel: str, content: str) -> str:
+        self.run_git("checkout", "-q", "-b", "side")
+        (self.repo / "side.txt").write_text("s\n", encoding="utf-8")
+        self.run_git("add", "-A")
+        self.run_git("commit", "-m", "side")
+        self.run_git("checkout", "-q", "main")
+        (self.repo / "main.txt").write_text("m\n", encoding="utf-8")
+        self.run_git("add", "-A")
+        self.run_git("commit", "-m", "main")
+        self.run_git("merge", "--no-ff", "--no-commit", "side")
+        (self.repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (self.repo / rel).write_text(content, encoding="utf-8")
+        self.run_git("add", "-f", rel)
+        self.run_git("commit", "-m", "merge")
+        return self.run_git("rev-parse", "HEAD").stdout.strip()
+
+    def test_file_added_only_by_a_merge_commit_is_found(self) -> None:
+        head = self.merge_adding("runs/trace.jsonl", TRACE_LINE + "\n")
+        problems = g11.check_commit(self.repo, head)
+        self.assertTrue(any("runs/trace.jsonl" in p for p in problems), problems)
+
+    def test_merge_findings_are_not_duplicated_per_parent(self) -> None:
+        head = self.merge_adding("docs/key.md", GH_TOKEN)
+        problems = [p for p in g11.check_commit(self.repo, head) if "docs/key.md" in p]
+        self.assertEqual(len(problems), 1, problems)
+
+    def test_clean_merge_commit_is_clean(self) -> None:
+        head = self.merge_adding("docs/ok.md", "fine\n")
+        self.assertEqual(g11.check_commit(self.repo, head), [])
+
+
+class InstallerTest(unittest.TestCase):
+    """R1: the installer follows git's hooks path and says when core.hooksPath is elsewhere."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.env = make_env()
+        self.repo = self.tmp / "repo"
+        self.run_git(self.tmp, "init", "-b", "main", str(self.repo))
+
+    def run_git(self, cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        done = git(cwd, *args, env=self.env)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return done
+
+    def install(self, target: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [str(ROOT / "scripts/install-pre-push.sh"), str(target)],
+            capture_output=True,
+            text=True,
+            env=self.env,
+        )
+
+    def test_no_warning_when_hooks_path_is_unset(self) -> None:
+        done = self.install(self.repo)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("core.hooksPath", done.stderr)
+        self.assertTrue((self.repo / ".git/hooks/pre-push").is_file())
+
+    def test_warns_and_still_writes_the_repo_hook_when_hooks_path_is_elsewhere(self) -> None:
+        other = self.tmp / "shared-hooks"
+        other.mkdir()
+        self.run_git(self.repo, "config", "core.hooksPath", str(other))
+        done = self.install(self.repo)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("core.hooksPath", done.stderr)
+        self.assertTrue((self.repo / ".git/hooks/pre-push").is_file())
+        self.assertEqual(list(other.iterdir()), [])
+
+    def test_no_warning_when_hooks_path_is_the_repos_own_directory(self) -> None:
+        self.run_git(self.repo, "config", "core.hooksPath", str(self.repo / ".git/hooks"))
+        done = self.install(self.repo)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("core.hooksPath", done.stderr)
+
+    def test_a_dispatcher_that_chains_to_the_repo_hook_blocks_a_push(self) -> None:
+        bare = self.tmp / "remote.git"
+        self.run_git(self.tmp, "init", "--bare", "-b", "main", str(bare))
+        self.run_git(self.repo, "remote", "add", "origin", str(bare))
+        shutil.copytree(
+            ROOT / "tools", self.repo / "tools", ignore=shutil.ignore_patterns("__pycache__")
+        )
+        dispatch = self.tmp / "dispatch"
+        dispatch.mkdir()
+        chain = dispatch / "pre-push"
+        chain.write_text(
+            '#!/usr/bin/env bash\nexec "$(git rev-parse --git-dir)/hooks/pre-push" "$@"\n',
+            encoding="utf-8",
+        )
+        chain.chmod(0o755)
+        self.run_git(self.repo, "config", "core.hooksPath", str(dispatch))
+        self.assertEqual(self.install(self.repo).returncode, 0)
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs/key.md").write_text(GH_TOKEN, encoding="utf-8")
+        self.run_git(self.repo, "add", "-A")
+        self.run_git(self.repo, "commit", "-m", "leak")
+        done = git(self.repo, "push", "origin", "main", env=self.env)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("docs/key.md", done.stderr)
+
+    def test_linked_worktree_installs_into_the_shared_hooks_directory(self) -> None:
+        self.run_git(
+            self.repo,
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@e.invalid",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "base",
+        )
+        wt = self.tmp / "wt"
+        self.run_git(self.repo, "worktree", "add", "-q", str(wt))
+        done = self.install(wt)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertTrue((self.repo / ".git/hooks/pre-push").is_file())
 
 
 class PrePushHookTest(unittest.TestCase):
@@ -131,6 +367,26 @@ class PrePushHookTest(unittest.TestCase):
         done = git(self.clone, "push", "origin", "main", env=self.env)
         self.assertNotEqual(done.returncode, 0)
         self.assertIn("docs/key.md", done.stderr)
+
+    def test_file_added_only_by_a_merge_is_refused(self) -> None:
+        self.run_git(self.clone, "push", "origin", "main")
+        self.run_git(self.clone, "checkout", "-q", "-b", "side")
+        (self.clone / "side.txt").write_text("s\n", encoding="utf-8")
+        self.run_git(self.clone, "add", "-A")
+        self.run_git(self.clone, "commit", "-m", "side")
+        self.run_git(self.clone, "checkout", "-q", "main")
+        (self.clone / "main.txt").write_text("m\n", encoding="utf-8")
+        self.run_git(self.clone, "add", "-A")
+        self.run_git(self.clone, "commit", "-m", "main")
+        self.run_git(self.clone, "push", "origin", "main")
+        self.run_git(self.clone, "merge", "--no-ff", "--no-commit", "side")
+        (self.clone / "runs").mkdir()
+        (self.clone / "runs/trace.jsonl").write_text(TRACE_LINE + "\n", encoding="utf-8")
+        self.run_git(self.clone, "add", "-f", "runs/trace.jsonl")
+        self.run_git(self.clone, "commit", "-m", "merge")
+        done = git(self.clone, "push", "origin", "main", env=self.env)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("runs/trace.jsonl", done.stderr)
 
     def test_install_refuses_to_overwrite_a_different_hook(self) -> None:
         hook = self.clone / ".git/hooks/pre-push"

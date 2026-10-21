@@ -23,8 +23,12 @@ SECRETS = {
     "Slack token": re.compile(r"xox[abprs]-[A-Za-z0-9-]{10,}"),
     "private key": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
 }
-HOME_PATH = re.compile(r"/(home/[A-Za-z0-9._-]+|Users/[A-Za-z0-9._-]+|root)/[A-Za-z0-9._-]")
-ENV_KEY = re.compile(r'\\?"(PATH|HOME|USER|SHELL|PWD)\\?"\s*:')
+HOME_PATH = re.compile(
+    r"/(home/[A-Za-z0-9._-]+|Users/[A-Za-z0-9._-]+|root)(?:/[A-Za-z0-9._-]|(?=\s|[\"']|$))"
+)
+ENV_KEY = re.compile(
+    r'\\?"(PATH|HOME|USER|SHELL|PWD)\\?"\s*:|^(?:export\s+)?(PATH|HOME|USER|SHELL|PWD)=', re.M
+)
 ENV_WINDOW = 4000
 SYNTHETIC = {"dir": "tap", "event": "synthetic"}
 FIXTURES = "tests/fixtures/"
@@ -44,7 +48,7 @@ def _json_lines(text: str) -> list[dict[str, object]]:
 
 
 def _has_env_dump(text: str) -> bool:
-    hits = [(m.start(), m.group(1)) for m in ENV_KEY.finditer(text)]
+    hits = [(m.start(), m.group(1) or m.group(2)) for m in ENV_KEY.finditer(text)]
     for i, (start, _) in enumerate(hits):
         keys = {k for pos, k in hits[i:] if pos - start <= ENV_WINDOW}
         if len(keys) >= 3:
@@ -52,25 +56,25 @@ def _has_env_dump(text: str) -> bool:
     return False
 
 
+def _is_trace_shaped(path: str, records: list[dict[str, object]]) -> bool:
+    if any({"seq", "dir", "t_ns"} <= r.keys() for r in records):
+        return True
+    return path.lower().endswith(".jsonl") and any({"seq", "dir"} <= r.keys() for r in records)
+
+
 def check_file(path: str, data: bytes) -> list[str]:
     """Problems with one file, given its repo-relative path and content."""
     problems: list[str] = []
     if path.startswith("runs/"):
         problems.append(f"{path}: tracked file under runs/")
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError:
-        return problems
-    if path.endswith(".jsonl"):
-        records = _json_lines(text)
-        if any("seq" in r and "dir" in r for r in records):
-            if not path.startswith(FIXTURES):
-                problems.append(f"{path}: trace-shaped file outside {FIXTURES}")
-            first = records[0] if records else {}
-            if {k: first.get(k) for k in SYNTHETIC} != SYNTHETIC:
-                problems.append(
-                    f"{path}: trace-shaped file does not open with the synthetic marker"
-                )
+    text = data.decode("utf-8", errors="replace")
+    records = _json_lines(text)
+    if _is_trace_shaped(path, records):
+        if not path.startswith(FIXTURES):
+            problems.append(f"{path}: trace-shaped file outside {FIXTURES}")
+        first = records[0] if records else {}
+        if {k: first.get(k) for k in SYNTHETIC} != SYNTHETIC:
+            problems.append(f"{path}: trace-shaped file does not open with the synthetic marker")
     if _has_env_dump(text):
         problems.append(f"{path}: contains an environment dump")
     if HOME_PATH.search(text):
@@ -86,26 +90,46 @@ def _git(root: Path, *args: str) -> bytes:
 
 
 def check_tracked(root: Path) -> list[str]:
+    """Every tracked file as the index holds it, and as the working tree holds it if different.
+
+    A symlink is checked by its target, which is the content of its blob.
+    """
     problems: list[str] = []
-    for rel in _git(root, "ls-files", "-z").decode().split("\0"):
+    entries = _git(root, "ls-files", "-s", "-z").decode("utf-8", errors="replace").split("\0")
+    for entry in entries:
+        meta, _, rel = entry.partition("\t")
+        fields = meta.split()
+        if not rel or len(fields) != 3 or fields[0] == "160000":
+            continue
+        mode, blob, _stage = fields
+        indexed = _git(root, "cat-file", "blob", blob)
+        found = check_file(rel, indexed)
         path = root / rel
-        if rel and path.is_file() and not path.is_symlink():
-            problems += check_file(rel, path.read_bytes())
+        if mode != "120000" and path.is_file() and not path.is_symlink():
+            current = path.read_bytes()
+            if current != indexed:
+                found += [p for p in check_file(rel, current) if p not in found]
+        problems += found
     return problems
 
 
 def check_commit(root: Path, commit: str) -> list[str]:
-    """Files added or modified by one commit, as they were in that commit."""
+    """Files added or modified by one commit, as they were in that commit.
+
+    A merge commit is compared with each parent (-m); a file is checked once per path and blob.
+    """
     raw = _git(
-        root, "diff-tree", "--root", "-r", "--no-commit-id", "--diff-filter=AM", "-z", commit
+        root, "diff-tree", "-m", "--root", "-r", "--no-commit-id", "--diff-filter=AM", "-z", commit
     )
-    fields = raw.decode().split("\0")
+    fields = raw.decode("utf-8", errors="replace").split("\0")
     problems: list[str] = []
+    seen: set[tuple[str, str]] = set()
     for meta, rel in zip(fields[0::2], fields[1::2], strict=False):
-        new_mode = meta.split()[1] if meta else ""
-        if new_mode in ("160000", "120000"):
+        parts = meta.split()
+        if len(parts) < 4 or parts[1] == "160000" or (rel, parts[3]) in seen:
             continue
-        for p in check_file(rel, _git(root, "show", f"{commit}:{rel}")):
+        seen.add((rel, parts[3]))
+        for p in check_file(rel, _git(root, "cat-file", "blob", parts[3])):
             problems.append(f"{commit[:10]} {p}")
     return problems
 
