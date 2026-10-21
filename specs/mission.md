@@ -108,6 +108,44 @@ Each phase plan's close group states the builder's model, the reviewer's model (
 different one), the review budget (RP6), and the RP5 check; its `validation.md` names the
 claim code (RP3) and holds the *Accepted limits* list (RP4).
 
+## Lean profile for phases 2–7
+
+Amends the review profile above (register row 2026-10-21, lean profile; decision A24 in
+`audits/autonomous-decisions.md`). Where an LP rule and an RP rule disagree, the LP rule
+wins. Purpose: finish the clients within one working session, spending effort on the
+protocol code the owner must be able to explain, change and debug, not on governance.
+
+- **LP1 Two short spec files.** A phase is specified by `requirements.md` (learning
+  objective, scope, D records with *Source* lines as G1 requires, build order, stop
+  condition) and `validation.md` (C rows, claim code, Result with `Status:` and *Accepted
+  limits*). No `plan.md`: its build order is a section of `requirements.md`. Mission,
+  tech-stack and phase 1 decisions are referenced, not restated. Phases that will not be
+  built in the current run are written as stubs (objective, scope, exit criteria) and say
+  so.
+- **LP2 Kept from RP1 and RP5.** Spec before code, tests before the code they check, the
+  gate green before every push, and G12: every C row names its tests in the form
+  `` `tests/<file>.py::<Class>::<method>` `` (or a whole file: `` `tests/<file>.py` ``,
+  `` `tests/fixtures/<file>` ``, `` `scripts/<file>` ``, `` `tools/<file>` ``, or a
+  module under `tap/` or `client/`), and each one named exists.
+- **LP3 Vertical slice first.** Each client phase first lands the smallest exchange a
+  learner can record and read (for the raw client: initialize, initialized, one
+  `tools/call`, close), then widens.
+- **LP4 Review only where it pays.** One review round, by a different model from the
+  builder, at the close of phase 2 only (the first new protocol code); later phases rely on
+  their tests and the gate, and a review round runs only if a phase changes claim code of
+  an earlier one in a way its tests do not cover. Findings recorded are the reproduced
+  blockers and majors; minors and nits go straight to *Accepted limits* in one line each.
+  Mutation testing runs on claim code only, and only where the C row's check is the sole
+  guard of a protocol rule (id correlation, lifecycle order, schema validation).
+- **LP5 Deferred to a final pass.** Learner walks (L15), owner verdict rows (J rows),
+  lesson polish beyond the L1 sections, and the clean-clone walk G6 for phases after 2. A
+  deferred item is listed in the phase's *Accepted limits* as `deferred (LP5)`.
+- **LP6 Learning check by the owner.** Each built phase's Result ends with an *Owner
+  learning check*: three prompts (explain one exchange from a fresh trace without the
+  walkthrough; make one stated change to the client and predict the new trace; diagnose
+  one injected fault). The agent writes the prompts; only the owner writes the answers.
+  An unanswered check does not block close (LP5); it is listed as open.
+
 ## Decision register
 
 Append-only. Never edit a row; correct by a new dated row that names the one it amends.
@@ -133,6 +171,8 @@ Append-only. Never edit a row; correct by a new dated row that names the one it 
 | 2026-10-21 | The repository's own content is licensed MIT: `LICENSE` at the root, copyright 2026 M. Taha Masood (the git author name), and a licence line in `README.md`. The submodules under `vendor/` keep their upstream licences and are not relicensed. This resolves finding R18 provisionally: decided by the agent under the owner's delegation (A2 in `audits/autonomous-decisions.md`), open for the owner's overrule by a later row that names another licence and replaces `LICENSE`. No requirement, validation row or gate changes. | Finding R18 (`audits/rest-review.md`); A2 and A18; the owner's delegation (the fourth row of this date) |
 | 2026-10-21 | **Review profile.** Phases 2–7 run the lighter review profile in this file's section *Review profile for phases 2–7* (RP1–RP7): spec first, tests first and the gate are kept; one adversarial review round per phase, on its new code, by a different model, with no review of the fixes; mutation testing on the phase's claim code only; blockers and majors fixed, minors when cheap or in claim code, nits accepted in one *Accepted limits* list; no validation row may name a check that does not exist, confirmed mechanically before close (gate G12, proposed in `tech-stack.md`, to implement in the phase 2 plan); a review budget in each plan, at most about one third of the phase's effort, and a register row instead of another round when it is spent; the owner may override any rule per phase by a register row. This amends how the field guide's review and mutation steps are applied (the SDD row of 2026-10-20) from phase 2 on; `tech-stack.md` and `roadmap.md` reference the section. Phase 1 ran the heavier profile and its records are unchanged. The owner articulated the rules; the agent wrote them as RP1–RP7, and its calls in the wording are A23 in `audits/autonomous-decisions.md`. | The owner, 2026-10-21: "I want to incorporate the things mentioned in My judgement ... customize the methodology accordingly for the remainder of the project". Phase 1's review and hardening were about two thirds of its work, with diminishing returns in the later rounds (step (b) review: 1 major, 7 minor, 10 nits; the major, B1, was a C row claiming tests that were never written) |
 | 2026-10-21 | For phases 2-7 the owner approved a standing autonomous run: (1) the agent runs unattended and stops only for a blocker or when a phase's review budget (RP) is exceeded; (2) specs for phases 2-7 are written together and approved by the owner as one batch, or delegated; (3) Opus is used only for specs and the single review round per phase, Sonnet for build and fixes, no xhigh by default; (4) the human-judgement rows (owner verdicts, learner walks) are deferred to a final pass and do not block phases; (5) independent phases (for example 4 and 5) may run in parallel in separate worktrees; (6) review budgets are enforced (RP, G12); (7) the controlling agent keeps its context small and hands off at each phase boundary. Every judgement call is a row in `audits/autonomous-decisions.md` for the owner to overrule. | The owner: "i approve your plan numbered list under 'what would make it likely'" |
+| 2026-10-21 | **Lean profile.** Phases 2–7 run under the section *Lean profile for phases 2–7* (LP1–LP6), which amends the review profile (RP1–RP7): two short spec files per phase and no `plan.md`; spec first, tests first, the gate and G12 kept; one review round at the close of phase 2 only; mutation on claim code that is a protocol rule's sole guard; learner walks, J rows and G6 after phase 2 deferred to a final pass; an owner learning check per built phase. Scope for this run: phases 2, 3 and 4 are specified in full and built (phase 4 in parallel with phase 2, since it needs no raw client); phases 5, 6 and 7 are specified as stubs and marked *specified, not built* in `roadmap.md`. Learning feature L8 (atlas, gate G10) moves from phase 2 to the final pass, and L13's server-side source tour is cut to one request (`tools/call`). The agent's calls are A24 in `audits/autonomous-decisions.md`. | The owner, 2026-10-21: wants the project completed within the current session and authorised softening strict SDD if documented; the owner approved the agent's lean plan ("proceed as per plan"), which weighed outside advice the owner pasted (shorter specs, smallest vertical slice, mutation only where a check is critical, assess learning not only code) |
+| 2026-10-21 | The owner approved the phase 2–7 spec batch (the commit that adds this row: phases 2, 3 and 4 in full, 5, 6 and 7 as stubs) and delegated every later spec amendment and judgement call of this run to the agent, logged as A25 onward in `audits/autonomous-decisions.md` for review at the end. Implementation of phases 2, 3 and 4 may begin. | The owner, answering the agent's question: "Approve, delegate the rest" |
 
 ## Proposals awaiting ratification
 

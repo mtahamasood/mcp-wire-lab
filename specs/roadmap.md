@@ -9,7 +9,11 @@ are binary. Every phase also ships its lesson (L1) and walkthrough, and closes w
 fresh ones to check the docs against. Phases 2–7 are reviewed under the review profile in
 `mission.md` (RP1–RP7; register row 2026-10-21, review profile): one adversarial review
 round on the phase's new code before close, mutation testing on its claim code only, and
-a review budget stated in its plan. Phase 1 ran a heavier profile.
+a review budget stated in its plan. Phase 1 ran a heavier profile. That profile is amended
+by the lean profile (LP1–LP6 in `mission.md`; register row 2026-10-21, lean profile): two
+short spec files per phase, one review round at phase 2's close only, and learner walks,
+J rows and the atlas (L8, G10) deferred to a final pass. In this run phases 2, 3 and 4 are
+built; phases 5, 6 and 7 are **specified, not built** (stub specs in `specs/phases/`).
 
 | # | Phase | Learning features | Exit criteria (all must hold) |
 | --- | --- | --- | --- |
