@@ -39,7 +39,7 @@ any C row names a check that does not exist, or if run output is tracked.
 
 - Status: closed
 
-Closed 2026-10-21 by the agent under the owner's delegation (register row 2026-10-21, spec batch approval): every C row passes on `main` with the gate green (G1-G5, G7-G12; G12 checks this phase). G6, the learner walk and J rows are deferred (LP5).
+Closed 2026-10-21 by the agent under the owner's delegation (register row 2026-10-21, spec batch approval): every C row passes on `main` with the gate green (G1-G5, G7-G12; G12 checks this phase). G6 (clean-clone walk) was run later the same day (`audits/learner-walk-lessons-02-04.md`, Part A): on `main` the clone, bootstrap, gate (about 113 s), a recorded tour and `git status` all pass, about 2.5 minutes in total; the walk's findings are fixed (A34).
 Review round done (`audits/phase-02-review.md`: 0 blockers, 2 majors, 7 minors, all fixed and re-tested). The owner learning check below is still required before the project is called complete.
 
 ### Mutation run (LP4, builder, hand-applied)

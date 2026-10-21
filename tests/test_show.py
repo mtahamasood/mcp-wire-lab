@@ -383,6 +383,10 @@ class ExplainTest(unittest.TestCase):
         self.assertNotIn("(no frame)  [c2s.initialize.0]", two.stdout)
         self.assertEqual(nope.returncode, 2)
         self.assertIn("no section", nope.stderr)
+        # The message names the sections the file does have, so a wrong name is easy to fix.
+        self.assertIn("one", nope.stderr)
+        self.assertIn("two", nope.stderr)
+        self.assertNotIn("shared", nope.stderr.split("sections")[-1])
 
     def test_a_range_anchor_covers_consecutive_occurrences(self) -> None:
         # Phase 4: `stderr.1-3` is one note for stderr.1, stderr.2 and stderr.3 (a stack trace).

@@ -57,8 +57,9 @@ response id=3
 ```
 
 Only the handshake and the lone `ping` (id 3) were answered. The two requests inside the array, ids
-1 and 2, got no reply at all. `scripts/record.sh` may also print that the run ended with exit code
-1: that is the server reporting a transport error, and it is the last record in your trace.
+1 and 2, got no reply at all. `scripts/record.sh` will also print, on stderr (so the `sed` above does
+not see it), that the run ended with exit code 1: that is the server reporting a transport error,
+and it is the last record in your trace.
 
 ## Read the trace
 
@@ -87,11 +88,21 @@ not cited. Open both files at those lines.
 
 ## Experiments
 
-The other six experiments are fixtures in `tests/fixtures/` (and `oversized-frame`, which
-`tests/test_e2e.py` generates): `edge-missing-jsonrpc`, `exp-list-first` (the before-`initialize`
-experiment), `edge-duplicate-id`, `edge-string-id`, `edge-notification-with-id`. Pick one, predict,
-record, then read it against its section in
-[the walkthrough](../walkthrough/04-edge-lab.md).
+The other five experiments are fixtures in `tests/fixtures/`. Each has a fixture to record and a
+section name to read it with (the name after the `#` in `--explain`; they are not the same word):
+
+| Fixture to record | Section for `--explain ...04-edge-lab.md#` |
+| --- | --- |
+| `edge-missing-jsonrpc` | `missing-jsonrpc` |
+| `exp-list-first` (the before-`initialize` experiment) | `before-initialize` |
+| `edge-duplicate-id` | `duplicate-id` |
+| `edge-string-id` | `string-id` |
+| `edge-notification-with-id` | `notification-with-id` |
+
+Pick one, predict, record, then read it against its section in
+[the walkthrough](../walkthrough/04-edge-lab.md). (The walkthrough also has notes for an
+oversized frame, a 1 MiB `tools/call`; `tests/test_e2e.py` generates that one, so it is not an
+experiment you can pick.) A wrong section name prints the names the file does have.
 
 **The fault run: lose a message.** The tap can misbehave on request. `--drop c2s:tools/list`
 stops the first `tools/list` request at the tap: it is recorded as a frame, so you can see it
@@ -131,15 +142,16 @@ frame itself is recorded just before it. The spec expects a client to bound its 
 (`spec:docs/specification/2025-11-25/basic/utilities/cancellation.mdx:42` "The referenced request is unknown").
 
 Try the other fault yourself: `--delay s2c:2000` holds every server frame for two seconds
-before forwarding it. Read the latency `tap.show` prints for each reply; which part of a delayed
-run is the tap and which is the server? With `--timeout 1` the same fixture fails: a slow server and a
+after recording it, so the printed reply latencies stay small. Look instead at the time column:
+the next client frame arrives about two seconds after the reply, and a "tap fault" row follows
+each reply. Which part of a delayed run is the tap and which is the server? With `--timeout 1` the same fixture fails: a slow server and a
 lost message look the same to a client.
 
 ## Check yourself
 
 1. Why does `edge-unknown-method` get an error reply while `edge-batch-array` gets none for the
    array, although both are things the spec does not allow a server to do anything useful with?
-2. In `duplicate-id`, what does a client that tracks requests by id alone do wrong?
+2. In the `edge-duplicate-id` run, what does a client that tracks requests by id alone do wrong?
 3. In the fault run, which record proves the request reached the tap, and which proves it did not
    reach the server?
 4. A request is silently lost. Name two things a client should have set up before it happens.

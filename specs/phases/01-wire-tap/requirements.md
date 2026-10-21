@@ -225,6 +225,8 @@ followed by its walkthrough note. A note is keyed by message identity, written a
 `s2c.notifications/message.1` for the second such notification); `stderr` and `tap`
 records are keyed by occurrence. It prints `(no note)` for a frame with none and
 `(no frame)` for a note that matches nothing, and exits non-zero on either.
+A `#section` that the file does not have exits 2 and the message lists the sections it does have
+(learner walk finding 3).
 
 *Rationale:* a sequence diagram is how protocol engineers draw flows, and GitHub renders
 Mermaid natively; the explanation is most useful next to the bytes it explains. The
@@ -240,7 +242,8 @@ break the fence; both are accepted for a local trace. A trace or notes file that
 exits 2.
 *Source:* owner decision, 2026-10-20 — registered in mission.md (A4, delegated; roadmap L5;
 amended by A5 to identity keys); amended by register row 2026-10-21 (third of that date;
-findings S3, S5, S8, S9).
+findings S3, S5, S8, S9) and by register row 2026-10-21 (learner walk dispositions; a missing
+`#section` lists the sections).
 
 ### D12 — Lesson 01 and the learning path
 

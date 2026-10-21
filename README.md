@@ -26,7 +26,9 @@ scripts/bootstrap.sh
 The bootstrap checks both submodules are at their pinned commits (the reference server and the
 specification) and builds the server. The pins are why line numbers cited in the lessons stay true. `npm` may report high-severity
 vulnerabilities while it installs; that is expected for a pinned reference server that only ever
-runs locally under the tap, and nothing here is exposed.
+runs locally under the tap, and nothing here is exposed. Bootstrap may also warn that
+`core.hooksPath` is set, so git might not run the repo's pre-push hook; that matters only if you
+push, and it is safe to ignore otherwise.
 
 Citations in the docs look like `servers:path:line "fragment"` or `spec:path:line "fragment"`.
 `servers:` means under `vendor/servers/` and `spec:` means under `vendor/spec/`; the quoted
@@ -75,7 +77,7 @@ phase adds.
 
 ## How it is checked
 
-`scripts/gate.sh` runs every automated check: the provenance of each recorded decision (G1), lint
+`scripts/gate.sh` (about two minutes; it is not hung) runs every automated check: the provenance of each recorded decision (G1), lint
 and type checks (G2, G3), the unit and end-to-end tests (G4, G5), a check that every
 `servers:path:line "fragment"` citation in the docs resolves in the pinned source (G8), a check that
 every runnable block in a lesson runs and prints what the lesson says it prints (G9), a check

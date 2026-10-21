@@ -210,7 +210,8 @@ def parse_notes(path: Path, section: str | None = None) -> tuple[dict[str, str],
     """The notes, and the shared notes. With a section only its notes (and the shared ones)."""
     text = read_text(path)
     if section is not None and not re.search(rf"^## {re.escape(section)}\s*$", text, re.M):
-        raise ShowError(f"{path} has no section `## {section}`")
+        names = [n for n in re.findall(r"^## (.+?)\s*$", text, re.M) if n != "shared"]
+        raise ShowError(f"{path} has no section `## {section}`; sections: {', '.join(names)}")
     notes: dict[str, str] = {}
     shared: dict[str, str] = {}
     anchor: str | None = None

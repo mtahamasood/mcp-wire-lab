@@ -25,6 +25,8 @@ Before you run anything, write down:
    own from 0. If both are in flight at once, how can the client tell a reply from a request?
 4. After the client closes the server's stdin, what does it do if the server does not exit?
 
+(Answers to 1 to 4: the *Predict answers* at the end.)
+
 ## Run
 
 The tour is a script: `python3 -m client tour -- <server command>`. `scripts/record.sh --client tour`
@@ -48,7 +50,9 @@ directly, without the tap:
 python3 -m client tour -- node vendor/servers/src/everything/dist/index.js stdio
 ```
 
-It exits 0 only if every step got the reply it expected.
+It exits 0 only if every step got the reply it expected. Its step numbers (0 to 17, one more than
+the 17 requests, because step 1 is the `initialized` notification) are the tour's own, not request
+ids.
 
 ## Read the trace
 
@@ -145,6 +149,9 @@ The client is three small files and a tour. Read them in this order:
 ## Experiments
 
 Manual mode is the client without the script: it initializes, then sends exactly the lines you type.
+Every experiment below pipes its lines in with `printf`. To type them yourself, run
+`python3 -m client manual -- node vendor/servers/src/everything/dist/index.js stdio`, type a line
+at a time, and end the session with `:quit` (or Ctrl-D).
 A line that starts with `{` is sent as it is, with nothing added or fixed; `:req <method> [<params>]`
 builds a request with the next id; `:note <method> [<params>]` builds a notification. The
 outcomes below were **measured against the pinned server** when this lesson was written; they are
@@ -190,9 +197,11 @@ Measured: this time the server answers, with an error response under the request
 `-32601`, method not found. The raw client does the same thing when the *server* sends it a
 request it does not handle: `Wire._refuse` answers with `-32601` under the server's own id.
 
-**3. Change the client, predict the trace.** In `client/tour.py`, change the `message` the tour
-sends to `echo`, and the text the tour expects back. Before you run `scripts/record.sh --client tour`
-again, predict which frames of the trace change and which do not. Then check with `tap.show --full`.
+**3. Change the client, predict the trace.** In `client/tour.py`, change the `"hello"` the tour
+sends to `echo` and the `"Echo: hello"` it expects back (for example to `"howdy"` and
+`"Echo: howdy"`). Before you run `scripts/record.sh --client tour`
+again, predict which frames of the trace change and which do not. Then check with `tap.show --full`. Then undo the edit with `git checkout client/tour.py`, so the
+gate still sees the original.
 
 ## Check yourself
 
@@ -219,5 +228,15 @@ Answer from your own trace, then open the answers.
    understand proves nothing.
 5. The client: it left out a required field, the server correctly refused to treat the line as a
    request, and the client was left waiting for an answer that was never coming.
+
+The *Predict* answers:
+
+1. The server answers every request except id 16, the second long-running call, which the client
+   cancels (see *Check yourself* 1).
+2. Log messages (`notifications/message`) and progress notifications (`notifications/progress`,
+   from the long-running calls); the walkthrough's notes name each one.
+3. By shape: a message with a `method` and an `id` is a request, one with a `result` or `error`
+   is a response (`classify`); the two id counters never meet.
+4. It sends `SIGTERM` and then, if the server is still there, `SIGKILL` (`Session.close`).
 
 </details>

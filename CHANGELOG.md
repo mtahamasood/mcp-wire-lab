@@ -6,6 +6,15 @@ each phase ends with a git tag named after its lesson (`lesson-NN`) instead of a
 
 ## [Unreleased]
 
+### Changed
+
+- `tap.show --explain file.md#name` with a section the file does not have now lists the sections
+  it does have.
+- Lessons 02 to 04 and the README fixed after a learner walk (`audits/learner-walk-lessons-02-04.md`):
+  Predict answers, clearer experiments (lesson 04 lists fixture and section names together and
+  drops the unrunnable `oversized-frame`), revert steps after edits, notes on the gate time and
+  the bootstrap `core.hooksPath` warning.
+
 ## [lesson-03] - 2026-10-21
 
 Phase 3, raw client: server-initiated traffic (`specs/phases/03-server-initiated/`). It answers:

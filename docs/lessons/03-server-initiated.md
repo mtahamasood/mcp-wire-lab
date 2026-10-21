@@ -53,7 +53,11 @@ python3 -m client server-tour -- node vendor/servers/src/everything/dist/index.j
 ```
 
 It exits 0 only if every step saw the server traffic it expects. Next, what each capability adds.
-`matrix` runs one short session per capability set and prints a table (it is never committed):
+`matrix` runs one short session per capability set and prints a table (it is never committed). The
+columns are the capabilities the client declared, the tools the server listed for that set, and the
+server-initiated methods seen. Compare the `none` row (no extra tools, which is lesson 02's
+situation) with `all` (five extra tools, and the server also asks `roots/list` and sends log
+messages):
 
 <!-- run -->
 ```console
@@ -193,9 +197,11 @@ $ printf '%s\n' ':req tools/call {"name":"get-roots-list","arguments":{}}' | pyt
 Measured: the tool does not exist for this client, so the server answers an error under the
 request's id. Declaring `roots` is what makes it appear.
 
-**3. Change the roots.** In `client/server_tour.py`, change `OTHER_ROOT`. Predict which frames of
-the trace change (the client's last answer and the server's last log line) and which do not.
-Record again and check with `tap.show --full`.
+**3. Change the roots.** In `client/server_tour.py`, change the `uri` and `name` in `OTHER_ROOT`
+(for example to `file:///wire-lab/mine` and `mine`). Predict which frames of the trace change (the
+client's last answer and the server's last log line) and which do not. Record again and check with
+`tap.show --full`. Then undo the edit with `git checkout client/server_tour.py`, so the gate still
+sees the original.
 
 ## Check yourself
 
@@ -206,9 +212,10 @@ Answer from your own trace, then open the answers.
 2. How many `tools/list` requests did the client send after `initialized`, and how many
    `notifications/tools/list_changed` did the server send?
 3. Which capability makes the server ask a question without being asked, and after how long?
-4. The client answers `-32601` to a method whose capability it did not declare. What does it
-   answer, and what does the spec say, for an elicitation mode it did not declare?
-5. Why does the tour not call the server's `toggle-simulated-logging`?
+4. The client answers `-32601` to a method whose capability it did not declare. What does the
+   spec say a client without `roots` answers to `roots/list`?
+5. For an `elicitation/create` in a mode the client did not declare, what does the client answer?
+6. Why does the tour not call the server's `toggle-simulated-logging`?
 
 <details>
 <summary>Answers</summary>
@@ -222,10 +229,23 @@ Answer from your own trace, then open the answers.
    triggered change.
 3. `roots`: the server asks `roots/list` 350 ms after `initialized`. The other capabilities only
    unlock tools.
-4. `-32602`, invalid params (`spec:docs/specification/2025-11-25/client/elicitation.mdx:700` "-32602"),
-   and this client sends exactly that. Only the other undeclared capabilities get `-32601`, as the
-   roots page says.
-5. It sends a log message every five seconds at a random level, so two runs would never match
+4. `-32601`, method not found (`spec:docs/specification/2025-11-25/client/roots.mdx:144` "Client does not support roots: `-32601`"),
+   and this client sends exactly that for every method whose capability it did not declare.
+5. `-32602`, invalid params (`spec:docs/specification/2025-11-25/client/elicitation.mdx:700` "-32602"),
+   and this client sends exactly that.
+6. It sends a log message every five seconds at a random level, so two runs would never match
    frame for frame.
+
+The *Predict* answers:
+
+1. The server lists more tools: `get-roots-list` once `roots` is declared, the sampling and
+   elicitation tools for those capabilities (the `matrix` table shows which). With nothing
+   declared the list is lesson 02's.
+2. Four: the client's `initialize`, the server's reply to it, the server's first `roots/list`,
+   and the client's answer to that. A request is told from a response by shape, and the two ids
+   0 belong to two different counters.
+3. A deadlock: the reader would wait for the handler to finish, and the handler's own reply
+   path needs that reader to go on delivering the answer to the client's unanswered `tools/call`.
+4. An error response under the server's own id: `-32601` for an undeclared capability (see 4 above).
 
 </details>
