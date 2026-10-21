@@ -16,9 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "tests/fixtures"
 SERVER = ROOT / "vendor/servers/src/everything/dist/index.js"
 TIMEOUT = 120
-# record.sh's environment allowlist (D14), and the variables node itself may add to a process.
+# record.sh's environment allowlist (D14). Node adds no variable of its own (measured).
 ALLOWLIST = {"PATH", "HOME", "LANG", "MCP_WIRE_LAB"}
-NODE_ADDS = {"PWD", "SHLVL", "_"}
 
 
 def record(fixture: str, name: str, env: dict[str, str] | None = None) -> Path:
@@ -91,10 +90,23 @@ class E2ETest(unittest.TestCase):
         self.assertEqual(len(replies), 1, "s2c frames answering get-env")
         self.assertIn("MCP_WIRE_LAB", json.dumps(replies[0]["json"]))
         variables = json.loads(replies[0]["json"]["result"]["content"][0]["text"])
-        self.assertTrue(ALLOWLIST <= set(variables), f"allowlist missing from {sorted(variables)}")
-        self.assertLessEqual(set(variables) - ALLOWLIST, NODE_ADDS, "variables beyond allowlist")
+        self.assertEqual(set(variables), ALLOWLIST, "variable names must equal the allowlist")
         self.assertNotIn("FAKE_SECRET_FOR_C16", text)
         self.assertNotIn(os.environ["HOME"], text)
+
+    def test_c18_unusable_name_fails_fast(self) -> None:
+        # A name with a missing parent folder makes mkdir fail without the folder existing.
+        try:
+            done = subprocess.run(
+                ["scripts/record.sh", str(FIXTURES / "handshake-2025.ndjson"), "sub/name"],
+                cwd=ROOT, capture_output=True, text=True, timeout=10,
+            )
+        except subprocess.TimeoutExpired:
+            self.fail("record.sh did not exit within 10 s")
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertTrue(done.stderr.splitlines()[-1].startswith("record: cannot create runs/"),
+                        done.stderr)
+        self.assertEqual(list((ROOT / "runs").glob("*-sub")), [], "a runs/*-sub folder was left")
 
     def test_r15_same_name_twice_in_one_second(self) -> None:
         # A fake `date` pins the timestamp, so both runs want the same folder name (D14).
