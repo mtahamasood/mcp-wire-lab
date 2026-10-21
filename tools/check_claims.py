@@ -138,6 +138,9 @@ def main(argv: list[str]) -> int:
         phases = args[1].split(",")
         args = args[2:]
     root = Path(args[0]) if args else Path(__file__).resolve().parent.parent
+    if not (root / "specs").is_dir():
+        print(f"claims: {root} is not a directory containing specs/", file=sys.stderr)
+        return 2
     errors = check(root, phases)
     for e in errors:
         print(e, file=sys.stderr)
