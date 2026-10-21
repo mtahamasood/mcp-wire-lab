@@ -123,6 +123,17 @@ Any of these standing means the phase is NOT done, whatever else passes:
     of a new GitHub issue on `mtahamasood/mcp-wire-lab` (not submitted). It rendered as a sequence diagram.
     No screenshot kept; nothing from the run was committed.
   - M6 (partial, this machine): node v24.22.0, Python 3.12.3, uv 0.12.5. CI (2026-10-20, ubuntu-latest): node v24.22.0, Python 3.12.15, uv 0.13.4.
+  - G6 clean-environment walk (section A; taken 2026-10-21 by the close-out agent, WSL2, 4 CPUs, 7 GB, in a new
+    empty directory outside the repo): 1. `git clone --recurse-submodules --branch phase-01-wire-tap` of
+    `https://github.com/mtahamasood/mcp-wire-lab` at `e9bed2c`: exit 0, 29.0 s. 2. `scripts/bootstrap.sh`:
+    exit 0, 8.2 s, `vendor/servers/node_modules` 141M; it printed the `core.hooksPath` warning, as D15 says
+    on a machine whose global configuration sets it. 3. `scripts/gate.sh`: exit 0, 24.6 s (G4 189 tests,
+    G5 5). 4. `scripts/record.sh tests/fixtures/handshake-2025.ndjson walk`: exit 0, 0.4 s; the printed
+    `python3 -m tap.show runs/<ts>-walk/trace.jsonl`: exit 0, under 0.1 s, 10 lines. 5.
+    `git status --porcelain`: empty. Both submodules at their pins. The walk cloned the phase branch, not
+    the default branch the step names, because `main` holds none of the phase before the merge; the merge
+    to `main` is a `--no-ff` merge of this branch onto its own base, so `main`'s tree is the walked tree
+    plus the close-out records (A21). M6 on the walk machine: node v24.22.0, Python 3.12.3, uv 0.12.5.
 - Unchecked (no gate covers them; the rule in section E allows this only when listed here):
   - Lesson 01 commands outside the runnable form: the bootstrap command (line 11), "the same
     command without the redirect" and the `--full ... | less` command (lines 90-92).
@@ -379,6 +390,29 @@ Any of these standing means the phase is NOT done, whatever else passes:
     page) and 7 (no explicit prompt to guess each experiment's outcome) are accepted as teaching-design
     choices. The agent proposes that J2's pass stands on that evidence. The walk's log stays on the
     owner's machine and was not read for this note.
+- Boundary checks (section D; 2026-10-21, close-out, on `phase-01-wire-tap`):
+  - B1: both submodule worktrees clean; `git submodule status` shows `51b6382a3e827aceb6bce430b1208d69b93d95ea`
+    and `1155ca460e5097019f32769b38dcba194432e2fb`. Pass.
+  - B2: `pyproject.toml` has no `[project]` table and no `dependencies`; no `requirements*.txt`. An AST scan of
+    every import in `tap/`, `tools/` and `tests/` against `sys.stdlib_module_names` and the repo's own packages
+    found none other, and reported a planted `import requests` in a temporary `tests/` file (removed). Pass.
+  - B3: no `modelcontextprotocol` import in `tap/` or `tools/`. Pass.
+  - B4: G11's `check_file` over the whole of `git log -p main..phase-01-wire-tap` (734 KB of patches):
+    nothing. The same scan over a throwaway commit in the walk's clone holding a home-directory path
+    reported it. A planted token could not be committed there: the owner's global secret guard refused
+    the commit, and it was not bypassed. Pass.
+  - B5: `git diff main -- specs/mission.md specs/roadmap.md specs/tech-stack.md` shows six appended
+    register rows in `mission.md`, nothing in `roadmap.md`, and in `tech-stack.md` the SDK client row, CI,
+    G1, G3, G7, G8, G9, G11, the conventions line and standing law 1, each named by register row
+    2026-10-21 (third or fifth of that date). Pass.
+- C rows: every row C1-C18 has a recorded mutation under "Checks seen to fail" (C10 its throwaway red
+  branch); none rests on a signed stand-in.
 - Findings beyond the rows:
+  - The step (b) fix commits (`ff09e5b`, `92721d0`, `53df051`) were built by Sonnet and checked at
+    close-out by an Opus agent's mutation re-run (above), not by a further adversarial review; the closing
+    review of the phase is `audits/step-b-review.md` with its corpus deposited and every finding disposed.
+  - Every review corpus in `audits/` has a disposition for each finding (tap 19, viewer 17, rest 22,
+    step (b) 19).
+  - The line numbers of the unchecked list above hold at close-out (lesson 01 lines 11, 56-73, 90-92).
 - Status: open
 - Where it stands:

@@ -124,10 +124,10 @@ Who runs what (the owner switches models with `/model`; an agent cannot):
 | Disposition and fixes (b): everything else (viewer S1-S17, T5, T14, T15, T17-T19, R1-R22) | Sonnet, medium | fresh, after (a) |
 | G6 clean-clone walk, CHANGELOG, merge, tag | Sonnet, medium (low is enough for the merge and tag) | fresh |
 
-- [ ] G6 clean-clone walk in a new directory; fill the Result with measurements.
-- [ ] Confirm every C row has a recorded mutation or a signed stand-in.
-- [ ] Boundary checks (section D of validation).
-- [ ] Closing review: one adversarial pass plus a falsifiability audit, by a fresh reviewer
+- [x] G6 clean-clone walk in a new directory; fill the Result with measurements.
+- [x] Confirm every C row has a recorded mutation or a signed stand-in.
+- [x] Boundary checks (section D of validation).
+- [x] Closing review: one adversarial pass plus a falsifiability audit, by a fresh reviewer
   (a different model from the builder); corpus deposited in `audits/`; every finding
   dispositioned.
 - [x] Learner walk (J2): a fresh agent, given only the clone URL and "follow the README
