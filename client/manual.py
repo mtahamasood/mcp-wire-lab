@@ -37,7 +37,11 @@ class Manual:
         self._awaiting: set[Key] = set()
 
     def observe(self, arrow: str, message: Any) -> None:
-        """Print every message in or out; remember which requests still wait for a reply."""
+        """Print every message in or out; remember which requests still wait for a reply.
+
+        `spec:docs/specification/2025-11-25/basic/index.mdx:69`
+        "MUST** include the same ID"
+        """
         text = message if isinstance(message, str) else json.dumps(message, separators=(",", ":"))
         with self._lock:
             print(f"{arrow} {text}", file=self.out, flush=True)

@@ -42,7 +42,11 @@ class Tour:
             print(text, file=self.out, flush=True)
 
     def observe(self, arrow: str, message: Any) -> None:
-        """Print each notification the server sends, as it arrives."""
+        """Print each notification the server sends, as it arrives.
+
+        `spec:docs/specification/2025-11-25/basic/transports.mdx:27`
+        "individual JSON-RPC requests, notifications, or responses"
+        """
         if arrow == "<-" and classify(message) == "notification":
             params = json.dumps(message.get("params", {}), separators=(",", ":"))
             self.say(f"      <- {message['method']} {params[:90]}")
@@ -56,7 +60,11 @@ class Tour:
             raise TourFailure(what)
 
     def call(self, method: str, params: Message | None = None) -> Any:
-        """One request, awaited; the step methods below build the params."""
+        """One request, awaited; the step methods below build the params.
+
+        `spec:docs/specification/2025-11-25/basic/index.mdx:46`
+        "include a string or integer ID"
+        """
         return self.session.request(method, params)
 
     def drain(self) -> None:

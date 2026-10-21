@@ -192,6 +192,17 @@ class RawClientTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertRegex(done.stdout, r"check: ok \(\d+ frames\)")
 
+    def test_tour_walkthrough_explains_fresh_trace(self) -> None:
+        done = subprocess.run(
+            [sys.executable, "-m", "tap.show", str(self.run_dir / "trace.jsonl"), "--explain",
+             str(ROOT / "docs/walkthrough/02-raw-client-tour.md")],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT,
+        )
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertNotIn("(no note)", done.stdout)
+        self.assertNotIn("(no frame)", done.stdout)
+        self.assertIn("The first thing any client says", done.stdout)
+
     def test_record_client_tour(self) -> None:
         # A secret in the caller's environment reaches neither the server nor the trace (D14).
         env = {**os.environ, "FAKE_SECRET_FOR_C8": "leak"}

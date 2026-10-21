@@ -104,18 +104,31 @@ class Session:
             raise NotInitialized("no requests before notifications/initialized has been sent")
 
     def start_request(self, method: str, params: Message | None = None) -> Pending:
-        """Send a request after the lifecycle is complete; returns it unawaited."""
+        """Send a request after the lifecycle is complete; returns it unawaited.
+
+        `spec:docs/specification/2025-11-25/basic/index.mdx:46`
+        "include a string or integer ID"
+        """
         self._require_ready()
         return self.wire.start_request(method, params)
 
     def request(
         self, method: str, params: Message | None = None, timeout: float | None = None
     ) -> Any:
-        """Send a request and wait for its result; raises RpcError on an error reply."""
+        """Send a request and wait for its result; raises RpcError on an error reply.
+
+        `spec:docs/specification/2025-11-25/basic/index.mdx:69`
+        "MUST** include the same ID"
+        """
         pending = self.start_request(method, params)
         return pending.wait(self.timeout if timeout is None else timeout)
 
     def notify(self, method: str, params: Message | None = None) -> None:
+        """Send a notification (a message with a method and no id).
+
+        `spec:docs/specification/2025-11-25/basic/index.mdx:108`
+        "Notifications **MUST NOT** include an ID"
+        """
         self.wire.notify(method, params)
 
     def cancel(self, pending: Pending, reason: str | None = None) -> bool:

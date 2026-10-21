@@ -142,7 +142,11 @@ class Wire:
     # -- sending -----------------------------------------------------------------------
 
     def _write(self, text: str) -> None:
-        """One line to the server's stdin; the caller holds the lock."""
+        """One line to the server's stdin; the caller holds the lock.
+
+        `spec:docs/specification/2025-11-25/basic/transports.mdx:25`
+        "reads JSON-RPC messages from its standard input"
+        """
         self._stdin.write(text.encode("utf-8") + b"\n")
         self._stdin.flush()
 
@@ -161,7 +165,14 @@ class Wire:
         self._observe("->", message)
 
     def send_line(self, text: str) -> None:
-        """Send text exactly as given, plus the newline (manual mode: mistakes included)."""
+        """Send text exactly as given, plus the newline (manual mode: mistakes included).
+
+        The spec forbids writing anything but valid messages; manual mode lets the learner break
+        that rule on purpose, to see what the server does.
+
+        `spec:docs/specification/2025-11-25/basic/transports.mdx:34`
+        "MUST NOT** write anything to the server's"
+        """
         with self._lock:
             self._write(text)
         self._observe("->", text)
@@ -194,7 +205,11 @@ class Wire:
     def request(
         self, method: str, params: Message | None = None, timeout: float | None = DEFAULT_TIMEOUT
     ) -> Any:
-        """Send a request and wait for its result (see Pending.wait for the failures)."""
+        """Send a request and wait for its result (see Pending.wait for the failures).
+
+        `spec:docs/specification/2025-11-25/basic/lifecycle.mdx:248`
+        "SHOULD** establish timeouts"
+        """
         return self.start_request(method, params).wait(timeout)
 
     def notify(self, method: str, params: Message | None = None) -> None:
