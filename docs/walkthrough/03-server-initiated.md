@@ -94,13 +94,13 @@ also makes the server ask a question on its own: its roots sync after 350 ms
 spec's rule behind all of it is that a party only uses capabilities that were negotiated
 (`spec:docs/specification/2025-11-25/basic/lifecycle.mdx:220` "Only use capabilities that were successfully negotiated").
 
-One difference to know about. When the *server* sends a request for a capability the client did
-not declare, this client answers `-32601`, method not found, as the roots page says to
+Two different errors. When the *server* sends a request for a capability the client did not
+declare, this client answers `-32601`, method not found, as the roots page says to
 (`spec:docs/specification/2025-11-25/client/roots.mdx:144` "Method not found"). For an elicitation
-mode the client did not declare the spec asks for `-32602` instead
-(`spec:docs/specification/2025-11-25/client/elicitation.mdx:700` "-32602"); the lab's client uses
-`-32601` for every undeclared capability and says so here (spec D1). The pinned server never sends
-a request the client did not declare, so a recorded run never shows either.
+mode the client did not declare the spec asks for `-32602`, invalid params, instead
+(`spec:docs/specification/2025-11-25/client/elicitation.mdx:700` "-32602"), and the client does
+that (spec D1). The pinned server never sends a request the client did not declare, so a
+recorded run never shows either.
 
 ## The frames
 
