@@ -63,4 +63,26 @@ times. C4 (shutdown timing) is not mutated, as the table says.
 
 ### Owner learning check (LP6)
 
-Prompts written at close; answers by the owner only.
+**Required before the project is called complete** (register row 2026-10-21, learning
+check). Answers by the owner only; the agent adds a one-line verdict under each answer
+after checking it against a fresh trace. Set aside about 45 minutes.
+
+1. *Explain.* Run `scripts/record.sh --client tour lc-explain` and open the trace with
+   `python3 -m tap.show <trace>` (not `--explain`, and without the walkthrough open). Pick the
+   cancelled `trigger-long-running-operation` call. In your own words: which frames belong to
+   it, why a `notifications/progress` frame still arrives after `notifications/cancelled`, why
+   no response ever arrives for that request, and how `client/wire.py` decides that each of
+   those incoming lines is not the reply to a pending request.
+2. *Change.* On a branch of your own, change the raw client so request ids start at 100 and
+   go up in steps of 10. **Before running it**, write down what you expect to change in the
+   tour's trace and what stays the same (hint: think about the server's own request ids, and
+   about `notifications/cancelled`). Then run the tests and the tour, compare, and explain
+   every difference from your prediction. Commit the change yourself (it is evidence you
+   authored), on that branch; do not merge it.
+3. *Debug.* The local branch `learning-check-02-fault` has one planted fault in `client/`.
+   Check it out, run `python3 -m unittest discover -s tests -t .` and record the tour. From
+   the test output and the trace only (no `git diff`, no `git log -p`), say what is wrong on
+   the wire, which function causes it, and the fix. The agent reveals the fault after you
+   answer.
+
+Answers:
