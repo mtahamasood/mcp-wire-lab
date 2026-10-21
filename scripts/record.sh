@@ -19,6 +19,9 @@ base="runs/$(date -u +%Y%m%dT%H%M%SZ)-$name"
 dir="$base"
 n=1
 until mkdir "$dir" 2> /dev/null; do
+  # Only an existing folder means "name taken"; any other failure (missing parent, read-only
+  # runs/, full disk) would otherwise loop forever.
+  [ -e "$dir" ] || { echo "record: cannot create $dir" >&2; exit 1; }
   n=$((n + 1))
   dir="$base-$n"
 done

@@ -42,7 +42,7 @@ arrows do not.
 
 <!-- run -->
 ```console
-$ run=$(ls -d runs/*-lesson01 | tail -1)
+$ run=$(ls -dt runs/*-lesson01* | head -1)
 $ python3 -m tap.show "$run/trace.jsonl" | grep -o 'request [a-z/]* id=[0-9]'
 ```
 
@@ -78,7 +78,7 @@ note:
 
 <!-- run -->
 ```console
-$ run=$(ls -d runs/*-lesson01 | tail -1)
+$ run=$(ls -dt runs/*-lesson01* | head -1)
 $ python3 -m tap.show "$run/trace.jsonl" --explain docs/walkthrough/01-handshake-2025.md > /dev/null && echo "every frame has a note"
 ```
 
@@ -100,8 +100,8 @@ protocol layer here: `servers:src/everything/transports/stdio.ts:49` "serveStdio
 for what the server must do when the client offers a protocol version is
 `spec:docs/specification/2025-11-25/basic/lifecycle.mdx:170` "MUST** respond with the same".
 Open both and find, in the walkthrough, which frame each one explains. The server's request
-routing lives in the SDK, which this repository does not pin; the walkthrough says where it stops
-citing the server.
+routing lives in the SDK, which the server's lockfile fixes at 2.3.1 but which is not a submodule
+here, so it is not cited; the walkthrough says where it stops citing the server.
 
 ## Experiments
 
@@ -116,8 +116,7 @@ supports). What does the server answer, in each case?
 <!-- run -->
 ```console
 $ for f in exp-old-version exp-bogus-version; do
-    scripts/record.sh tests/fixtures/$f.ndjson $f > /dev/null
-    run=$(ls -d runs/*-$f | tail -1)
+    run=$(scripts/record.sh tests/fixtures/$f.ndjson $f | sed -n 's|^recorded: \(.*\)/trace.jsonl$|\1|p')
     python3 -m tap.show "$run/trace.jsonl" --full |
       awk '/<-  response id=0/ {reply=1} reply && /"protocolVersion"/ {print; reply=0}' |
       grep -o '"protocolVersion": "[^"]*"'
@@ -138,8 +137,7 @@ whether to continue is then the client's job (`spec:docs/specification/2025-11-2
 
 <!-- run -->
 ```console
-$ scripts/record.sh tests/fixtures/exp-no-initialized.ndjson exp-no-initialized > /dev/null
-$ run=$(ls -d runs/*-exp-no-initialized | tail -1)
+$ run=$(scripts/record.sh tests/fixtures/exp-no-initialized.ndjson exp-no-initialized | sed -n 's|^recorded: \(.*\)/trace.jsonl$|\1|p')
 $ python3 -m tap.show "$run/trace.jsonl" | grep -o 'response id=[0-9]'
 ```
 
@@ -159,8 +157,7 @@ but this server does not refuse a client that skips it. What it does skip is the
 
 <!-- run -->
 ```console
-$ scripts/record.sh tests/fixtures/exp-list-first.ndjson exp-list-first > /dev/null
-$ run=$(ls -d runs/*-exp-list-first | tail -1)
+$ run=$(scripts/record.sh tests/fixtures/exp-list-first.ndjson exp-list-first | sed -n 's|^recorded: \(.*\)/trace.jsonl$|\1|p')
 $ python3 -m tap.show "$run/trace.jsonl" | grep -o 'response id=[0-9]'
 ```
 
@@ -182,7 +179,7 @@ Answer from your own trace, then open the answers.
 2. Why are the `ping` and `tools/list` replies both fast (a few milliseconds or less) when `initialize`'s took hundreds?
 3. Which line did the server write that was not an MCP message, and where did it go?
 4. In experiment 1, who decides what happens after the version mismatch, and what does the spec tell them to do?
-5. Which of the three experiments proved the spec's words are stronger than the server's behaviour?
+5. In experiments 2 and 3, whose duty was the rule the server did not enforce?
 
 <details>
 <summary>Answers</summary>
@@ -194,7 +191,7 @@ Answer from your own trace, then open the answers.
 3. The `Starting default (STDIO) server...` line, on stderr, which the tap records as its own stream.
 4. The client: the server answers with a version it supports and the client should disconnect if it
    cannot speak that one.
-5. Experiments 2 and 3: the rules cited there ("MUST" send `initialized`, "SHOULD NOT" send other
+5. The client's: the rules cited there ("MUST" send `initialized`, "SHOULD NOT" send other
    requests first) bind the client. The spec gives the server no duty to refuse, so this server is
    lenient, and the spec allows that. The lesson is that a client cannot count on the server to
    catch its mistakes.
