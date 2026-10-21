@@ -103,3 +103,33 @@ after checking it against a fresh trace. Set aside about 45 minutes.
    answer.
 
 Answers:
+
+### Agent-run learning check (2026-10-21, on the owner's instruction)
+
+Not the owner's answers: the owner's `Answers:` above stay empty and the owner still intends to
+do the check themselves after using the finished project. At the owner's request a fresh Sonnet
+agent, in its own worktree and without the walkthrough, the memory or `git diff`, did the three
+prompts as a learner would. The controller checked its answers against the trace and the planted
+fault.
+
+1. *Explain.* Correct. Frames of the cancelled call: seq 39 (`tools/call` id 16), 40 (progress),
+   41 (`notifications/cancelled`), 42 (the late progress). It said a cancellation is advisory, so
+   the server's loop still sends its second progress; no reply for id 16 (it called this an
+   inference, and it is: no source was read); and that `classify` decides by shape, with
+   `Wire._complete` matching only a `result`/`error` line by `(type, value)` of the id.
+2. *Change.* Two lines in `client/wire.py` (`_next_id = 100`, `+= 10`), commit `2618dc7` on
+   `lc-02-change` (not merged, not pushed). The written prediction matched the trace on every
+   point (same 43 records, ids 100 to 260, `requestId` 260 in the cancel, tokens and
+   `tap.check` unchanged). It under-predicted the tests: 10 failures and 3 errors, from
+   hard-coded ids, fake servers that answer a fixed id (timeouts, not assertion failures) and
+   walkthrough notes keyed by id.
+3. *Debug.* Correct. The cancel carries `requestId` 15 while the call is 16, the server runs it
+   to completion and answers id 16, the cause is `Session.cancel` and the fix is `pending.id`
+   (the agent named the `- 1`). It also flagged, unconfirmed, that `cancel` ignores
+   `Wire.abandon`'s return value; that is original design, not part of the fault.
+
+Friction the agent met (not yet dispositioned; changing the prompts is a spec change, so it
+waits for the owner): the failing e2e tests print walkthrough notes, which can leak hints in
+prompt 3; prompt 2's hint about the server's own ids has nothing to show in the tour trace
+(only the server tour has them) and does not say that about 13 hard-coded tests going red is
+expected; the 45-minute estimate omits the several minutes a second worktree needs to bootstrap.
