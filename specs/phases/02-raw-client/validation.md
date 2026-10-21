@@ -40,7 +40,7 @@ any C row names a check that does not exist, or if run output is tracked.
 - Status: closed
 
 Closed 2026-10-21 by the agent under the owner's delegation (register row 2026-10-21, spec batch approval): every C row passes on `main` with the gate green (G1-G5, G7-G12; G12 checks this phase). G6 (clean-clone walk) was run later the same day (`audits/learner-walk-lessons-02-04.md`, Part A): on `main` the clone, bootstrap, gate (about 113 s), a recorded tour and `git status` all pass, about 2.5 minutes in total; the walk's findings are fixed (A34).
-Review round done (`audits/phase-02-review.md`: 0 blockers, 2 majors, 7 minors, all fixed and re-tested). The owner learning check below is still required before the project is called complete.
+Review round done (`audits/phase-02-review.md`: 0 blockers, 2 majors, 7 minors, all fixed and re-tested). The owner learning check below is open by the owner's choice (register row 2026-10-21, "Learning check run by an agent"): the project is complete without it, and it is done after real use.
 
 ### Mutation run (LP4, builder, hand-applied)
 
@@ -82,7 +82,9 @@ not yet completed is not cancellable) and was re-run: 8 of 8 killed, by
 
 **Required before the project is called complete** (register row 2026-10-21, learning
 check). Answers by the owner only; the agent adds a one-line verdict under each answer
-after checking it against a fresh trace. Set aside about 45 minutes.
+after checking it against a fresh trace. Set aside about 45 minutes, plus a few minutes of
+bootstrap if you use a second worktree for prompt 3 (`git worktree add ../lc-02 <branch>`,
+then `git submodule update --init --recursive` and `scripts/bootstrap.sh`).
 
 1. *Explain.* Run `scripts/record.sh --client tour lc-explain` and open the trace with
    `python3 -m tap.show <trace>` (not `--explain`, and without the walkthrough open). Pick the
@@ -92,13 +94,15 @@ after checking it against a fresh trace. Set aside about 45 minutes.
    those incoming lines is not the reply to a pending request.
 2. *Change.* On a branch of your own, change the raw client so request ids start at 100 and
    go up in steps of 10. **Before running it**, write down what you expect to change in the
-   tour's trace and what stays the same (hint: think about the server's own request ids, and
-   about `notifications/cancelled`). Then run the tests and the tour, compare, and explain
-   every difference from your prediction. Commit the change yourself (it is evidence you
+   tour's trace and what stays the same (hint: think about `notifications/cancelled`, and about
+   the server's own request ids, which only the server tour, lesson 03, shows). Then run the tests and the tour, compare, and explain
+   every difference from your prediction. Expect red: a dozen or so tests hard-code ids 0 to 16,
+   so failing tests are part of the answer, not a sign you broke something. Commit the change yourself (it is evidence you
    authored), on that branch; do not merge it.
 3. *Debug.* The local branch `learning-check-02-fault` has one planted fault in `client/`.
    Check it out, run `python3 -m unittest discover -s tests -t .` and record the tour. From
-   the test output and the trace only (no `git diff`, no `git log -p`), say what is wrong on
+   the test output and the trace only (no `git diff`, no `git log -p`; a failing e2e test also
+   prints walkthrough notes, so skip those lines), say what is wrong on
    the wire, which function causes it, and the fix. The agent reveals the fault after you
    answer.
 
