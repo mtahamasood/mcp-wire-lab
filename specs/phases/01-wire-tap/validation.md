@@ -223,6 +223,11 @@ Any of these standing means the phase is NOT done, whatever else passes:
     (its default is for the synthetic marker) and crashes `line_for` with `KeyError`; a record whose `dir` is a
     list crashes `load` with `TypeError: unhashable type`. Both exit 1 with a traceback. `--mermaid` still notes
     a batch as `not JSON-RPC` (S13's second half); the new C13 test does not pin that text.
+  - C9, C13 viewer fixes (2026-10-21, S3 and S13 as dispositioned): the three defects above are fixed in `tap/show.py`.
+    A record with no `t_ns` (the synthetic marker keeps its default) or a non-string `dir` exits 2 with one
+    `show:` line; `--mermaid` notes a batch as `<dir> batch`, as the plain view does. Tests, written first and seen
+    failing: `test_c9_record_without_t_ns_or_with_listy_dir_exits_two_with_one_line`,
+    `test_c9_synthetic_marker_may_omit_t_ns`, `test_c13_mermaid_labels_a_batch_as_a_batch`. Not re-mutated.
   - C1-C6, C17 after step (a) (2026-10-21): each mutant applied to `tap/__main__.py` in a temp copy of
     `tap/` and `tests/` with `PYTHONDONTWRITEBYTECODE=1` and no `__pycache__`, then the whole of
     `tests.test_tap` run; baseline exit 0 (36 tests). Killed, with the tests that fail:
