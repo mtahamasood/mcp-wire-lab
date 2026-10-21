@@ -6,6 +6,47 @@ each phase ends with a git tag named after its lesson (`lesson-NN`) instead of a
 
 ## [Unreleased]
 
+## [lesson-03] - 2026-10-21
+
+Phase 3, raw client: server-initiated traffic (`specs/phases/03-server-initiated/`). It answers:
+what does the server ask of the client, and how do the capabilities a client declares decide it?
+
+### Added
+
+- `client/handlers.py`: replies to `roots/list`, `sampling/createMessage` (canned content),
+  `elicitation/create` (form values from the schema; URL mode declined) and `ping`, each with
+  the request's own `id`, from a worker thread; undeclared capabilities refused.
+- Reactions to notifications: one coalesced re-list per `list_changed` burst, a re-read on
+  `resources/updated`, progress matched by token, log messages printed.
+- `python3 -m client server-tour`, `--caps`, and `python3 -m client matrix` (the capability
+  matrix, printed and never committed); `scripts/record.sh --client server-tour`.
+- Walkthrough `docs/walkthrough/03-server-initiated.md` and lesson 03.
+- The message atlas `docs/atlas.md`, generated from the pinned schemas by `tools/atlas.py`
+  and checked by gate G10; lessons declare the methods they exercise.
+
+## [lesson-02] - 2026-10-21
+
+Phase 2, raw client, client-initiated (`specs/phases/02-raw-client/`). It answers: what does it
+take to speak MCP over stdio with no library at all?
+
+### Added
+
+- The raw client `client/`: newline-delimited JSON-RPC framing, replies matched to requests
+  by shape and exact `id`, the 2025 lifecycle (initialize, initialized, shutdown), cancellation.
+- `python3 -m client tour` (every client-initiated method the server offers) and
+  `python3 -m client manual` (type or build messages by hand); `scripts/record.sh --client`.
+- `python3 -m tap.check`: validates every frame of a trace against the pinned schema with a
+  stdlib validator.
+- Gate G12: every validation row's named checks exist.
+- Walkthrough `docs/walkthrough/02-raw-client-tour.md` with a source tour of `tools/call`, and
+  lesson 02.
+
+### Fixed
+
+- Review findings P2-R1 to P2-R9 (`audits/phase-02-review.md`): a malformed reply no longer
+  stops the reader, writes no longer hold the pending-table lock, a closed wire fails requests
+  at once, timeouts cancel, and the schema check and G12 close their gaps.
+
 ## [lesson-04] - 2026-10-21
 
 Phase 4, edge lab (`specs/phases/04-edge-lab/`). It answers: what does the everything server do
