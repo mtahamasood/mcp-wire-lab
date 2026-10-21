@@ -103,6 +103,28 @@ class CitationsTest(unittest.TestCase):
         _, errors = self.run_on('`servers:src/a.ts:4` "serveStdio("')
         self.assertTrue(any("past the end" in e for e in errors))
 
+    def test_escaping_path_gets_one_error_and_is_not_read(self) -> None:
+        # docs/x.md has one line, so reading it would also report line 2 past the end.
+        _, errors = self.run_on('`servers:../../docs/x.md:2` "nowhere-at-all"')
+        self.assertEqual(len(errors), 1)
+        self.assertIn("outside", errors[0])
+
+    def test_fragment_length_counts_unescaped_characters(self) -> None:
+        # `\": \"` is 6 characters as written but the fragment is `": "`, 4 characters,
+        # and it is on spec line 2: only the length rule can catch it.
+        _, errors = self.run_on('`spec:docs/b.mdx:2` "\\": \\""')
+        self.assertEqual(len(errors), 1)
+        self.assertIn("at least 6", errors[0])
+
+    def test_root_reached_through_a_symlink_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            real = Path(tmp) / "real"
+            real.mkdir()
+            make_tree(real, '`servers:src/a.ts:2` "serveStdio("')
+            link = Path(tmp) / "link"
+            link.symlink_to(real)
+            self.assertEqual(check_citations.check(link), (1, []))
+
     def test_undecodable_doc_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

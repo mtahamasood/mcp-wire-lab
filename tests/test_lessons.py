@@ -95,6 +95,19 @@ class LessonsTest(unittest.TestCase):
         self.assertEqual(len(errors), len(check_lessons.SECTIONS))
         self.assertTrue(all("missing section" in e for e in errors))
 
+    def test_headings_between_fenced_blocks_count(self) -> None:
+        # Each fence is stripped on its own, not everything from the first fence to the last.
+        fence = "```console\n$ echo hi\n```\n"
+        between = "\n".join(f"{fence}\n## {s}\n\ntext\n" for s in check_lessons.SECTIONS)
+        self.assertEqual(self.run_on(lesson(sections=between + fence)), (1, []))
+
+    def test_fence_closes_only_on_a_bare_fence_line(self) -> None:
+        # A "```text" line inside a fence has an info string, so it does not close it.
+        fenced = "```markdown\n```text\n" + SECTIONS + "```\n"
+        _, errors = self.run_on(lesson(sections=fenced))
+        self.assertEqual(len(errors), len(check_lessons.SECTIONS))
+        self.assertTrue(all("missing section" in e for e in errors))
+
     def run_main(self, root: Path, *args: str) -> tuple[int, str]:
         err = io.StringIO()
         with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
