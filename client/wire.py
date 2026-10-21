@@ -8,7 +8,7 @@ start at 0 too, so they overlap ours):
 - a response (has `id` and `result` or `error`, no `method`) completes the pending request
   with that exact id, type included: `1` and `"1"` differ;
 - a server request (has `method` and `id`) goes to the request handler, which in phase 2 only
-  refuses it with -32601 under the same id;
+  refuses it with -32601 under the same id (written by a sender thread, never by the reader);
 - a notification (has `method`, no `id`) goes to `notifications`, a queue the caller reads.
 
 Anything else is reported through `report` and otherwise ignored.
@@ -67,7 +67,8 @@ def classify(message: Any) -> str:
     """response, request, notification or junk, by the shape of a decoded line.
 
     A request has `method` and `id`; a notification has `method` and no `id`; a response has
-    `id` and `result` or `error` and no `method`. A bad `method` or `id` type is junk.
+    `id` (a string, an integer or null) and `result` or `error` and no `method`. A bad `method`
+    or `id` type is junk.
 
     `spec:docs/specification/2025-11-25/basic/index.mdx:108`
     "Notifications **MUST NOT** include an ID"
@@ -81,7 +82,8 @@ def classify(message: Any) -> str:
             return "notification"
         return "request" if valid_id(message["id"]) else "junk"
     if "id" in message and ("result" in message or "error" in message):
-        return "response"
+        # null is the id of the error reply to a request the server could not parse
+        return "response" if message["id"] is None or valid_id(message["id"]) else "junk"
     return "junk"
 
 
@@ -136,23 +138,34 @@ class Wire:
         self._observer = observer
         self._on_request = on_request  # phase 3: answers server requests; None means refuse
         self._on_notification = on_notification  # phase 3: also sees each notification
-        self._lock = threading.Lock()  # one writer at a time; also guards the tables below
+        # Two locks: `_write_lock` is held only around a write (one writer at a time, and ids
+        # reach the wire in allocation order); `_table_lock` guards the fields below and is
+        # never held across I/O, so the reader thread never waits behind a write that is
+        # blocked on a full pipe.
+        self._write_lock = threading.Lock()
+        self._table_lock = threading.Lock()
         self._next_id = 0
         self._pending: dict[Key, Pending] = {}
         self._abandoned: set[Key] = set()
+        self._closed: OSError | None = None  # set once: EOF from the server, or close_input()
+        self._outbox: queue.Queue[Message] = queue.Queue()  # refusals, written by the sender
+        self._sender: threading.Thread | None = None
         self.notifications: queue.Queue[Message] = queue.Queue()
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
 
     # -- sending -----------------------------------------------------------------------
 
     def _write(self, text: str) -> None:
-        """One line to the server's stdin; the caller holds the lock.
+        """One line to the server's stdin; the caller holds the write lock.
 
         `spec:docs/specification/2025-11-25/basic/transports.mdx:25`
         "reads JSON-RPC messages from its standard input"
         """
-        self._stdin.write(text.encode("utf-8") + b"\n")
-        self._stdin.flush()
+        try:
+            self._stdin.write(text.encode("utf-8") + b"\n")
+            self._stdin.flush()
+        except ValueError as exc:  # a closed file object says ValueError; callers expect OSError
+            raise OSError(f"the server's stdin is closed ({exc})") from exc
 
     def send_message(self, message: Message) -> None:
         """Send one message as one compact JSON line.
@@ -164,7 +177,7 @@ class Wire:
         "contain embedded newlines"
         """
         text = json.dumps(message, separators=(",", ":"), ensure_ascii=True)
-        with self._lock:
+        with self._write_lock:
             self._write(text)
         self._observe("->", message)
 
@@ -177,31 +190,37 @@ class Wire:
         `spec:docs/specification/2025-11-25/basic/transports.mdx:34`
         "MUST NOT** write anything to the server's"
         """
-        with self._lock:
+        with self._write_lock:
             self._write(text)
         self._observe("->", text)
 
     def start_request(self, method: str, params: Message | None = None) -> Pending:
         """Send a request with the next id (from 0, in send order) and return its Pending.
 
-        The id is allocated and the line written under one lock hold, so the order ids are
-        written in is the order they were allocated in.
+        The id is allocated and the line written under the write lock, so the order ids are
+        written in is the order they were allocated in. The request is in the pending table
+        before its line is written, so a fast reply finds it; the table lock is only held for
+        the table, never during the write. Raises OSError at once once the wire is closed.
 
         `spec:docs/specification/2025-11-25/basic/index.mdx:48`
         "MUST NOT** have been previously used"
         """
-        with self._lock:
-            request_id = self._next_id
-            self._next_id += 1
-            pending = Pending(request_id, method)
+        with self._write_lock:
+            with self._table_lock:
+                if self._closed is not None:
+                    raise self._closed
+                request_id = self._next_id
+                self._next_id += 1
+                pending = Pending(request_id, method)
+                self._pending[key_of(request_id)] = pending
             message: Message = {"jsonrpc": JSON_RPC, "id": request_id, "method": method}
             if params is not None:
                 message["params"] = params
-            self._pending[key_of(request_id)] = pending
             try:
                 self._write(json.dumps(message, separators=(",", ":"), ensure_ascii=True))
             except OSError:
-                del self._pending[key_of(request_id)]
+                with self._table_lock:
+                    self._pending.pop(key_of(request_id), None)
                 raise
         self._observe("->", message)
         return pending
@@ -227,20 +246,31 @@ class Wire:
             message["params"] = params
         self.send_message(message)
 
-    def abandon(self, pending: Pending) -> None:
+    def abandon(self, pending: Pending) -> bool:
         """Stop waiting for a request: a reply that arrives later is dropped and reported.
+
+        Returns True if the request was still waiting, False if it already had its reply (or
+        was already abandoned or failed); the check and the removal are one step under the table
+        lock, so a reply cannot land in between.
 
         `spec:docs/specification/2025-11-25/basic/utilities/cancellation.mdx:45`
         "ignore any response to the"
         """
-        with self._lock:
-            key = key_of(pending.id)
-            if self._pending.pop(key, None) is not None:
-                self._abandoned.add(key)
+        key = key_of(pending.id)
+        with self._table_lock:
+            if self._pending.pop(key, None) is None:
+                return False
+            self._abandoned.add(key)
         pending.complete(failure=Cancelled(f"{pending.method} (id {pending.id}) was cancelled"))
+        return True
 
     def close_input(self) -> None:
-        """Close the server's stdin: the first step of a stdio shutdown."""
+        """Close the server's stdin: the first step of a stdio shutdown.
+
+        The wire is closed from here on: requests still pending fail at once with OSError, and
+        so does every new one.
+        """
+        self._fail_all(OSError("the wire is closed"))
         try:
             self._stdin.close()
         except OSError:
@@ -256,12 +286,22 @@ class Wire:
             self._reader.join(timeout)
 
     def _read_loop(self) -> None:
-        for raw in self._stdout:
-            self.handle_line(raw)
-        self._fail_all(ConnectionError("the server closed its stdout"))
+        """Read lines until EOF; one bad line never ends the loop, and the end fails every wait."""
+        try:
+            for raw in self._stdout:
+                try:
+                    self.handle_line(raw)
+                except Exception as exc:  # the reader must outlive any one line
+                    self._report(f"error while handling a line ({type(exc).__name__}: {exc}): "
+                                 f"{raw[:80]!r}")
+        finally:
+            self._fail_all(ConnectionError("the server closed its stdout"))
 
-    def _fail_all(self, failure: Exception) -> None:
-        with self._lock:
+    def _fail_all(self, failure: OSError) -> None:
+        """Close the wire (first failure wins) and fail every pending request with `failure`."""
+        with self._table_lock:
+            if self._closed is None:
+                self._closed = failure
             waiting = list(self._pending.values())
             self._pending.clear()
         for pending in waiting:
@@ -275,7 +315,7 @@ class Wire:
         """
         try:
             message = json.loads(raw.decode("utf-8"))
-        except ValueError as exc:  # UnicodeDecodeError and JSONDecodeError are both ValueErrors
+        except (ValueError, RecursionError) as exc:  # a bad line, or one nested too deep
             self._report(f"ignored a line that is not JSON ({exc}): {raw[:80]!r}")
             return "junk"
         self._observe("<-", message)
@@ -283,7 +323,8 @@ class Wire:
         if kind == "response":
             return "response" if self._complete(message) else "junk"
         if kind == "request":
-            # The callback must not block the reader (client.handlers answers on a worker).
+            # The callback must not block the reader (client.handlers answers on a worker, and
+            # the default refusal is written by the sender thread).
             (self._on_request or self._refuse)(message)
         elif kind == "notification":
             self.notifications.put(message)
@@ -301,7 +342,7 @@ class Wire:
         "MUST** include the same ID"
         """
         key = key_of(message["id"])
-        with self._lock:
+        with self._table_lock:
             pending = self._pending.pop(key, None)
             late = pending is None and key in self._abandoned
             if late:
@@ -330,10 +371,20 @@ class Wire:
                 "message": f"Method not found: {message['method']}",
             },
         }
-        try:
-            self.send_message(reply)
-        except OSError as exc:
-            self._report(f"could not refuse the server's {message['method']} request: {exc}")
+        with self._table_lock:  # the sender starts once, on the first refusal
+            if self._sender is None:
+                self._sender = threading.Thread(target=self._send_refusals, daemon=True)
+                self._sender.start()
+        self._outbox.put(reply)
+
+    def _send_refusals(self) -> None:
+        """Write queued refusals, one at a time, so the reader never waits on the write lock."""
+        while True:
+            reply = self._outbox.get()
+            try:
+                self.send_message(reply)
+            except OSError as exc:
+                self._report(f"could not refuse the server's request {reply['id']!r}: {exc}")
 
     def _observe(self, arrow: str, message: Any) -> None:
         if self._observer is not None:

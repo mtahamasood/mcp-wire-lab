@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import sys
 import tempfile
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from client import session, wire
+from tests.test_client_wire import Sink
 
 ROOT = Path(__file__).resolve().parent.parent
 FAKE = str(ROOT / "tests/fake_servers/scripted.py")
@@ -93,6 +95,36 @@ class LifecycleTest(unittest.TestCase):
             with self.assertRaises(TimeoutError):
                 sess.request("hang", timeout=0.2)
 
+    def test_request_after_eof_or_close_fails_fast(self) -> None:
+        # P2-R3: after the server closes stdout, or after close(), a request fails at once with
+        # OSError (not a timeout, not ValueError) and leaves no pending entry behind.
+        code = (
+            "import os, sys, time\n"
+            "sys.stdin.readline()\n"
+            "sys.stdout.write('{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":{}}\\n')\n"
+            "sys.stdout.flush(); sys.stdin.readline(); os.close(1); time.sleep(30)\n"
+        )
+        sess = session.Session.open([sys.executable, "-c", code], report=lambda t: None, grace=0.3)
+        self.addCleanup(sess.close)
+        sess.ready = True
+        self.assertEqual(sess.request("first", timeout=5), {})
+        waiting = sess.start_request("second")  # the server closes stdout on reading this
+        with self.assertRaises(OSError):
+            waiting.wait(5)
+        sess.wire.join(5)
+        started = time.monotonic()
+        with self.assertRaises(OSError):
+            sess.request("third", timeout=5)
+        self.assertLess(time.monotonic() - started, 1.0)
+        self.assertEqual(sess.wire._pending, {})
+        # after close(): OSError, and the table is empty
+        with server() as (live, _, _):
+            live.initialize()
+            live.close()
+            with self.assertRaises(OSError):
+                live.request("ping", timeout=5)
+            self.assertEqual(live.wire._pending, {})
+
 
 class ShutdownTest(unittest.TestCase):
     def test_close_then_escalate(self) -> None:
@@ -149,6 +181,52 @@ class CancelTest(unittest.TestCase):
             self.assertEqual(cancel[0]["params"], {"requestId": hung.id})
             with self.assertRaises(ValueError):
                 sess.cancel(wire.Pending(0, "initialize"))
+
+    def test_timeout_sends_cancel_and_forgets(self) -> None:
+        # P2-R4: a request that times out is cancelled (reason "timeout") and forgotten, so the
+        # late reply is dropped and reported rather than taken in silently.
+        with server("--late") as (sess, log, reports):
+            sess.initialize()
+            with self.assertRaises(TimeoutError):
+                sess.request("hang", timeout=0.2)
+            self.assertEqual(sess.wire._pending, {}, "the request is forgotten")
+            deadline = time.monotonic() + 5
+            while not reports and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertEqual(len(reports), 1, reports)
+            self.assertIn("late reply", reports[0])
+            sent = [m for m in received(log) if m.get("method") == "notifications/cancelled"]
+            self.assertEqual(sent, [{
+                "jsonrpc": "2.0", "method": "notifications/cancelled",
+                "params": {"requestId": 1, "reason": "timeout"}}])
+            self.assertEqual(sess.request("ping"), {}, "the session carries on")
+
+    def test_cancel_after_completion_returns_false(self) -> None:
+        # P2-R5: the reply lands between the done check and the abandon: cancel must still say
+        # False and send nothing.
+        sink = Sink()
+        w = wire.Wire(sink, io.BytesIO(), report=lambda t: None)
+        sess = session.Session(w)
+        sess.ready = True
+        pending = sess.start_request("tools/call")
+        sent_before = sink.getvalue()
+        real = w.abandon
+
+        def reply_first(p: wire.Pending) -> bool:
+            w.handle_line(b'{"jsonrpc":"2.0","id":0,"result":{"content":[]}}\n')
+            return real(p)
+
+        w.abandon = reply_first  # type: ignore[method-assign,assignment]
+        self.assertFalse(sess.cancel(pending, "too late"))
+        self.assertEqual(pending.wait(1), {"content": []})
+        self.assertEqual(sink.getvalue(), sent_before, "no notifications/cancelled was sent")
+        # and the plain case: already complete before cancel
+        w.abandon = real  # type: ignore[method-assign]
+        done = sess.start_request("ping")
+        w.handle_line(b'{"jsonrpc":"2.0","id":1,"result":{}}\n')
+        before = sink.getvalue()
+        self.assertFalse(sess.cancel(done))
+        self.assertEqual(sink.getvalue(), before)
 
 
 class OverlapTest(unittest.TestCase):

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import io
 import json
+import sys
 import threading
 import time
 import unittest
 from typing import Any
 
-from client import wire
+from client import session, wire
 
 
 class Sink(io.BytesIO):
@@ -38,6 +39,14 @@ def make(sink: Sink | None = None) -> tuple[wire.Wire, Sink, list[str]]:
     reports: list[str] = []
     sink = sink if sink is not None else Sink()
     return wire.Wire(sink, io.BytesIO(), report=reports.append), sink, reports
+
+
+def wait_for_lines(sink: Sink, count: int, timeout: float = 5.0) -> list[dict[str, Any]]:
+    """The lines written so far, once there are `count` (refusals are sent off the reader)."""
+    deadline = time.monotonic() + timeout
+    while len(sink.getvalue().splitlines()) < count and time.monotonic() < deadline:
+        time.sleep(0.005)
+    return sink.sent()
 
 
 def line(message: object) -> bytes:
@@ -74,13 +83,13 @@ class ClassifyTest(unittest.TestCase):
         kind = w.handle_line(line({"jsonrpc": "2.0", "id": 0, "method": "roots/list"}))
         self.assertEqual(kind, "request")
         self.assertFalse(pending.done)
-        refusal = sink.sent()[-1]
+        refusal = wait_for_lines(sink, 2)[-1]  # the request, then the refusal
         self.assertEqual(refusal["id"], 0)
         self.assertEqual(refusal["error"]["code"], -32601)
         self.assertNotIn("method", refusal)
         # a string id is answered with the string id, type included
         w.handle_line(line({"jsonrpc": "2.0", "id": "s-1", "method": "sampling/createMessage"}))
-        self.assertEqual(sink.sent()[-1]["id"], "s-1")
+        self.assertEqual(wait_for_lines(sink, 3)[-1]["id"], "s-1")
         self.assertFalse(pending.done)
 
     def test_notification_is_queued(self) -> None:
@@ -127,6 +136,51 @@ class ClassifyTest(unittest.TestCase):
         ]
         for message, kind in cases:
             self.assertEqual(wire.classify(message), kind, message)
+
+    def test_bad_id_or_deep_line_does_not_stop_reader(self) -> None:
+        # P2-R1: an array id and a 100000-deep line are junk, and a good reply after them is
+        # still delivered by the running reader thread.
+        for bad in ({"jsonrpc": "2.0", "id": [0], "result": {}},
+                    {"jsonrpc": "2.0", "id": {"a": 0}, "error": {}}):
+            self.assertEqual(wire.classify(bad), "junk", bad)
+        self.assertEqual(wire.classify({"id": None, "error": {}}), "response")
+        stream = (line({"jsonrpc": "2.0", "id": [0], "result": {}})
+                  + b"[" * 100000 + b"\n"
+                  + line({"jsonrpc": "2.0", "id": {"a": 1}, "error": {"code": 1}})
+                  + line({"jsonrpc": "2.0", "id": 0, "result": {"ok": True}}))
+        reports: list[str] = []
+        w = wire.Wire(Sink(), io.BytesIO(stream), report=reports.append)
+        pending = w.start_request("x")
+        w.start()
+        self.assertEqual(pending.wait(5), {"ok": True})
+        w.join(5)
+        self.assertEqual(len(reports), 3, reports)
+        # a handler that raises is reported and does not end the loop (the guard per line)
+        stream = line({"jsonrpc": "2.0", "id": 0, "result": {}}) + line(
+            {"jsonrpc": "2.0", "id": 1, "result": {"second": 1}})
+        reports2: list[str] = []
+        w2 = wire.Wire(Sink(), io.BytesIO(stream), report=reports2.append)
+        w2.start_request("a")
+        second = w2.start_request("b")
+        real = w2._complete
+        calls: list[int] = []
+
+        def flaky(message: dict[str, Any]) -> bool:
+            calls.append(1)
+            if len(calls) == 1:
+                raise RuntimeError("boom")
+            return real(message)
+
+        w2._complete = flaky  # type: ignore[method-assign]
+        w2.start()
+        self.assertEqual(second.wait(5), {"second": 1})
+        self.assertTrue(any("boom" in r for r in reports2), reports2)
+        # the reader ends at EOF: whatever is still pending fails at once, not after a timeout
+        w3 = wire.Wire(Sink(), io.BytesIO(b""), report=lambda t: None)
+        waiting = w3.start_request("y")
+        w3.start()
+        with self.assertRaises(OSError):
+            waiting.wait(5)
 
 
 def notify_many(w: wire.Wire, tag: int, payload: str) -> None:
@@ -182,6 +236,34 @@ class FramingTest(unittest.TestCase):
         for t in workers:
             t.join()
         self.assertEqual([m["id"] for m in sink2.sent()], list(range(40)))
+
+    def test_large_write_does_not_block_reader(self) -> None:
+        # P2-R2: a 1 MB write blocks on a full pipe while the server floods stdout and only
+        # then reads stdin. The reader must keep draining (and a refusal must not be written
+        # by the reader), or both sides wait on each other for ever.
+        code = (
+            "import sys, time\n"
+            "sys.stdin.buffer.readline(); time.sleep(1.0)\n"
+            "w = sys.stdout.buffer\n"
+            "w.write(b'{\"jsonrpc\":\"2.0\",\"id\":\"s\",\"method\":\"roots/list\"}\\n')\n"
+            "w.flush()\n"
+            "pad = b'y' * 1000\n"
+            "line = b'{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":{\"pad\":\"' + pad + b'\"}}\\n'\n"
+            "for _ in range(2000): w.write(line); w.flush()\n"
+            "sys.stdin.buffer.read()\n"
+        )
+        sess = session.Session.open([sys.executable, "-c", code], report=lambda t: None)
+        assert sess.process is not None
+        self.addCleanup(sess.process.wait)
+        self.addCleanup(sess.process.kill)
+        sess.wire.start_request("a")
+        big = threading.Thread(
+            target=sess.wire.start_request, args=("big", {"blob": "x" * 1_000_000}), daemon=True)
+        started = time.monotonic()
+        big.start()
+        big.join(8)
+        self.assertFalse(big.is_alive(), "the large write is stuck: the reader stopped draining")
+        self.assertLess(time.monotonic() - started, 9)
 
 
 if __name__ == "__main__":
