@@ -7,6 +7,7 @@ After the 2025 opening exchange, each line read is one of:
                            JSON is still sent, so mistakes reach the server and you see its answer
   :req <method> [<json>]   a request with the next id (the wire allocates it)
   :note <method> [<json>]  a notification
+  :sample <text>           the text the next sampling request (--caps sampling) is answered with
   :quit                    shut down (end of input does the same)
 
 Every message sent is printed as `-> <json>` and every message received as `<- <json>`.
@@ -19,9 +20,10 @@ from __future__ import annotations
 import json
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any, TextIO
 
+from client.handlers import CANNED_TEXT, Handlers
 from client.session import Session
 from client.wire import Key, Message, classify, key_of, stderr_report
 
@@ -29,8 +31,11 @@ SETTLE_SECONDS = 5.0  # how long to wait, at the end, for replies to requests st
 
 
 class Manual:
-    def __init__(self, session: Session, out: TextIO, settle: float = SETTLE_SECONDS) -> None:
+    def __init__(self, session: Session, out: TextIO, settle: float = SETTLE_SECONDS,
+                 capabilities: Message | None = None) -> None:
         self.session = session
+        self.capabilities = capabilities
+        self.sample_text: str | None = None  # set by `:sample`, read by the sampling handler
         self.out = out
         self.settle = settle
         self._lock = threading.Lock()
@@ -72,6 +77,8 @@ class Manual:
             self.session.wire.send_line(line)
         elif line == ":quit":
             return False
+        elif line.startswith(":sample "):
+            self.sample_text = line[len(":sample "):]
         elif line.startswith((":req ", ":note ")):
             command, _, rest = line.partition(" ")
             method, _, text = rest.strip().partition(" ")
@@ -89,7 +96,7 @@ class Manual:
         return True
 
     def run(self, lines: Iterable[str]) -> int:
-        self.session.initialize()
+        self.session.initialize(self.capabilities)
         for line in lines:
             if not self.handle(line):
                 break
@@ -102,15 +109,27 @@ class Manual:
 
 def run_manual(command: list[str], lines: Iterable[str], out: TextIO,
                settle: float = SETTLE_SECONDS,
-               report: Callable[[str], None] = stderr_report) -> int:
+               report: Callable[[str], None] = stderr_report,
+               caps: Sequence[str] = ()) -> int:
     holder: list[Manual] = []
 
     def observe(arrow: str, message: Any) -> None:
         if holder:
             holder[0].observe(arrow, message)
 
-    session = Session.open(command, observer=observe, report=report)
-    manual = Manual(session, out, settle)
+    def sampling_text() -> str:
+        text = holder[0].sample_text if holder else None
+        return CANNED_TEXT if text is None else text
+
+    handlers = Handlers(caps, sampling_text=sampling_text, report=report) if caps else None
+    callbacks: dict[str, Any] = {}
+    if handlers is not None:
+        callbacks = {"on_request": handlers.handle_request,
+                     "on_notification": handlers.handle_notification}
+    session = Session.open(command, observer=observe, report=report, **callbacks)
+    if handlers is not None:
+        handlers.attach(session.wire)
+    manual = Manual(session, out, settle, None if handlers is None else handlers.capabilities)
     holder.append(manual)
     try:
         return manual.run(lines)
