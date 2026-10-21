@@ -64,3 +64,22 @@ change (the README's plain `git clone` gets this content once the phase branch i
 Items 3 (the Predict section is spoiled further down the page) and 7 (prompting an explicit guess for
 each experiment outcome) are teaching-design choices; the owner chose to leave both unchanged, so they
 stand as accepted. Gate green after the edits (31 citations checked).
+
+## 6. Acceptance of items 3 and 7 (close-out, 2026-10-21)
+
+Agent-proposed, owner to confirm (decision A3 in `audits/autonomous-decisions.md`; finding R17 in
+`audits/rest-review.md`). Section 5 says the owner chose to leave items 3 and 7 unchanged, but that
+sentence was written by the agent and is not the owner's signature. Under the owner's delegation of
+2026-10-21, the agent records both as accepted:
+
+- Item 3 (the Run and Read sections show answers to the Predict questions further down the page):
+  accepted. The lesson asks the reader to write predictions down before running, and the expected
+  blocks after each runnable block are what G9 checks against a live run, so they stay next to the
+  commands they check.
+- Item 7 (no explicit prompt to guess "error or success?" for each experiment): accepted. The
+  lesson states the outcomes were measured at the pins and are not promised by the spec; the
+  learner's two wrong guesses are the lesson working as designed.
+
+J2's verdict in `specs/phases/01-wire-tap/validation.md` stands as the owner's earlier pass; the
+Result carries the matching note. The owner may overrule either acceptance by changing the lesson
+and striking this section, or re-sign J2.

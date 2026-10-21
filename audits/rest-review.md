@@ -341,6 +341,7 @@ Counts: 0 blocker, 5 major, 13 minor, 4 nit.
 - Suggested fix: the owner re-signs J2 against the findings list and the local log, and signs
   the acceptance of items 3 and 7 in the row.
 - Disposition: open, owner: the owner re-signs J2 against the findings list and signs the acceptance of learner-walk items 3 and 7. Not done by the agent.
+- Status (2026-10-21, close-out): decided by the agent under the owner's later delegation (A3): J2 stands as the owner's earlier pass, and items 3 and 7 are accepted, recorded in the `validation.md` Result and section 6 of `audits/learner-walk-lesson-01.md` as agent-proposed, owner to confirm. The owner has not re-signed J2.
 
 ### R18 (minor, CONFIRMED). The public repository has no licence
 

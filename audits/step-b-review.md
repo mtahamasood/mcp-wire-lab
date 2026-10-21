@@ -425,6 +425,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   `validation.md` ("agent-proposed, owner to confirm"); and the acceptance of learner-walk items 3
   and 7 in `audits/learner-walk-lesson-01.md`. The owner sees them in the end review, before
   `main`.
+- Status: fixed: A2, A3 and the register row reworded `89ec6af`, `5818eb0`; `LICENSE` `9c2166b`; the J2 note and the acceptance of items 3 and 7 in the close-out records commit that adds this line, both agent-proposed, owner to confirm.
 
 ### B16 (nit, CONFIRMED as a normal user, PLAUSIBLE as root). The installer run on a directory that is not a repo tries to create `/hooks`
 
