@@ -39,12 +39,32 @@ def _script(block: str) -> str:
     return "\n".join(line[2:] if line.startswith("$ ") else line for line in lines)
 
 
-FENCE = re.compile(r"^```.*?^```[ \t]*$", re.DOTALL | re.MULTILINE)
+OPEN_FENCE = re.compile(r"^(`{3,}|~{3,})")
+
+
+def _strip_fences(text: str) -> str:
+    """Drop fenced code (CommonMark): three or more backticks or tildes open a fence; only a
+    line of the same character, at least as long, with nothing after it but spaces or tabs,
+    closes it. A fence never closed runs to the end of the text."""
+    kept: list[str] = []
+    fence: str | None = None
+    for line in text.split("\n"):
+        if fence is None:
+            m = OPEN_FENCE.match(line)
+            if m:
+                fence = m.group(1)
+            else:
+                kept.append(line)
+        else:
+            body = line.rstrip(" \t")
+            if len(body) >= len(fence) and body == fence[0] * len(body):
+                fence = None
+    return "\n".join(kept)
 
 
 def check_sections(label: str, text: str) -> list[str]:
     """The seven L1 headings must exist, outside code fences, in this order."""
-    prose = FENCE.sub("", text)
+    prose = _strip_fences(text)
     headings = [h.strip().lower() for h in re.findall(r"^##\s+(.+)$", prose, re.MULTILINE)]
     errors: list[str] = []
     positions: list[int] = []

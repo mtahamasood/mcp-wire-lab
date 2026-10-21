@@ -1,4 +1,5 @@
-"""G8: every `<submodule>:<path>:<line>` "fragment" citation resolves in the pinned submodule.
+"""G8: every `<submodule>:<path>:<line>` "fragment" citation resolves in the checked-out submodule
+(bootstrap checks the pin).
 
 Usage: python3 tools/check_citations.py [repo-root]
 """

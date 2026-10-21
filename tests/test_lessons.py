@@ -101,6 +101,25 @@ class LessonsTest(unittest.TestCase):
         between = "\n".join(f"{fence}\n## {s}\n\ntext\n" for s in check_lessons.SECTIONS)
         self.assertEqual(self.run_on(lesson(sections=between + fence)), (1, []))
 
+    def test_headings_inside_a_tilde_fence_do_not_count(self) -> None:
+        fenced = "~~~markdown\n" + SECTIONS + "~~~\n"
+        _, errors = self.run_on(lesson(sections=fenced))
+        self.assertEqual(len(errors), len(check_lessons.SECTIONS))
+
+    def test_headings_inside_a_four_backtick_fence_do_not_count(self) -> None:
+        fenced = "````markdown\n```\n" + SECTIONS + "````\n"
+        _, errors = self.run_on(lesson(sections=fenced))
+        self.assertEqual(len(errors), len(check_lessons.SECTIONS))
+
+    def test_tilde_fence_is_not_closed_by_backticks(self) -> None:
+        fenced = "~~~markdown\n```\n" + SECTIONS + "~~~\n"
+        _, errors = self.run_on(lesson(sections=fenced))
+        self.assertEqual(len(errors), len(check_lessons.SECTIONS))
+
+    def test_headings_after_an_unclosed_fence_are_missing(self) -> None:
+        _, errors = self.run_on(lesson(sections="```markdown\n" + SECTIONS))
+        self.assertEqual(len(errors), len(check_lessons.SECTIONS))
+
     def test_fence_closes_only_on_a_bare_fence_line(self) -> None:
         # A "```text" line inside a fence has an info string, so it does not close it.
         fenced = "```markdown\n```text\n" + SECTIONS + "```\n"
