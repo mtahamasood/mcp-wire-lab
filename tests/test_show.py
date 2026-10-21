@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -47,7 +48,8 @@ class TraceCase(unittest.TestCase):
         done = show(self.trace(records), *flags)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertNotIn("Traceback", done.stderr)
-        return done.stdout.splitlines()
+        # split on "\n" only: splitlines() would swallow a raw "\r" or U+2028 the view leaked
+        return done.stdout.removesuffix("\n").split("\n")
 
 
 def req(i: object, method: str = "ping") -> dict[str, object]:
@@ -128,6 +130,79 @@ class RobustnessTest(TraceCase):
         self.assertIn("answers seq 2,", lines[2])
         self.assertNotIn("in flight", lines[3])  # the other direction has its own ids
         self.assertIn("answers seq 4,", lines[4])
+
+    def test_c9_pairing_and_in_flight_ids_are_per_direction(self) -> None:
+        # id 1 is in flight both ways at once: neither request is a reuse, each answer finds its own
+        lines = self.lines([rec(1, "c2s", req(1)), rec(2, "s2c", req(1)), rec(3, "s2c", res(1)),
+                            rec(4, "c2s", res(1))])
+        self.assertNotIn("in flight", lines[1])
+        self.assertIn("answers seq 1,", lines[2])
+        self.assertIn("answers seq 2,", lines[3])
+
+    def test_c9_batch_and_result_less_response_do_not_crash(self) -> None:
+        batch = ["method", "id"]  # an array is a batch whatever it holds
+        records = [rec(1, "c2s", batch, raw=json.dumps(batch) + "\n"),
+                   rec(2, "s2c", {"jsonrpc": "2.0", "id": 3})]
+        lines = self.lines(records)
+        self.assertTrue(lines[0].endswith("  batch"), lines[0])
+        self.assertIn("raw", lines[1])
+        self.assertNotIn("response", lines[1])
+
+    def test_c9_every_printed_field_is_escaped(self) -> None:
+        bad = "a\x1b[31mb\rc d"
+        records = [rec(1, "tap", event=bad), rec(2, "c2s", raw="x\n", json=None, parse_error=bad),
+                   rec(3, "s2c", {"jsonrpc": "2.0", "id": 7, "error": {"code": bad}})]
+        for flags in ((), ("--full",), ("--mermaid",)):
+            out = "\n".join(self.lines(records, *flags))
+            for ch in "\x1b\r ":
+                self.assertNotIn(ch, out, flags)
+
+    def test_c9_full_pretty_prints_json_and_adds_nothing_to_stderr(self) -> None:
+        lines = self.lines([rec(1, "c2s", req(1)), rec(2, "stderr", raw="boot\n", json=None)],
+                           "--full")
+        self.assertIn('  "id": 1,', lines)
+        self.assertEqual(lines[-1].split("  ")[-1], "stderr boot")
+        self.assertEqual(sum("boot" in ln for ln in lines), 1)
+
+    def test_c9_records_of_the_wrong_shape_exit_two_with_one_line(self) -> None:
+        bodies = ["[1, 2]", '{"seq": 1, "t_ns": 1, "dir": "weird"}',
+                  '{"seq": 1, "t_ns": "x", "dir": "c2s", "json": null}']
+        for n, body in enumerate(bodies):
+            path = self.dir / f"shape{n}.jsonl"
+            path.write_text(body + "\n", encoding="utf-8")
+            done = show(path)
+            self.assertEqual(done.returncode, 2, (body, done.stderr))
+            self.assertEqual(done.stdout, "")
+            self.assertEqual(len(done.stderr.splitlines()), 1, done.stderr)
+            self.assertTrue(done.stderr.startswith("show: "), done.stderr)
+
+    def test_c9_output_pipe_closed_before_start_ends_quietly(self) -> None:
+        # the read end is gone before the viewer writes, so its one buffered flush hits EPIPE
+        read_end, write_end = os.pipe()
+        os.close(read_end)
+        try:
+            done = subprocess.run([sys.executable, "-m", "tap.show", str(TRACE)], cwd=ROOT,
+                                  stdout=write_end, stderr=subprocess.PIPE, timeout=30)
+        finally:
+            os.close(write_end)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stderr, b"")
+
+    def test_c13_frames_that_are_not_messages_are_notes_and_ids_keep_json_type(self) -> None:
+        batch = [{"jsonrpc": "2.0", "id": 2, "method": "ping"}]
+        records = [rec(0, "tap", event="spawn", argv=["server"]), rec(1, "c2s", req("1")),
+                   rec(2, "s2c", res("1")), rec(3, "c2s", batch), rec(4, "s2c", req(True)),
+                   rec(5, "c2s", raw="junk\n", json=None, parse_error="x"),
+                   rec(6, "tap", event="exit", code=0)]
+        lines = [ln.strip() for ln in self.lines(records, "--mermaid")]
+        arrows = [ln for ln in lines if re.search(r"-{1,2}>>", ln)]
+        self.assertEqual(arrows, ['Client->>Server: ping id="1"',
+                                  'Server-->>Client: response id="1"',
+                                  "Server->>Client: ping id=true"])
+        notes = [ln for ln in lines if ln.startswith("Note over Client,Server: ")]
+        self.assertEqual(len(notes), 4, lines)
+        self.assertEqual(notes[0], "Note over Client,Server: tap spawn")
+        self.assertEqual(notes[-1], "Note over Client,Server: tap exit 0")
 
     def test_c9_control_characters_in_method_id_and_stderr_are_escaped(self) -> None:
         bad = "a\x1b[31mb\rc\u2028d"
@@ -245,6 +320,19 @@ class ExplainTest(unittest.TestCase):
         self.assertNotEqual(done.returncode, 0)
         self.assertIn("(no frame)  [c2s.initialize.9]", done.stdout)
         self.assertNotIn("(no note)", done.stdout)
+
+    def test_c14_anchors_keep_json_id_type_and_name_a_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            trace, notes = Path(tmp) / "t.jsonl", Path(tmp) / "w.md"
+            batch = [req(3)]
+            records = [rec(1, "c2s", req("1")), rec(2, "s2c", res("1")), rec(3, "c2s", batch)]
+            trace.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
+            notes.write_text('#### `c2s.ping."1"`\nA string id.\n\n#### `s2c.response."1"`\n'
+                             "Its answer.\n\n#### `c2s.batch.0`\nA batch.\n", encoding="utf-8")
+            done = show(trace, "--explain", notes)
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertNotIn("(no note)", done.stdout)
+        self.assertNotIn("(no frame)", done.stdout)
 
     def test_usage_errors(self) -> None:
         self.assertEqual(show().returncode, 2)

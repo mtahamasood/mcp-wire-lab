@@ -179,6 +179,50 @@ Any of these standing means the phase is NOT done, whatever else passes:
     records a fresh run and requires `--explain` over the real walkthrough to exit 0 with no `(no note)` or
     `(no frame)`. Mutant: the heading `c2s.ping.2` renamed to `c2s.ping.9` in the walkthrough; the test fails.
     Baseline passes.
+  - C9, C13, C14 after step (b) (2026-10-21), the viewer fixes of `cecc630` (S1-S4, S6, S7, S10, S13, S15, T5):
+    each mutant applied to `tap/show.py` in place with `PYTHONDONTWRITEBYTECODE=1` and no `__pycache__`, the
+    whole of `tests.test_show` run, and the file restored after each (`git diff` empty); baseline exit 0 (18
+    tests). 66 mutants (52 C9, 10 C13, 4 C14). Killed at first, with the tests that fail:
+    C9, the row's mutation (each response paired with the most recent request): the pairing, id-type and stack
+    tests; first-in-first-out: the same three; a stack, global or per direction (S15): the stack test; Python
+    equality as the pairing key, `str()` for ids, or float ids made raw (S6): the id-type test; latency from the
+    trace start, or no `error` kind: the pairing test; batch made raw, no id, method or `error` type check, null
+    ids allowed (S2, S13, T5): the malformed-frame test; the binary label dropped, `--full` raw dropped or
+    unescaped: the binary-and-unparsed test; in-flight never flagged, its label dropped, or the first request
+    kept on reuse (S7): the reuse test; trace split by `splitlines()` (S1): the line-separator test and two
+    escape tests; notes split by `splitlines()`: the notes-split test; `esc` without `Cc` or without `Zl`/`Zp`,
+    method or stderr unescaped (S4): the escape tests; `OSError`, `UnicodeDecodeError` or `ValueError` not turned
+    into a `show:` line, or `ShowError` uncaught or exiting 1 (S3): the unreadable-trace test and the notes
+    exit-2 test; `BrokenPipeError` uncaught or exiting 1 (S10): the closed-pipe test.
+    C13, the row's mutation (c2s arrows before s2c arrows): the diagram test; all arrows solid, the stderr note
+    keeping its newline: the diagram test; raw frames drawn as arrows: the malformed-frame test (crash); labels not
+    escaped: the escape test; the notes file read without `read_text`, or exit 1 on unreadable notes: the notes
+    exit-2 test.
+    C14, the row's mutation (`--explain` always exits 0): the missing-note, extra-note and notes exit-2 tests.
+    25 survived. In the escape tests `lines()` split stdout with `splitlines()`, which drops a leaked `\r` or
+    U+2028, so their checks for those two were empty: ids not escaped, and `--full` JSON not escaped, passed.
+    Also passed: id pairing or the in-flight check ignoring direction (no fixture had one id in flight both ways
+    at once); a frame with an `id` but neither `result` nor `error` shown as a response; `describe`'s batch
+    branch dropped (a batch holding `"method"` or `"id"` as an item then crashes); tap events, `parse_error` and a string error `code` not escaped;
+    `--full` JSON on one escaped line, and `--full` printing a stderr record's text a second time; `load`'s
+    shape check dropped whole or in part (a non-object record, an unknown `dir`, a non-numeric `t_ns`: each a
+    traceback, exit 1); `main` without its flush or without the `/dev/null` redirect (the closed-pipe test only
+    closes after the viewer has written into the pipe); a batch drawn as an arrow, ids in labels as Python `str()`,
+    and `tap` records left out of `--mermaid` (C13); request and response anchors with Python `str()` ids, and a
+    batch anchored as `raw` (C14). After `lines()` split on `\n` and 8 new tests (26), each is killed:
+    `test_c9_pairing_and_in_flight_ids_are_per_direction`, `test_c9_batch_and_result_less_response_do_not_crash`,
+    `test_c9_every_printed_field_is_escaped`, `test_c9_full_pretty_prints_json_and_adds_nothing_to_stderr`,
+    `test_c9_records_of_the_wrong_shape_exit_two_with_one_line`, `test_c9_output_pipe_closed_before_start_ends_quietly`
+    (read end closed before the viewer starts; 8 runs of 8), `test_c13_frames_that_are_not_messages_are_notes_and_ids_keep_json_type`
+    and `test_c14_anchors_keep_json_id_type_and_name_a_batch`; the two unescaped mutants by the existing escape test.
+    Signed equivalent: the pairing key without the id's type name (`id_text` already tells the types apart: an
+    int is digits, a float's JSON has `.`, `e`, `NaN` or `Infinity`, a string starts with `"`, a bool is
+    `true`/`false`); the error `code` without `esc` (`json.dumps` with its default `ensure_ascii=True` escapes
+    every character outside printable ASCII, so `esc` has nothing left to change).
+    Not fixed here, found while mutating (S3 still open for these inputs): a record with no `t_ns` passes `load`
+    (its default is for the synthetic marker) and crashes `line_for` with `KeyError`; a record whose `dir` is a
+    list crashes `load` with `TypeError: unhashable type`. Both exit 1 with a traceback. `--mermaid` still notes
+    a batch as `not JSON-RPC` (S13's second half); the new C13 test does not pin that text.
   - C1-C6, C17 after step (a) (2026-10-21): each mutant applied to `tap/__main__.py` in a temp copy of
     `tap/` and `tests/` with `PYTHONDONTWRITEBYTECODE=1` and no `__pycache__`, then the whole of
     `tests.test_tap` run; baseline exit 0 (36 tests). Killed, with the tests that fail:
