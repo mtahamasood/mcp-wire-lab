@@ -14,5 +14,7 @@ gate G5 python3 -m unittest tests.test_e2e -v
 gate G8 python3 tools/check_citations.py
 gate G9 python3 tools/check_lessons.py
 gate G11 python3 tools/check_no_run_output.py
+# Phases are listed as they are built; a phase that is only specified names tests not yet written.
+gate G12 python3 tools/check_claims.py --phases 02
 
 echo "gate: all green"
