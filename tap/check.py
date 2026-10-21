@@ -263,6 +263,9 @@ def check_trace(records: list[dict[str, Any]], schema: Schema) -> tuple[int, lis
 
 
 def run(argv: list[str]) -> int:
+    if argv[:1] in (["-h"], ["--help"]):
+        print(USAGE)
+        return 0
     args, spec_root = list(argv), DEFAULT_SPEC_ROOT
     if "--spec-root" in args:
         at = args.index("--spec-root")

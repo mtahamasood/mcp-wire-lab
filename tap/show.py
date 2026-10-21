@@ -282,6 +282,9 @@ def explain(
 
 
 def run(argv: list[str]) -> int:
+    if argv[:1] in (["-h"], ["--help"]):
+        print(USAGE)
+        return 0
     if not argv or argv[0].startswith("-"):
         print(USAGE, file=sys.stderr)
         return 2

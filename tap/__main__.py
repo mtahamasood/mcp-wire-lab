@@ -369,6 +369,9 @@ def close_stdout() -> None:
 
 def main(argv: list[str]) -> int:
     open_standard_fds()
+    if argv[:1] in (["-h"], ["--help"]):
+        print(USAGE)
+        return 0
     try:
         trace_path, command, faults = parse_args(argv)
     except UsageError as exc:

@@ -13,6 +13,9 @@ command as a child, copies its own stdin to the child's stdin and the child's st
 own stdout, and writes a trace. Any client that launches a stdio server can launch the tap
 instead, unchanged. A usage error, or a trace path that cannot be opened, prints one line
 starting `tap:` (or the usage text) on stderr and exits 2, before any child is started.
+`-h` or `--help` as the first argument of `python3 -m tap`, `tap.show`, `tap.check`, `client` (or
+right after its mode) and `scripts/record.sh` is not an error: it prints the usage text on stdout
+and exits 0. The same words after `--` belong to the server command and are never read.
 
 *Rationale:* observation must sit on the wire, outside both endpoints, so that the trace
 records what was sent, not what either side thinks it sent, and so one instrument serves
@@ -22,7 +25,8 @@ client); a proxy built on the SDK (it parses and re-serializes, hiding the real 
 MCP Inspector (third-party, does far more than observe — a non-goal).
 *Cost accepted:* one more process in the path; if the tap mishandles buffering, EOF, or
 exit codes, it changes the behavior it claims to observe (guarded by D2, D4 and their checks).
-*Source:* stakeholder ask A2, 2026-10-20; amended by register row 2026-10-21 (finding T8).
+*Source:* stakeholder ask A2, 2026-10-20; amended by register row 2026-10-21 (finding T8) and by
+register row 2026-10-21 (self-explanatory help; `--help` exits 0).
 
 ### D2 — Forwarding is byte-exact; parsing is for the trace only
 

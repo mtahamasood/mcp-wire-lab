@@ -42,6 +42,10 @@ def parse_caps(text: str) -> tuple[str, ...]:
 
 
 def main(argv: list[str]) -> int:
+    helps = (["-h"], ["--help"])
+    if argv[:1] in helps or (argv[:1] and argv[0] in MODES and argv[1:2] in helps):
+        print(USAGE)
+        return 0
     if not argv or argv[0] not in MODES or "--" not in argv[1:]:
         print(USAGE, file=sys.stderr)
         return 2

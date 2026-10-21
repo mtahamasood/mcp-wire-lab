@@ -76,8 +76,8 @@ publish one, and `scripts/gate.sh` fails if one is tracked.
 
 ## The tools, in one place
 
-Every command prints a usage text when you run it with no arguments (or with `--help`, which
-counts as a usage error and exits 2; the text goes to stderr).
+Every command prints a usage text with `--help` (or `-h`). With a wrong or missing argument it
+prints the same text on stderr and exits non-zero.
 
 | Command | What it does |
 | --- | --- |
