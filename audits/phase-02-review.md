@@ -76,7 +76,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   `_fail_all` in a `finally`, so that pending requests fail at once whenever the loop ends. Add
   a C1 test for an array id and one for a deeply nested line, each followed by a good reply that
   must still be delivered.
-- Disposition: open
+- Disposition: fix (A30): a response is one only if its id is a valid id or null; `RecursionError` caught with `ValueError`; each line handled under a guard; `_fail_all` in a `finally`. Passes when `ClassifyTest::test_bad_id_or_deep_line_does_not_stop_reader` (C1) passes.
 
 ### P2-R2: the write lock also guards the pending table, so a blocked write deadlocks the client
 
@@ -129,7 +129,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   reader must never wait on the write lock while the main thread blocks in a write: let `_refuse`
   write from a small sender thread or queue. Add a C2 test that runs this deadlock scenario with
   a timeout.
-- Disposition: open
+- Disposition: fix (A30): separate write lock and table lock, no table lock held during I/O, refusals and handler replies written off the reader thread. Passes when `FramingTest::test_large_write_does_not_block_reader` (C2) passes.
 
 ## Minors
 
@@ -140,7 +140,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   raises `ValueError: I/O operation on closed file` (not `OSError`, so the `except` at line 199
   misses it), and 1 `Pending` is left in the table. Fix: set a `closed` failure in `_fail_all`
   and `close_input`, have `start_request` raise it at once, and catch `ValueError` with
-  `OSError`. Disposition: open
+  `OSError`. Disposition: fix (A30): the wire gets a closed state; pending and new requests fail at once with `OSError` after EOF or `close()`, and leave no pending entry. Passes when `LifecycleTest::test_request_after_eof_or_close_fails_fast` (C3) passes.
 - **P2-R4** (minor) `client/wire.py:107-117`, `client/session.py:115-124`: a timeout neither
   sends `notifications/cancelled` nor forgets the request. `request` cites lifecycle.mdx:248
   ("SHOULD establish timeouts"), but the same paragraph says the sender SHOULD then cancel and
@@ -148,7 +148,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   after timeout: 1`, `sent after timeout: []`, and the late reply was taken in silently
   (`reports: []`), not reported as a late reply. Fix: on `TimeoutError` in `Session.request`,
   call `cancel(pending, "timeout")`, so the late reply is abandoned, dropped and reported.
-  Disposition: open
+  Disposition: fix (A30), D2 amended: on timeout the client sends `notifications/cancelled` (reason `timeout`) and forgets the request, so a late reply is reported. Passes when `CancelTest::test_timeout_sends_cancel_and_forgets` (C5) passes.
 - **P2-R5** (minor) `client/session.py:148-155`, `client/wire.py:226-236`: `cancel` checks
   `pending.done` outside the lock. If the reply lands between that check and `abandon`, `cancel`
   returns `True` and sends `notifications/cancelled` for a request that has completed, and
@@ -157,7 +157,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   `handle_line` just before `abandon`) printed `cancel returned: True`,
   `wait() returns: {'content': []}` and one `notifications/cancelled` line. Fix: have
   `abandon` return whether it removed the entry under the lock, and send the notification only
-  then. Disposition: open
+  then. Disposition: fix (A30): `done` check and abandon under one lock; cancel of a completed request returns False and sends nothing. Passes when `CancelTest::test_cancel_after_completion_returns_false` (C5) passes.
 - **P2-R6** (minor) `tap/check.py:213-214,221`: on any revision other than 2025-11-25, an error
   or response frame crashes with `KeyError` and exit 1, which reads as "frames failed". The
   usage advertises `--revision <revision>`, and the docstring says a check that cannot run exits
@@ -165,7 +165,7 @@ Counts: 0 blockers, 2 majors, 7 minors.
   result and an error frame, gave `KeyError: 'JSONRPCErrorResponse'`, exit 1. That revision
   names the envelopes `JSONRPCResponse` and `JSONRPCError`. Fix: look the envelope names up in
   `load_schema` and raise `CheckError` (exit 2) when they are missing, or reject revisions other
-  than 2025-11-25 in the usage check. Disposition: open
+  than 2025-11-25 in the usage check. Disposition: fix (A30): an unknown or unavailable revision exits 2. Passes when `CheckTest::test_unknown_revision_exits_2` (C9) passes.
 - **P2-R7** (minor) `specs/phases/02-raw-client/validation.md:28`, `tests/test_check.py`: C9's
   named tests do not hold the validator's keyword checks or the definition choice for
   notifications and error frames. Mutants on `tap/check.py` (my runs): `enum`, `items`, `allOf`
@@ -177,18 +177,18 @@ Counts: 0 blockers, 2 majors, 7 minors.
   definition. Fix: add `test_keywords_are_checked` to C9. Add an invalid error frame (for
   example a string `error.code`) and an invalid notification (for example a string
   `params.progress` in `notifications/progress`) to `test_invalid_frame_reports_seq_path_definition`.
-  Disposition: open
+  Disposition: fix (A30): C9 names `test_keywords_are_checked`; error frames are validated against `JSONRPCErrorResponse` and notifications against their method's definition. Passes when `CheckTest::test_error_frames_are_validated` and `CheckTest::test_notification_checked_against_its_method` (C9) pass.
 - **P2-R8** (minor) `tools/check_claims.py:32-35`: G12 picks the Checks cell by position after
   splitting on `|`. A `|` in a claim cell shifts the columns, and a false pass follows. In a
   throwaway repo, the row ``| C1 | Ids 1 | "1" differ, in `tests` | `tests/test_gone.py::GoneTest::test_gone` | yes |``
   gave `claims: ok`, exit 0, although the named test does not exist. Fix: fail a row whose cell
   count differs from the header's, and find the Checks column by its header name.
-  Disposition: open
+  Disposition: fix (A30): G12 finds the Checks column from the table header and splits cells on unescaped `|` outside code spans. Passes when `ClaimsTest::test_pipe_in_claim_cell_does_not_shift_columns` (C10) passes.
 - **P2-R9** (minor) `README.md:57-68`: under "Do them in order.", the merge put lesson 04 (the
   edge lab) before lesson 02. A CommonMark render (`markdown_it`) of the section is one `<ol>`
   linking `01-the-wire-and-the-handshake.md`, `04-edge-lab.md`, `02-raw-client.md`, numbered
   1, 2, 3. A reader who follows "in order" does the edge lab second. Fix: put lesson 02 second
-  and lesson 04 third, with no blank line between items. Disposition: open
+  and lesson 04 third, with no blank line between items. Disposition: fix (A30): README lesson list in order 01-04. No test (docs).
 
 ## Not reported
 

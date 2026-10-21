@@ -55,9 +55,9 @@ before that raises without sending). Shutdown follows the stdio lifecycle: close
 child's stdin, wait up to 2 s, then SIGTERM, wait up to 2 s, then SIGKILL; the child's
 exit status is returned. Cancellation sends `notifications/cancelled` with the pending
 request's `requestId` and an optional `reason`, and stops waiting for that request; a
-late reply to it is dropped and reported on stderr.
+late reply to it is dropped and reported on stderr. A request that times out is cancelled the same way (reason `timeout`) and forgotten. After end of input from the server, or after the client closes the wire, every pending and every new request fails at once with `OSError` (amended by register row 2026-10-21, phase 2 review).
 
-*Source:* stakeholder asks A2 and A3, 2026-10-20; roadmap.md phase 2 row.
+*Source:* stakeholder asks A2 and A3, 2026-10-20; roadmap.md phase 2 row; amended by register row 2026-10-21, phase 2 review.
 
 ### D3 — The scripted tour
 
