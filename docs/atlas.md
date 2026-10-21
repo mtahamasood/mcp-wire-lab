@@ -19,37 +19,37 @@ Counts: 2025-11-25: 31 methods, 2026-07-28: 21 methods.
 
 | Method | Kind | Direction | Revisions | Lessons |
 | --- | --- | --- | --- | --- |
-| `completion/complete` | request | client to server | 2025-11-25, 2026-07-28 | unexercised |
-| `elicitation/create` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | unexercised |
-| `initialize` | request | client to server | 2025-11-25 | [01](lessons/01-the-wire-and-the-handshake.md) |
-| `logging/setLevel` | request | client to server | 2025-11-25 | unexercised |
-| `notifications/cancelled` | notification | client to server and server to client | 2025-11-25, 2026-07-28 | unexercised |
+| `completion/complete` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md) |
+| `elicitation/create` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
+| `initialize` | request | client to server | 2025-11-25 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [04](lessons/04-edge-lab.md) |
+| `logging/setLevel` | request | client to server | 2025-11-25 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md) |
+| `notifications/cancelled` | notification | client to server and server to client | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md) |
 | `notifications/elicitation/complete` | notification | server to client | 2025-11-25 | unexercised |
-| `notifications/initialized` | notification | client to server | 2025-11-25 | [01](lessons/01-the-wire-and-the-handshake.md) |
-| `notifications/message` | notification | server to client | 2025-11-25, 2026-07-28 | unexercised |
-| `notifications/progress` | notification | 2025-11-25: client to server and server to client; 2026-07-28: server to client | 2025-11-25, 2026-07-28 | unexercised |
-| `notifications/prompts/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | unexercised |
-| `notifications/resources/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | unexercised |
-| `notifications/resources/updated` | notification | server to client | 2025-11-25, 2026-07-28 | unexercised |
-| `notifications/roots/list_changed` | notification | client to server | 2025-11-25 | unexercised |
+| `notifications/initialized` | notification | client to server | 2025-11-25 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [04](lessons/04-edge-lab.md) |
+| `notifications/message` | notification | server to client | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md) |
+| `notifications/progress` | notification | 2025-11-25: client to server and server to client; 2026-07-28: server to client | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md) |
+| `notifications/prompts/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
+| `notifications/resources/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
+| `notifications/resources/updated` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
+| `notifications/roots/list_changed` | notification | client to server | 2025-11-25 | [03](lessons/03-server-initiated.md) |
 | `notifications/subscriptions/acknowledged` | notification | server to client | 2026-07-28 | unexercised |
 | `notifications/tasks/status` | notification | client to server and server to client | 2025-11-25 | unexercised |
-| `notifications/tools/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | unexercised |
-| `ping` | request | client to server and server to client | 2025-11-25 | [01](lessons/01-the-wire-and-the-handshake.md) |
-| `prompts/get` | request | client to server | 2025-11-25, 2026-07-28 | unexercised |
-| `prompts/list` | request | client to server | 2025-11-25, 2026-07-28 | unexercised |
-| `resources/list` | request | client to server | 2025-11-25, 2026-07-28 | unexercised |
-| `resources/read` | request | client to server | 2025-11-25, 2026-07-28 | unexercised |
-| `resources/subscribe` | request | client to server | 2025-11-25 | unexercised |
-| `resources/templates/list` | request | client to server | 2025-11-25, 2026-07-28 | unexercised |
-| `resources/unsubscribe` | request | client to server | 2025-11-25 | unexercised |
-| `roots/list` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | unexercised |
-| `sampling/createMessage` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | unexercised |
+| `notifications/tools/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
+| `ping` | request | client to server and server to client | 2025-11-25 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [04](lessons/04-edge-lab.md) |
+| `prompts/get` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md) |
+| `prompts/list` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md) |
+| `resources/list` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md) |
+| `resources/read` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md) |
+| `resources/subscribe` | request | client to server | 2025-11-25 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md) |
+| `resources/templates/list` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md) |
+| `resources/unsubscribe` | request | client to server | 2025-11-25 | [02](lessons/02-raw-client.md) |
+| `roots/list` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
+| `sampling/createMessage` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
 | `server/discover` | request | client to server | 2026-07-28 | unexercised |
 | `subscriptions/listen` | request | client to server | 2026-07-28 | unexercised |
 | `tasks/cancel` | request | client to server and server to client | 2025-11-25 | unexercised |
 | `tasks/get` | request | client to server and server to client | 2025-11-25 | unexercised |
 | `tasks/list` | request | client to server and server to client | 2025-11-25 | unexercised |
 | `tasks/result` | request | client to server and server to client | 2025-11-25 | unexercised |
-| `tools/call` | request | client to server | 2025-11-25, 2026-07-28 | unexercised |
-| `tools/list` | request | client to server | 2025-11-25, 2026-07-28 | [01](lessons/01-the-wire-and-the-handshake.md) |
+| `tools/call` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md) |
+| `tools/list` | request | client to server | 2025-11-25, 2026-07-28 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [04](lessons/04-edge-lab.md) |

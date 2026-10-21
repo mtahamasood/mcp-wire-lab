@@ -127,11 +127,15 @@ class Wire:
         *,
         report: Callable[[str], None] = stderr_report,
         observer: Callable[[str, Any], None] | None = None,
+        on_request: Callable[[Message], None] | None = None,
+        on_notification: Callable[[Message], None] | None = None,
     ) -> None:
         self._stdin = stdin
         self._stdout = stdout
         self._report = report
         self._observer = observer
+        self._on_request = on_request  # phase 3: answers server requests; None means refuse
+        self._on_notification = on_notification  # phase 3: also sees each notification
         self._lock = threading.Lock()  # one writer at a time; also guards the tables below
         self._next_id = 0
         self._pending: dict[Key, Pending] = {}
@@ -279,9 +283,12 @@ class Wire:
         if kind == "response":
             return "response" if self._complete(message) else "junk"
         if kind == "request":
-            self._refuse(message)
+            # The callback must not block the reader (client.handlers answers on a worker).
+            (self._on_request or self._refuse)(message)
         elif kind == "notification":
             self.notifications.put(message)
+            if self._on_notification is not None:
+                self._on_notification(message)
         else:
             self._report(f"ignored a message that is not a request, response or notification: "
                          f"{json.dumps(message)[:80]}")

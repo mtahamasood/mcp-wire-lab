@@ -47,6 +47,8 @@ class Session:
     def open(
         cls, command: Sequence[str], *, report: Callable[[str], None] = stderr_report,
         observer: Callable[[str, Any], None] | None = None,
+        on_request: Callable[[Message], None] | None = None,
+        on_notification: Callable[[Message], None] | None = None,
         grace: float = GRACE_SECONDS, timeout: float = DEFAULT_TIMEOUT,
     ) -> Session:
         """Launch the server command as a child process and start reading its stdout.
@@ -58,7 +60,8 @@ class Session:
             list(command), stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0
         )
         assert process.stdin is not None and process.stdout is not None
-        wire = Wire(process.stdin, process.stdout, report=report, observer=observer)
+        wire = Wire(process.stdin, process.stdout, report=report, observer=observer,
+                    on_request=on_request, on_notification=on_notification)
         wire.start()
         return cls(wire, process, grace=grace, timeout=timeout)
 

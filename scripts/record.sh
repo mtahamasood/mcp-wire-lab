@@ -2,17 +2,17 @@
 # Record one fixture, or one run of the raw client, against the pinned, built everything server
 # (D14; phase 2 D5).
 # Usage: scripts/record.sh <fixture> [name]
-#        scripts/record.sh --client <tour|manual> [name]
+#        scripts/record.sh --client <tour|manual|server-tour> [name]
 # Writes runs/<UTC timestamp>-<name>/{trace.jsonl,stderr.txt}. runs/ is git-ignored (A5).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 client=""
 if [ "${1:-}" = "--client" ]; then
-  client="${2:?usage: scripts/record.sh --client <tour|manual> [name]}"
+  client="${2:?usage: scripts/record.sh --client <tour|manual|server-tour> [name]}"
   case "$client" in
-    tour|manual) ;;
-    *) echo "record: unknown client mode: $client (use tour or manual)" >&2; exit 1 ;;
+    tour|manual|server-tour) ;;
+    *) echo "record: unknown client mode: $client (use tour, manual or server-tour)" >&2; exit 1 ;;
   esac
   name="${3:-client-$client}"
 else
@@ -62,6 +62,11 @@ case "$client" in
   tour)
     # The tour prints its own progress; here it is only the recording that matters.
     python3 -m client tour -- "${server_cmd[@]}" 2> "$dir/stderr.txt" > /dev/null || status=$?
+    ;;
+  server-tour)
+    # The server tour (phase 3) declares every capability and answers the server's requests.
+    python3 -m client server-tour -- "${server_cmd[@]}" 2> "$dir/stderr.txt" > /dev/null \
+      || status=$?
     ;;
   manual)
     # Interactive: the learner's terminal is the client's stdin and stdout; stderr is shown
