@@ -67,6 +67,11 @@ Do them in order.
    stdio, you check its recording against the spec's JSON Schema, then type messages by hand.
    Walkthrough: [the raw client's tour, frame by frame](docs/walkthrough/02-raw-client-tour.md).
 
+3. [When the server speaks first](docs/lessons/03-server-initiated.md): the raw client answers the
+   server's requests (roots, sampling, elicitation), reacts to its notifications, and you read
+   which client capability unlocks what.
+   Walkthrough: [the server tour, frame by frame](docs/walkthrough/03-server-initiated.md).
+
 More lessons arrive with later phases; [`specs/roadmap.md`](specs/roadmap.md) lists what each
 phase adds.
 
