@@ -331,6 +331,44 @@ Any of these standing means the phase is NOT done, whatever else passes:
     Signed equivalent: G8 `if lines and lines[-1] == ""` without `lines and` (`str.split` never returns an
     empty list); G1 without the `registered in mission.md` phrase (`"mission.md" in source` already
     resolves any Source holding it).
+  - C12, C15, C16, C18 after the step (b) fixes (2026-10-21; `ff09e5b` for B10, `53df051` for B1, B3, B4,
+    B6, B16 and B19, `92721d0` for B2, B7 and B11). The builders' handbacks reported every mutant killed;
+    the close-out agent re-ran them on the merged tree at `7c6e983` and these are its results. Each mutant
+    was applied in place with `PYTHONDONTWRITEBYTECODE=1` and no `__pycache__`, the whole named test module
+    run, the file restored and `git diff` seen clean after each. Baselines exit 0: `tests.test_no_run_output`
+    52 tests, `tests.test_lessons` 20, `tests.test_lesson_01` 3, `tests.test_e2e` 5. 25 mutants, 25 killed.
+    C12 (G9, B10): the old three-backtick regex: the tilde, four-backtick, tilde-not-closed-by-backticks
+    and unclosed-fence tests; only backticks open a fence: the tilde test; any bare run of 3 or more closes
+    (fence length ignored): the four-backtick test; a line of either character closes: the
+    tilde-not-closed-by-backticks test; an unclosed fence kept as prose: the unclosed-fence test.
+    C15 (G11 and the installer): G11-pat (`github_pat_` regex removed) and G11-pwd-json (`PWD` dropped from
+    the JSON env keys): `test_each_leak_is_named_by_file`; G11-addonly (`--diff-filter=A`): the
+    edited-README push test and the three typechange tests; G11-AM (`--diff-filter=AM`): the three
+    typechange tests (two over `check_commit`, one push); G11-noroot (`--root` dropped):
+    `test_leak_in_the_root_commit_of_a_new_branch_is_refused` and the dispatcher test, so the root case is
+    no longer caught only by accident (B1); the old home lookahead (whitespace, quote or end only):
+    `test_home_directory_before_any_delimiter` (7 subtests); the KEY=VALUE form without leading
+    whitespace, or without `declare -x`: `test_indented_and_declared_env_dumps`; B19, the old
+    `mode != "120000"` regular-file-only read: the three working-tree tests; only the index symlink
+    skipped: the file-replacing-a-symlink and retargeted-symlink tests; a working-tree link followed instead
+    of read as its target: four tests, `test_working_tree_symlink_content_is_not_read` among them; B16, the
+    old one-line `own=` assignment: `test_outside_a_repo_the_installer_stops_before_mkdir`; B6, the
+    installer in `PrePushHookTest.setUp` run without `env=self.env`: 8 tests, on the empty-stderr assertion
+    (this machine's global configuration sets `core.hooksPath`, so the installer warns). The mutant left
+    open by the earlier C15 run (dropping `mode != "120000"`) is now killed. Not covered by B6's fix: the
+    tests' in-process `check_tracked` and `check_commit` calls run read-only git plumbing (`ls-files -s -z`,
+    `cat-file blob`, `diff-tree -z`) with the process environment; accepted (A20).
+    C16 (B7): REC-shlvl (`SHLVL=1 _=/usr/bin/env PWD=/` added to the `env -i` list) and REC-user (`USER=x`
+    added): both killed by `test_c16_minimal_environment`, which now requires the exact allowlist. This
+    supersedes the `PWD`, `SHLVL`, `_` allowance in the C16 line above.
+    C18 (B2, B11): the `mkdir` loop without its existence test (the row's mutation):
+    `test_c18_unusable_name_fails_fast` (the 10 s timeout); both reading `run=` lines put back to
+    `ls -d runs/*-lesson01 | tail -1`: the name-order and newest-by-mtime tests; the same lines picking by
+    `ls -d ... | sort | head -1`: the newest-by-mtime test; the `exp-list-first` block taking its folder by
+    glob instead of its `recorded:` line: `test_recording_blocks_read_the_recorded_line`.
+    Also seen: `git check-ignore -q .claude/worktrees/agent-x/file` exits 0 (B18); the G8 docstring reads
+    "resolves in the checked-out submodule (bootstrap checks the pin)" (B13); lesson 01 line 103 and
+    question 5 with its answer agree with the walkthrough and M8 (B12).
 - Judgement verdicts:
 - Findings beyond the rows:
 - Status: open

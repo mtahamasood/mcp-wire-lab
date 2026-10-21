@@ -90,6 +90,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   from the bare remote. Passes when: (a)-(d) pass, and the mutants G11-pat, G11-addonly,
   G11-pwd-json and G11-noroot (section 4) each fail at least one test of the module, G11-noroot
   failing (d) and not only the dispatcher test. The run is recorded under C15.
+- Status: fixed `53df051`; (a)-(d) pass; G11-pat, G11-addonly, G11-pwd-json and G11-noroot killed, G11-noroot by (d); mutants recorded under C15 in `validation.md` (close-out re-run, 2026-10-21).
 
 ### B2 (minor, CONFIRMED). `record.sh` now loops forever when the run folder cannot be created
 
@@ -118,6 +119,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   starts `record: cannot create runs/`, no `runs/*-sub` folder exists afterwards, and
   `test_r15_same_name_twice_in_one_second` still passes. Mutant to record under C18: the loop
   without the existence test (the new test times out).
+- Status: fixed `92721d0`; `test_c18_unusable_name_fails_fast` passes; the loop without its existence test killed; mutants recorded under C18 in `validation.md` (close-out re-run, 2026-10-21).
 
 ### B3 (minor, CONFIRMED). G11's bare-home rule misses the delimiters a doc or a paste puts after a path; two R10 forms have no disposition
 
@@ -155,6 +157,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   not reported (G11 row and standing law 1): JSON with escaped slashes (no JSON encoder this
   project runs escapes `/`) and a Windows-style home path (the README supports Linux and macOS
   only).
+- Status: fixed `53df051`; the old lookahead and the KEY=VALUE form without indent or `declare -x` killed; mutants recorded under C15 in `validation.md` (close-out re-run, 2026-10-21).
 
 ### B4 (minor, CONFIRMED). The pre-push hook does not check a file that becomes a symlink
 
@@ -176,6 +179,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   to a clean relative target replaced by a regular file holding a token and committed, also named;
   in `PrePushHookTest`, the first case pushed is refused with `note` named. Passes when: those pass
   and the mutant `--diff-filter=AM` fails each of them.
+- Status: fixed `53df051`; `--diff-filter=AM` killed by the three typechange tests; mutants recorded under C15 in `validation.md` (close-out re-run, 2026-10-21).
 
 ### B5 (minor, CONFIRMED). D15 and the register say the installer writes to `git rev-parse --git-path hooks`; the code never does
 
@@ -206,6 +210,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   2026-10-21 (fifth of that date) amends the third row's "follows `git rev-parse --git-path
   hooks`" and records R1 as implemented by A4. No behaviour change; the existing `InstallerTest`
   cases already pin it.
+- Status: fixed in the records `89ec6af`, `5818eb0`.
 
 ### B6 (minor, CONFIRMED). `PrePushHookTest` runs the installer with the developer's real git configuration
 
@@ -231,6 +236,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   before the change (the installer prints its `core.hooksPath` warning) and passes after it, and
   no test in the module runs a subprocess with the host's git configuration. INST-gitpath is still
   killed by `InstallerTest`.
+- Status: fixed `53df051`; the installer without `env=self.env` fails 8 tests on this machine; mutants recorded under C15 in `validation.md` (close-out re-run, 2026-10-21); the tests' in-process read-only git calls still use the process environment, accepted (A20).
 
 ### B7 (minor, CONFIRMED). C16 allows three variables that node does not add, so an allowlist that leaks them passes
 
@@ -253,6 +259,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   `set(variables) == ALLOWLIST`, and `NODE_ADDS` is removed. Passes when: the test passes on the
   current `record.sh`, the mutant REC-shlvl (section 4) fails it, and REC-user still fails it. If
   a platform is later measured to add a variable, D14 names it with the measurement.
+- Status: fixed `92721d0`; REC-shlvl and REC-user killed; mutants recorded under C16 in `validation.md` (close-out re-run, 2026-10-21).
 
 ### B8 (minor, CONFIRMED). Some constitution edits on the branch are named by no register row, and B5 now fails as written
 
@@ -276,6 +283,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   fences and in order, `bash -eo pipefail`, the fence rule of B10), so the third row's claim that G9
   was amended holds. Boundary check B5 now reads "only appended register rows, proposal status
   changes, and edits each named by a register row". No code.
+- Status: fixed in the records `89ec6af`, `5818eb0`.
 
 ### B9 (nit, CONFIRMED). G1 still resolves negated Sources that mention `mission.md`, a register row or a constitution file
 
@@ -298,6 +306,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   states the forms the code accepts (an `A<n>`, `register row` or `registered in mission.md`, or
   any mention of `mission.md`, `roadmap.md` or `tech-stack.md`) and this limit. Reversible: the
   reviewer's positive-reference fix, with the four Sources above as failing tests. No code.
+- Status: accepted limit (A17); not fixed.
 
 ### B10 (nit, CONFIRMED). G9 strips only three-backtick fences
 
@@ -317,6 +326,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   inside a four-backtick fence that holds a three-backtick line, missing; a `~~~` fence is not
   closed by a three-backtick line; headings after an unclosed fence are missing. Passes when: those
   pass, the existing fence tests still pass, and G9 passes on lesson 01.
+- Status: fixed `ff09e5b`; four fence mutants and the old regex killed; mutants recorded under C12 in `validation.md` (close-out re-run, 2026-10-21).
 
 ### B11 (nit, CONFIRMED). The lesson's run-folder glob misses the new numeric suffix
 
@@ -338,6 +348,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   other `run=` line, with `<name>` taken from it, run under `bash -eo pipefail -c` in a temporary
   directory holding `runs/19990101T000000Z-<name>` and a newer `runs/19990101T000000Z-<name>-2`,
   sets `run` to the `-2` folder. Passes when: those pass and G9 passes on the lesson.
+- Status: fixed `92721d0`; three lesson mutants killed; mutants recorded under C18 in `validation.md` (close-out re-run, 2026-10-21).
 
 ### B12 (nit, CONFIRMED). Lesson 01 keeps two statements that step (b) corrected elsewhere
 
@@ -357,6 +368,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   enforce?", and its answer says the client's, with the server's leniency allowed (M8). No
   behaviour change and no new test. Passes when: G8 and G9 pass and the two lines agree with the
   walkthrough and M8 when read side by side.
+- Status: fixed `92721d0`; G8 and G9 green; the two lines agree with the walkthrough and M8.
 
 ### B13 (nit, CONFIRMED). Two accepted limits are not written where their dispositions say
 
@@ -375,6 +387,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   checks the pin (R12, accepted). Left for the build: `tools/check_citations.py`'s docstring
   "resolves in the pinned submodule" becomes "resolves in the checked-out submodule (bootstrap
   checks the pin)". Comment only, no test.
+- Status: fixed in the records `89ec6af`; docstring `ff09e5b`.
 
 ### B14 (nit, CONFIRMED). Decision records amended in step (b) do not say so, and D7 still describes the old G1
 
@@ -390,6 +403,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   describes G1 and G7 as the tech-stack rows and the code have them (`##` to `####` D headings,
   the Source paragraph, one `Status: open|closed` line in the Result). The Sources of D5, D7, D8,
   D11, D12, D13, D14 and D15 name their amending register rows. No code.
+- Status: fixed in the records `89ec6af`, `5818eb0`.
 
 ### B15 (nit, CONFIRMED). The autonomy log claims records that do not exist
 
@@ -430,6 +444,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   empty temporary directory outside any repo (`GIT_CEILING_DIRECTORIES` set to its parent). Passes
   when: it exits non-zero, its stderr holds `not a git repository` and no `mkdir`, and the
   directory stays empty. The current code fails the `mkdir` part.
+- Status: fixed `53df051`; the old `own=` line killed by `test_outside_a_repo_the_installer_stops_before_mkdir`; mutants recorded under C15 in `validation.md` (close-out re-run, 2026-10-21).
 
 ### B17 (nit, CONFIRMED). Step (b)'s new gate clauses have no recorded mutation run
 
@@ -447,6 +462,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
   and `test_status_in_a_later_section_is_ignored`, which kills PRO-status-whole) and `e4536cc`
   (C15's G11 run). What is left belongs to other findings: the T18 mutants (B1) and the mutants of
   B2-B4, B7, B10, B16 and B19 are run and recorded under C12, C15, C16 and C18 after the build.
+- Status: done `ddb0611`, `e4536cc`; the remaining mutants (B1-B4, B7, B10, B16, B19) recorded under C12, C15, C16 and C18 in `validation.md` (close-out re-run, 2026-10-21).
 
 ### B18 (nit, CONFIRMED). The guard against committing agent worktrees is local only
 
@@ -460,6 +476,7 @@ B14, B15) are done in the disposing commit. Section 6 says who builds the rest.
 - Disposition: fix (A11). Add `.claude/worktrees/` to `.gitignore`; A8 now points to it.
   Passes when: `git check-ignore -q .claude/worktrees/agent-x/file` exits 0 at the repo root and
   G11 passes.
+- Status: fixed `ff09e5b`; `git check-ignore -q .claude/worktrees/agent-x/file` exits 0.
 
 ### B19 (minor, CONFIRMED; added when disposing, from the C15 mutation run). Gate mode does not read a working-tree entry that replaced or retargets a tracked symlink
 
@@ -494,6 +511,7 @@ is recorded here so that it has a disposition.
   target must not itself lie under a home directory), every other test of the module passes, and
   the C15 mutant left open (dropping the mode test) is re-run against the new code and recorded as
   killed or signed equivalent.
+- Status: fixed `53df051`; (a)-(c) pass; the old `mode != "120000"` read killed; mutants recorded under C15 in `validation.md` (close-out re-run, 2026-10-21).
 
 ## 3. Disposition status for the step (b) items
 
