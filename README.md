@@ -59,18 +59,16 @@ Do them in order.
 1. [The wire and the handshake](docs/lessons/01-the-wire-and-the-handshake.md): what crosses
    stdio, the 2025 opening exchange, and three ways to break it.
    Walkthrough: [the handshake, frame by frame](docs/walkthrough/01-handshake-2025.md).
-4. [The edge lab](docs/lessons/04-edge-lab.md): malformed and out-of-order messages, what the
-   server answers against what the spec says, and losing a message at the tap.
-   Walkthrough: [the edge experiments](docs/walkthrough/04-edge-lab.md).
-
 2. [A client with no library](docs/lessons/02-raw-client.md): a raw Python client speaks MCP over
    stdio, you check its recording against the spec's JSON Schema, then type messages by hand.
    Walkthrough: [the raw client's tour, frame by frame](docs/walkthrough/02-raw-client-tour.md).
-
 3. [When the server speaks first](docs/lessons/03-server-initiated.md): the raw client answers the
    server's requests (roots, sampling, elicitation), reacts to its notifications, and you read
    which client capability unlocks what.
    Walkthrough: [the server tour, frame by frame](docs/walkthrough/03-server-initiated.md).
+4. [The edge lab](docs/lessons/04-edge-lab.md): malformed and out-of-order messages, what the
+   server answers against what the spec says, and losing a message at the tap.
+   Walkthrough: [the edge experiments](docs/walkthrough/04-edge-lab.md).
 
 More lessons arrive with later phases; [`specs/roadmap.md`](specs/roadmap.md) lists what each
 phase adds.
