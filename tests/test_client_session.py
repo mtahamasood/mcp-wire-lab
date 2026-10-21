@@ -109,7 +109,7 @@ class LifecycleTest(unittest.TestCase):
         sess.ready = True
         self.assertEqual(sess.request("first", timeout=5), {})
         waiting = sess.start_request("second")  # the server closes stdout on reading this
-        with self.assertRaises(OSError):
+        with self.assertRaises(ConnectionError):
             waiting.wait(5)
         sess.wire.join(5)
         started = time.monotonic()
@@ -226,6 +226,14 @@ class CancelTest(unittest.TestCase):
         w.handle_line(b'{"jsonrpc":"2.0","id":1,"result":{}}\n')
         before = sink.getvalue()
         self.assertFalse(sess.cancel(done))
+        self.assertEqual(sink.getvalue(), before)
+        # the reader has taken the request out of the table but not yet completed it: the
+        # reply is already on its way, so this is not a cancellation either
+        racing = sess.start_request("ping")
+        before = sink.getvalue()
+        w._pending.pop(wire.key_of(racing.id))
+        self.assertFalse(racing.done)
+        self.assertFalse(sess.cancel(racing))
         self.assertEqual(sink.getvalue(), before)
 
 

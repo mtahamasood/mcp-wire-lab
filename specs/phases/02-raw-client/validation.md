@@ -56,6 +56,20 @@ non-ASCII output of `notify` (M12) and the response envelope check (K10). Each g
 write-lock mutant is killed by a concurrent writer that splits each write; it was run three
 times. C4 (shutdown timing) is not mutated, as the table says.
 
+Review fixes P2-R1 to P2-R5 (hand-applied, 8 single-edit mutants on the new code in `client/wire.py`):
+any id accepted as a response (M1), `RecursionError` not caught (M2), no per-line guard in the
+reader (M3), the refusal written on the reader thread (M4), `abandon` always True (M5), the table
+lock held across the write (M6), `_fail_all` after the loop instead of in `finally` (M7), and
+`abandon` checking `done` outside the table lock (M8). First run: 5 killed, 3 survived: M2 (the
+per-line guard caught the `RecursionError` anyway), M7 (no test made the reader's stream raise) and
+M8 (the forced interleaving could not tell a check inside the lock from one outside it). Each got an
+assertion (`handle_line` returns `junk` for a 100000-deep line; a reader whose stream raises still
+fails the pending request with `ConnectionError`; a request the reader has taken from the table but
+not yet completed is not cancellable) and was re-run: 8 of 8 killed, by
+`ClassifyTest.test_bad_id_or_deep_line_does_not_stop_reader`,
+`FramingTest.test_large_write_does_not_block_reader` and
+`CancelTest.test_cancel_after_completion_returns_false`.
+
 ### Accepted limits
 
 - Learner walk L15 and J rows: deferred (LP5).

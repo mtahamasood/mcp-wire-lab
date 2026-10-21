@@ -155,6 +155,8 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(pending.wait(5), {"ok": True})
         w.join(5)
         self.assertEqual(len(reports), 3, reports)
+        self.assertEqual(w.handle_line(b"[" * 100000), "junk", "too deep is junk, not a crash")
+        self.assertIn("not JSON", reports[-1])
         # a handler that raises is reported and does not end the loop (the guard per line)
         stream = line({"jsonrpc": "2.0", "id": 0, "result": {}}) + line(
             {"jsonrpc": "2.0", "id": 1, "result": {"second": 1}})
@@ -179,8 +181,25 @@ class ClassifyTest(unittest.TestCase):
         w3 = wire.Wire(Sink(), io.BytesIO(b""), report=lambda t: None)
         waiting = w3.start_request("y")
         w3.start()
-        with self.assertRaises(OSError):
+        with self.assertRaises(ConnectionError):
             waiting.wait(5)
+        # ... and so does a reader that dies on its stream (here: reading raises)
+
+        class Broken:
+            def __iter__(self) -> Broken:
+                return self
+
+            def __next__(self) -> bytes:
+                raise OSError("read failed")
+
+        w4 = wire.Wire(Sink(), Broken(), report=lambda t: None)  # type: ignore[arg-type]
+        stuck = w4.start_request("z")
+        quiet = threading.excepthook
+        threading.excepthook = lambda args: None  # the thread's own traceback is not the point
+        self.addCleanup(setattr, threading, "excepthook", quiet)
+        w4.start()
+        with self.assertRaises(ConnectionError):
+            stuck.wait(5)
 
 
 def notify_many(w: wire.Wire, tag: int, payload: str) -> None:
