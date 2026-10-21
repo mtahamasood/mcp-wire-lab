@@ -144,7 +144,12 @@ protocol code the owner must be able to explain, change and debug, not on govern
   learning check*: three prompts (explain one exchange from a fresh trace without the
   walkthrough; make one stated change to the client and predict the new trace; diagnose
   one injected fault). The agent writes the prompts; only the owner writes the answers.
-  An unanswered check does not block close (LP5); it is listed as open.
+  The *change* answer is a commit the owner authors; the *debug* prompt is a fault the agent
+  plants on a local exercise branch, revealed only after the owner answers. The agent then
+  checks each answer against a fresh trace and adds a one-line verdict under it, never
+  editing the owner's words. An unanswered check does not block a phase's close or tag
+  (LP5), but the **phase 2 check must be answered before the project is called complete**;
+  the other phases' checks are optional (register row 2026-10-21, learning check).
 
 ## Decision register
 
@@ -176,6 +181,7 @@ Append-only. Never edit a row; correct by a new dated row that names the one it 
 | 2026-10-21 | **Atlas.** The message atlas (L8) and gate G10 are built now, in parallel with phases 2 and 4, and specified as phase 3 D6 and C9 instead of in the final pass (amends the lean-profile row of this date). Its capability column is dropped as an accepted limit, because the schemas do not encode it. The agent's call under the owner's delegation, A25 in `audits/autonomous-decisions.md`. | The owner, 2026-10-21: "evaluate if anything else can be done in parallel safely" |
 | 2026-10-21 | **Phase 4 build amendments.** Phase 1 D11 is amended: `tap.show --explain <file>#<section>` reads the notes under that `##` section plus a `## shared` section (shared notes are never reported as extra), and a note anchor may name a range such as `stderr.1-106`; without `#` the behaviour is unchanged. Phase 1 D14 is amended: `scripts/record.sh` prints its `recorded:` and `read it:` lines and exits 0 when the trace was written even if the server exited non-zero, warning on stderr; the trace's exit record carries the code. Phase 4 D1: the `batch-array` fixture ends with a plain `ping` so the driver keeps stdin open until the replies arrive. Builder calls accepted by the agent under the owner's delegation, A27 in `audits/autonomous-decisions.md`. | Phase 4 build: one walkthrough explains eight traces, and the pinned server exits 1 after a transport error (`missing-jsonrpc`, `batch-array`) |
 | 2026-10-21 | **Phase 2 build amendments.** Phase 2 D7 is amended: G12 checks the phases listed in `scripts/gate.sh` (`--phases`), and a phase is added to that list when its named tests exist (phase 3 when it is built); this keeps the gate green between a spec and its build. Phase 1 D14 (as amended by the phase 4 row of this date) is refined: the non-fatal server exit applies to fixture recordings only; `record.sh --client` exits with the client's status after printing its lines. `tap.check` accepts `$schema`, `$defs` and `description` without checking them and a list-valued `type` (P8 extended to what the real schema uses), and has a `--spec-root` option for tests. Builder calls accepted by the agent under the owner's delegation, A28 in `audits/autonomous-decisions.md`. | Phase 2 build and its merge with phase 4 |
+| 2026-10-21 | **Learning check.** LP6 is amended: the phase 2 owner learning check (explain, change, debug) must be answered before the project is called complete; it does not block phase 2's close or tag. The change answer is an owner-authored commit; the debug prompt is a fault planted by the agent on a local branch `learning-check-02-fault`, revealed after the answer; the agent records a one-line verdict under each answer. Checks of phases 3 and 4 stay optional. The owner chose this option (the agent's recommendation) and does the check while phase 3 builds. | A side note: under LP6 every phase could close with every learning check open, leaving no evidence the owner can explain and change the code, the evidence the outside advice named as what matters most |
 
 ## Proposals awaiting ratification
 
