@@ -33,5 +33,6 @@ why, confidence, what breaks if wrong, and how to overrule. Spec-level decisions
 ## Owner review
 
 - 2026-10-21, after the agent's final report: the owner (M. Taha Masood) approved decisions A2 to A21 in the session ("mark the above a2 to a21 as approved by m"). Nothing in A2 to A21 is overruled. This covers the MIT licence (A2) and the J2 note with the acceptance of learner-walk items 3 and 7 (A3); both are now owner-confirmed, no longer "to confirm".
-- Not covered by that approval: A1 (no review needed, it records a change of plan) and A22 (merge to `main` and tag `lesson-01` before the owner's review). A22 stays open for the owner.
+- Not covered by that approval: A1 (no review needed, it records a change of plan) and A22 (merge to `main` and tag `lesson-01` before the owner's review).
+- 2026-10-21, later: the owner approved A22 as well ("go ahead ... i approve"), so every decision A2 to A22 is owner-approved and nothing is overruled. The approval records were merged to `main`; the annotated tag `lesson-01` stays on `386bbd9` (the Phase 1 close), since the tag marks the lesson content, which did not change.
 
