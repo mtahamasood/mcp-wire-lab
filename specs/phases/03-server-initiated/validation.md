@@ -22,6 +22,7 @@ non-blocking dispatch (LP4).
 | C6 | The matrix shows each gated tool only with its capability | `tests/test_e2e.py::ServerTourTest::test_capability_matrix` | not claim code (RP3) |
 | C7 | The server tour's fresh trace passes `tap.check` and the walkthrough explains it | `tests/test_e2e.py::ServerTourTest::test_server_tour_trace_checks_and_is_explained` | not claim code (RP3) |
 | C8 | Lesson 03 has the L1 sections and its runnable blocks pass | `tests/test_lessons.py`, `tools/check_lessons.py` | not claim code (RP3) |
+| C9 | The atlas regenerates byte-identical from the pinned schemas, lists every method of both revisions with kind and direction, and fails on a lesson declaring an unknown method; each lesson's declared methods appear in its fresh trace | `tests/test_atlas.py::AtlasTest::test_regenerated_atlas_matches_committed`, `tests/test_atlas.py::AtlasTest::test_every_schema_method_listed_with_direction`, `tests/test_atlas.py::AtlasTest::test_unknown_declared_method_fails`, `tests/test_e2e.py::AtlasClaimsTest::test_lesson_declarations_appear_in_fresh_traces`, `tools/atlas.py` | not claim code (RP3) |
 
 ## E. Not-done conditions
 
@@ -36,6 +37,7 @@ uses a timer tool, or if the matrix output is committed.
 
 - Learner walk L15, J rows, G6 walk: deferred (LP5).
 - No review round for this phase (LP4).
+- The atlas has no capability column: the schemas do not encode which capability gates a method (D6).
 
 ### Owner learning check (LP6)
 

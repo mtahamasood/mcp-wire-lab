@@ -97,11 +97,30 @@ sections and runnable blocks (G9); `README.md` lists it.
 *Source:* owner decision, 2026-10-20 — registered in mission.md (A4, delegated; roadmap
 L1, L5, L10); per-phase walkthrough P3.
 
+### D6 — The message atlas (moved here from phase 2)
+
+`tools/atlas.py` generates `docs/atlas.md` from the pinned schemas of `2025-11-25` and
+`2026-07-28` only (never from run output): one table row per method, with its kind
+(request or notification), its direction (from membership in the schema's
+`ClientRequest`, `ServerRequest`, `ClientNotification`, `ServerNotification` unions), the
+revisions that define it, and the lessons that declare it. A lesson declares the methods
+it exercises in one line `<!-- exercises: <method>, <method>, … -->`; unexercised methods
+are listed as such. The roadmap's "capability that gates it" column is not generated,
+since the schemas do not encode it; it is an accepted limit. Gate G10 runs
+`python3 tools/atlas.py --check`, which fails when the regenerated atlas differs from the
+committed file or a lesson declares a method no schema defines. A lesson's declaration is
+checked against a fresh trace of that lesson's recording in `tests/test_e2e.py`: every
+declared method appears in it.
+
+*Source:* owner decision, 2026-10-20 — registered in mission.md (A4, delegated; roadmap
+L8, G10); moved from phase 2 by register row 2026-10-21, atlas.
+
 ## Build order
 
 1. Handlers and notification reactions with unit tests on fake servers (test first).
 2. Server tour against the real server, recorded; capability flags; matrix.
-3. Walkthrough, lesson 03, README; close (Result, CHANGELOG, tag `lesson-03`). No review
+3. The atlas (D6) is built in parallel with phase 2 on its own branch and merged first.
+4. Walkthrough, lesson 03 with its `exercises` line, README; close (Result, CHANGELOG, tag `lesson-03`). No review
    round (LP4) unless claim code of phase 2 changes beyond its tests.
 
 Builder: Sonnet, medium.
