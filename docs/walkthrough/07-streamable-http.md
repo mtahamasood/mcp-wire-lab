@@ -153,17 +153,33 @@ The messages themselves are the SDK's, as in [walkthrough 05](05-sdk-client.md).
   (`sdk:client/dist/index.mjs:4023` `method: "notifications/cancelled",`).
   Its probe is the first POST: `server/discover` with the id `server-discover-probe-1`.
 
-### Why the SDK's server tour is not recorded over HTTP
+### The SDK's server tour over HTTP: the dropped burst and the re-list
 
-`node clients/sdk/src/main.ts server-tour --url <url>` exits 1: step 3 reports that `tools/list`
-"lacks" `get-roots-list` and four other gated tools. Measured through the tap: the SDK client sends
-`notifications/initialized` and opens its GET only after that POST is answered `202`
+`scripts/record.sh --http --client sdk-server-tour` records it. Without the re-list described
+below it exited 1: step 3 reported that `tools/list` "lacks" `get-roots-list` and four other
+gated tools. The cause, measured through the tap: the SDK client sends `notifications/initialized`
+and opens its GET only after that POST is answered `202`
 (`sdk:client/dist/index.mjs:5797` "if (isInitializedNotification(message)) this._startOrAuthSse({ resumptionToken: void 0 })"). The server sends its five `tools/list_changed` notifications as it
 handles `initialized`, before any GET exists; with no standalone stream it returns without writing
-(`servers:node_modules/@modelcontextprotocol/server/dist/index.mjs:947` "if (standaloneSse === void 0) return;"). The trace has no `list_changed` frame at all; the roots sync, which the server
-delays by 350 ms, arrives after the GET and is answered. The raw client opens the GET before
-`initialized` and its trace shows the five notifications right after the `202`. The cause is the
-SDK transport's order and the server's drop rule, not the tap or the raw client.
+(`servers:node_modules/@modelcontextprotocol/server/dist/index.mjs:947` "if (standaloneSse === void 0) return;"). The trace has no `list_changed` frame from that burst; the roots
+sync, which the server delays by 350 ms, arrives on the GET and is answered. The raw client opens
+the GET before `initialized` and its trace shows the five notifications right after the `202`.
+
+The fix is what any Streamable HTTP client needs: a list-change notification tells a client what
+changed while it was listening, and it is listening only once the GET stream exists. The server
+must answer the GET with an event stream or `405`
+(`spec:docs/specification/2025-11-25/basic/transports.mdx:140` "The server **MUST** either return `Content-Type: text/event-stream` in response to"), and the pinned server registers the
+stream before it answers
+(`servers:node_modules/@modelcontextprotocol/server/dist/index.mjs:567` "this._streamMapping.set(this._standaloneSseStreamId, {"), so a `200` with `text/event-stream` means every later change
+will be heard. The SDK transport has no "stream open" event, but it takes a `fetch`
+(`sdk:client/dist/index.mjs:5375` "this._fetch = opts?.fetch;"); `clients/sdk/src/stream.ts` wraps it and calls back when a
+GET is answered that way, and the server tour then requests `tools/list`, `prompts/list` and
+`resources/list` once (`clients/sdk/src/server_tour.ts`, `opening`). Measured on fresh recordings:
+the GET is exchange 2, its `200` is followed by the three list requests on exchanges 3-5, the
+`tools/list` answer holds the five gated tools, and the tour exits 0 with a trace that passes
+`tap.check --revision 2025-11-25` and ends with the DELETE. The later `trigger-list-changed`
+notifications arrive on the GET stream. Over stdio nothing changes: the hook fires only for the
+HTTP transport, so the stdio traces and walkthroughs 03 and 05 are as before.
 
 ## Notes
 

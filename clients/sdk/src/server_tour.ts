@@ -6,7 +6,7 @@
 import type { Client } from "@modelcontextprotocol/client";
 import type { Capability } from "./args.ts";
 import { STATIC_DOC, buildLab } from "./client.ts";
-import type { Lab } from "./client.ts";
+import type { Lab, ListKind } from "./client.ts";
 import { OTHER_ROOT } from "./handlers.ts";
 import { Steps, text0 } from "./steps.ts";
 
@@ -16,6 +16,7 @@ const GATED_TOOLS = [
   "get-roots-list", "trigger-sampling-request", "trigger-elicitation-request",
   "trigger-multi-step-elicitation", "trigger-url-elicitation",
 ];
+const RESYNC: readonly ListKind[] = ["tools", "prompts", "resources"]; // every list `buildLab` follows
 const NOTE = "notifications/message";
 const ELICIT = "elicitation/create";
 
@@ -58,9 +59,19 @@ class ServerTour {
     await this.rootsChange();
   }
 
-  /** `initialize` with every capability, then the server's roots sync and tool burst. */
+  /**
+   * `initialize` with every capability, then the server's roots sync and tool burst. Over HTTP the
+   * SDK opens its GET stream only after `initialized` is answered, and the server drops the burst
+   * it sends while no stream exists; so once the stream is open the tour re-lists what it follows
+   * (`resync`), as any client must that cannot know what it missed before then.
+   */
   async opening(command: readonly string[]): Promise<void> {
     const { traffic } = this.lab;
+    this.lab.onStreamOpen(() => {
+      // Not awaited: this runs inside the transport's fetch; relist reports its own errors and
+      // runs under traffic.working, so the settle below waits for it.
+      for (const kind of RESYNC) void this.lab.relist(kind);
+    });
     await this.client.connect(this.lab.transport(command));
     const info = this.client.getServerVersion();
     this.steps.step("initialize (all capabilities)", `version ${this.client.getNegotiatedProtocolVersion()}, server ${info?.name}`);
@@ -79,7 +90,7 @@ class ServerTour {
     const listed = traffic.lists.get("tools") ?? [];
     const missing = GATED_TOOLS.filter((t) => !listed.includes(t));
     this.steps.expect(missing.length === 0, `tools/list after the burst lacks ${JSON.stringify(missing)}`);
-    this.steps.expect(traffic.relisted("tools") >= 1, "no re-list after list_changed");
+    this.steps.expect(traffic.relisted("tools") >= 1, "no re-list after list_changed or the GET stream");
     this.steps.step("tools/list_changed burst", `re-listed, ${listed.length} tools`);
   }
 

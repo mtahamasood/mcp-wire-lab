@@ -3,7 +3,7 @@
 # (D14; phase 2 D5).
 # Usage: scripts/record.sh <fixture> [name]
 #        scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour> [name]
-#        scripts/record.sh --http --client <http-tour|tour|server-tour|manual|tour-2026|manual-2026|sdk-tour|sdk-tour-2026> [name]
+#        scripts/record.sh --http --client <http-tour|tour|server-tour|manual|tour-2026|manual-2026|sdk-tour|sdk-server-tour|sdk-tour-2026> [name]
 # Writes runs/<UTC timestamp>-<name>/{trace.jsonl,stderr.txt}. runs/ is git-ignored (A5).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -13,7 +13,7 @@ usage() {
   echo "  sdk-tour and sdk-server-tour record the TypeScript SDK client (phase 5; needs scripts/bootstrap.sh)."
   echo "  Records the run between the tap and the pinned server into runs/<time>-<name>/ and prints the path."
   echo "  A fixture is a file in tests/fixtures/. Set up once with scripts/bootstrap.sh."
-  echo "  scripts/record.sh --http --client <http-tour|tour|server-tour|manual|tour-2026|manual-2026|sdk-tour|sdk-tour-2026> [name]:"
+  echo "  scripts/record.sh --http --client <http-tour|tour|server-tour|manual|tour-2026|manual-2026|sdk-tour|sdk-server-tour|sdk-tour-2026> [name]:"
   echo "  the same over Streamable HTTP (the SDK modes use its HTTP transport; the 2025 ones end with a DELETE); the tap runs"
   echo "  the server on a private Unix socket and listens on a free 127.0.0.1 port."
 }
@@ -41,7 +41,6 @@ if [ "${1:-}" = "--client" ]; then
     *) echo "record: unknown client mode: $client (use tour, manual, server-tour, sdk-tour, sdk-server-tour, sdk-tour-2026, tour-2026, tasks-2026, manual-2026 or http-tour)" >&2; exit 1 ;;
   esac
   case "$client:$http" in
-    sdk-server-tour:1) echo "record: sdk-server-tour is not recorded over HTTP: the SDK opens its GET stream after initialized, so the server's list-change burst is dropped (phase 7 validation, Accepted limits)" >&2; exit 1 ;;
     tasks-2026:1) echo "record: tasks-2026 runs only on stdio, not with --http" >&2; exit 1 ;;
   esac
   name="${3:-client-$client}"

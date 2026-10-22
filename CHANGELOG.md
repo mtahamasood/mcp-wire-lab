@@ -28,9 +28,7 @@ each phase ends with a git tag named after its lesson (`lesson-NN`) instead of a
   (`client/http_wire.py`, `client/http_tour.py`, `--url` for `tour`, `server-tour` and `manual`,
   and `client/modern_http.py` for the 2026-07-28 era), the SDK client's `--url` in both eras;
   `tap.show` summaries of HTTP records; lesson 07 and walkthrough 07; G5 gains
-  `tests.test_e2e_http` and G12 now covers phase 07. The SDK's server tour over HTTP is not
-  recorded: its transport opens the GET stream too late for the server's first notifications
-  (explained in lesson 07).
+  `tests.test_e2e_http` and G12 now covers phase 07.
 
 ### Changed
 
@@ -46,6 +44,13 @@ each phase ends with a git tag named after its lesson (`lesson-NN`) instead of a
   Predict answers, clearer experiments (lesson 04 lists fixture and section names together and
   drops the unrunnable `oversized-frame`), revert steps after edits, notes on the gate time and
   the bootstrap `core.hooksPath` warning.
+
+### Fixed
+
+- The SDK client's server tour over Streamable HTTP: the server drops the list-change burst sent
+  before the SDK opens its GET stream, so the tour now re-lists tools, prompts and resources once
+  the GET is answered with an event stream (`clients/sdk/src/stream.ts`);
+  `scripts/record.sh --http --client sdk-server-tour` records it (lesson 07, phase 7 C29).
 
 ## [lesson-03] - 2026-10-21
 
