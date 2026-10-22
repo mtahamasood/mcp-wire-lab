@@ -351,7 +351,8 @@ class SdkHttpTest(unittest.TestCase):
             [sys.executable, "-m", "tap.check", str(recording / "trace.jsonl"), "--revision",
              "2025-11-25"], cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT)
         self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
-        requests = [r["http"] for r in trace if r["dir"] == "tap" and r.get("event") == "http-request"]
+        requests = [r["http"] for r in trace
+                    if r["dir"] == "tap" and r.get("event") == "http-request"]
         deletes = [h for h in requests if h["method"] == "DELETE"]
         self.assertEqual(len(deletes), 1)
         self.assertEqual(requests[-1]["method"], "DELETE", "DELETE is the last request")

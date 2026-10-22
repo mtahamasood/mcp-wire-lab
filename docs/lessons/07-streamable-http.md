@@ -237,6 +237,28 @@ same result: True
 stdio frame is longer by 1 byte
 ```
 
+**4. The SDK client over HTTP.** Part of phase 5's client is a transport away from the same wire:
+`scripts/record.sh --http --client sdk-tour` runs its tour through the SDK's
+`StreamableHTTPClientTransport`. Its GET stream opens after `notifications/initialized` (the raw
+client's before it), and it ends the session with a DELETE only because the tour calls
+`terminateSession()`. Record it and look at the order of the first three requests and the last:
+
+<!-- run -->
+```console
+$ scripts/record.sh --http --client sdk-tour lesson07s > /dev/null
+$ python3 -m tap.show "$(ls -dt runs/*-lesson07s | head -1)/trace.jsonl" | grep 'http-request' | sed -E 's/^ *[0-9]+ +[0-9.]+ ms +\.\. +tap http-request #[0-9]+ ([A-Z]+).*/\1/' | sed -n '1,3p;$p'
+```
+
+<!-- expect -->
+```text
+POST
+POST
+GET
+DELETE
+```
+
+The walkthrough lists the other differences measured on a fresh pair.
+
 ## Check yourself
 
 Answer from your own trace, then open the answers.
