@@ -11,9 +11,12 @@ import type { Capability } from "./args.ts";
 import { DEFAULT_ROOTS, Traffic, elicitationResult, rootsResult, samplingResult } from "./handlers.ts";
 import type { ElicitParams, Root } from "./handlers.ts";
 import { compact } from "./steps.ts";
+import { watchStream } from "./stream.ts";
 
 export const CLIENT_INFO = { name: "wire-lab-sdk", version: "0.5.0" };
 export const STATIC_DOC = "demo://resource/static/document/architecture.md";
+
+export type ListKind = "tools" | "prompts" | "resources";
 
 export type Lab = {
   client: Client;
@@ -23,6 +26,10 @@ export type Lab = {
   errors: string[];
   /** Make the transport: stdio for a server command (the SDK starts the process), or, when the lab was built with a URL, Streamable HTTP to it. */
   transport(command: readonly string[]): StdioClientTransport | StreamableHTTPClientTransport;
+  /** Over HTTP, call `listener` each time the GET stream opens (stream.ts); never on stdio. */
+  onStreamOpen(listener: () => void): void;
+  /** Request one list the client follows and record it as a re-list, without any notification. */
+  relist(kind: ListKind): Promise<void>;
   /** End the session: over HTTP the SDK sends DELETE only on `terminateSession()` (M15), then close. */
   close(): Promise<void>;
 };
@@ -102,6 +109,13 @@ export function buildLab(
     });
   });
 
+  async function names(kind: ListKind): Promise<string[]> {
+    if (kind === "tools") return (await client.listTools()).tools.map((t) => t.name);
+    if (kind === "prompts") return (await client.listPrompts()).prompts.map((p) => p.name);
+    return (await client.listResources()).resources.map((r) => r.uri);
+  }
+
+  const streamListeners: (() => void)[] = [];
   let http: StreamableHTTPClientTransport | undefined;
   return {
     client,
@@ -110,9 +124,26 @@ export function buildLab(
     errors,
     transport: (command) => {
       if (url === undefined) return new StdioClientTransport({ command: command[0] as string, args: command.slice(1) });
-      http = new StreamableHTTPClientTransport(new URL(url));
+      // The transport's `fetch` option is the public place that sees the GET answered (stream.ts).
+      const opened = () => {
+        for (const listener of streamListeners) listener();
+      };
+      http = new StreamableHTTPClientTransport(new URL(url), { fetch: watchStream(fetch, opened) });
       return http;
     },
+    onStreamOpen: (listener) => {
+      streamListeners.push(listener);
+    },
+    relist: (kind) => traffic.working(async () => {
+      try {
+        const found = await names(kind);
+        traffic.relists.push(kind);
+        traffic.lists.set(kind, found);
+        say(`-> ${kind}/list once the GET stream is open (${found.length} ${kind})`);
+      } catch (error) {
+        report(`sdk: could not re-list ${kind}: ${(error as Error).message}`);
+      }
+    }),
     close: async () => {
       if (http?.sessionId !== undefined) await http.terminateSession();
       await client.close();

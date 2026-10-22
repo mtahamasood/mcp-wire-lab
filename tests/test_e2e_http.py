@@ -470,6 +470,43 @@ class SdkEra2026HttpTest(unittest.TestCase):
         checked(recording, "2026-07-28")
 
 
+class SdkServerTourHttpTest(unittest.TestCase):
+    """C29 (phase 7 fix): the SDK client's server tour over HTTP re-lists once its GET is open.
+
+    The server drops the list-change burst it sends while no GET stream exists, and the SDK opens
+    its GET only after `initialized` is answered; so the tour re-requests the lists it follows
+    once the GET is answered with its stream, and the gated tools are in that `tools/list`.
+    """
+
+    def test_sdk_server_tour_over_http_resyncs_after_the_get(self) -> None:
+        recording = record_http("test-sdk-http-server-tour", "sdk-server-tour")
+        trace = records(recording)
+        checked(recording, "2025-11-25")
+        self.assertNotIn("sdk:", (recording / "stderr.txt").read_text())
+        gets = [r for r in tap_events(trace, "http-request") if r["http"]["method"] == "GET"]
+        self.assertEqual(len(gets), 1, "one standalone stream")
+        opened = [r for r in tap_events(trace, "http-response")
+                  if r["http"]["exchange"] == gets[0]["http"]["exchange"]]
+        self.assertEqual(opened[0]["http"]["status"], 200)
+        initialized = [r for r in trace if r["dir"] == "c2s" and r["json"]
+                       and r["json"].get("method") == "notifications/initialized"]
+        self.assertLess(initialized[0]["seq"], gets[0]["seq"], "the SDK opens its GET after")
+        resync = [r for r in trace if r["dir"] == "c2s" and r["json"]
+                  and r["json"].get("method") == "tools/list"
+                  and r["seq"] > opened[0]["seq"]]
+        self.assertTrue(resync, "no tools/list after the GET stream opened")
+        answer = next(r["json"] for r in trace if r["dir"] == "s2c" and r["json"]
+                      and "result" in r["json"] and r["json"].get("id") == resync[0]["json"]["id"]
+                      and r["seq"] > resync[0]["seq"])
+        names = {t["name"] for t in answer["result"]["tools"]}
+        self.assertIn("get-roots-list", names)
+        self.assertIn("trigger-url-elicitation", names)
+        sent = {r["json"].get("method") for r in trace if r["dir"] == "c2s" and r["json"]}
+        self.assertTrue({"prompts/list", "resources/list"} <= sent, "every followed list")
+        requests = [r["http"] for r in tap_events(trace, "http-request")]
+        self.assertEqual(requests[-1]["method"], "DELETE")
+
+
 class RecordHttpRefusalsTest(unittest.TestCase):
     """The modes `record.sh --http` refuses, and why (usage errors: nothing is started)."""
 
@@ -478,9 +515,6 @@ class RecordHttpRefusalsTest(unittest.TestCase):
                               cwd=ROOT, capture_output=True, text=True, timeout=30)
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
         return done.stderr
-
-    def test_sdk_server_tour_is_refused_with_the_measured_reason(self) -> None:
-        self.assertIn("burst is dropped", self.refused("sdk-server-tour"))
 
     def test_tasks_stays_on_stdio(self) -> None:
         self.assertIn("only on stdio", self.refused("tasks-2026"))
