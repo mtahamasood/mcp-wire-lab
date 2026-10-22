@@ -22,6 +22,16 @@ each phase ends with a git tag named after its lesson (`lesson-NN`) instead of a
   `scripts/record.sh --client tour-2026|tasks-2026|manual-2026|sdk-tour-2026`; lesson 06 and
   walkthroughs 06 and 06b (the raw-vs-SDK diff of the new era); G12 now covers phase 06.
 
+- Phase 7, Streamable HTTP (`specs/phases/07-streamable-http/`): the tap's HTTP mode
+  (`python3 -m tap --http`, `tap/http.py`: a recording reverse proxy in front of a server on a
+  private Unix socket) and `scripts/record.sh --http`; the raw client over HTTP
+  (`client/http_wire.py`, `client/http_tour.py`, `--url` for `tour`, `server-tour` and `manual`,
+  and `client/modern_http.py` for the 2026-07-28 era), the SDK client's `--url` in both eras;
+  `tap.show` summaries of HTTP records; lesson 07 and walkthrough 07; G5 gains
+  `tests.test_e2e_http` and G12 now covers phase 07. The SDK's server tour over HTTP is not
+  recorded: its transport opens the GET stream too late for the server's first notifications
+  (explained in lesson 07).
+
 ### Changed
 
 - `-h` / `--help` on `tap`, `tap.show`, `tap.check`, `client`, `record.sh`, `bootstrap.sh` and

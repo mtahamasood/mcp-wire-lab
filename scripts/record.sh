@@ -26,7 +26,7 @@ http=0
 if [ "${1:-}" = "--http" ]; then
   http=1
   shift
-  [ "${1:-}" = "--client" ] || { echo "record: --http needs --client <mode> (fixtures stay on stdio)" >&2; usage >&2; exit 1; }
+  [ "${1:-}" = "--client" ] || { echo "record: --http needs --client http-tour or another mode (fixtures stay on stdio)" >&2; usage >&2; exit 1; }
 fi
 client=""
 if [ "${1:-}" = "--client" ]; then

@@ -191,10 +191,10 @@ class RecordHttpTest(unittest.TestCase):
         self.assertIn("record: --http needs --client http-tour", done.stderr)
         self.assertEqual(set((ROOT / "runs").glob("*")), before, "a run folder was made")
         other = subprocess.run(
-            ["scripts/record.sh", "--http", "--client", "tour"],
+            ["scripts/record.sh", "--http", "--client", "tasks-2026"],
             cwd=ROOT, capture_output=True, text=True, timeout=20)
         self.assertEqual(other.returncode, 1)
-        self.assertIn("--http runs only the http-tour and sdk-tour modes", other.stderr)
+        self.assertIn("tasks-2026 runs only on stdio", other.stderr)
 
 
 class HttpTourTest(unittest.TestCase):

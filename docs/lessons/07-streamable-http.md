@@ -259,6 +259,74 @@ DELETE
 
 The walkthrough lists the other differences measured on a fresh pair.
 
+**Not recorded over HTTP: the SDK's server tour.** `record.sh --http --client sdk-server-tour` is
+refused, and the reason is a measurement, not a missing feature. The raw client opens its GET stream
+before `initialized`, so it hears the five `tools/list_changed` notifications the server sends the
+moment it sees `initialized`. The SDK's transport opens its GET only after that `initialized`
+has been answered `202`, and with no stream open the server drops what it sends unprompted
+(`servers:node_modules/@modelcontextprotocol/server/dist/index.mjs:947` "if (standaloneSse === void 0) return;"). The notifications are gone, the SDK never re-lists the tools that
+the declared capabilities unlock, and the SDK's server tour, which waits for that re-list, fails at
+its third step. The roots sync still arrives: the server sends it 350 ms later, after the GET is
+open. No code of ours is involved; the same tour over stdio passes, and so does the raw client's
+server tour over HTTP (`scripts/record.sh --http --client server-tour`).
+
+**5. A phase 2 tour over stdio and over HTTP.** The raw client's `tour` takes `--url` as well as a
+server command. Record it both ways and compare what the client sent: the messages are the same,
+only the framing around them changes (compare the two traces with `tap.show` side by side to see
+the framing):
+
+<!-- run -->
+```console
+$ scripts/record.sh --client tour lesson07t > /dev/null
+$ scripts/record.sh --http --client tour lesson07u > /dev/null
+$ sent() { python3 -c 'import json, sys; print(*[r["json"]["method"] for r in map(json.loads, open(sys.argv[1])) if r["dir"] == "c2s" and r["json"] and "method" in r["json"]], sep="\n")' "$(ls -dt runs/*-lesson07$1 | head -1)/trace.jsonl"; }
+$ diff <(sent t) <(sent u) && echo "same messages sent"
+```
+
+<!-- expect -->
+```text
+same messages sent
+```
+
+**6. A junk line over HTTP.** In `manual` mode every typed line is one POST, exactly as typed, so a
+line that is not valid JSON reaches the server and the server's refusal comes back as an HTTP
+status and body, not as a JSON-RPC reply to anything you sent (it has `"id":null`). The block types
+one broken line into `manual --url` and prints the status the client reported on stderr:
+
+<!-- run -->
+```console
+$ dir=$(mktemp -d)
+$ port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+$ python3 -m tap --trace "$dir/trace.jsonl" --http "$port" -- node vendor/servers/src/everything/dist/index.js streamableHttp 2> "$dir/stderr.txt" &
+$ tap_pid=$!
+$ for _ in $(seq 1 200); do grep -q 'tap: listening' "$dir/stderr.txt" && break; sleep 0.1; done
+$ printf '%s\n' '{"jsonrpc":"2.0","id":9,"method":"ping"' ':quit' | python3 -m client manual --url "http://127.0.0.1:$port/mcp" 2>&1 > /dev/null | grep -o 'POST failed: HTTP 400'
+$ kill -INT "$tap_pid"
+$ wait "$tap_pid"
+$ rm -r "$dir"
+```
+
+<!-- expect -->
+```text
+POST failed: HTTP 400
+```
+
+**7. The 2026-07-28 era over HTTP.** `scripts/record.sh --http --client tour-2026` runs phase 6's tour
+over HTTP: there is no `initialize`, no session id, no GET and no DELETE; every POST carries
+`MCP-Protocol-Version` and `Mcp-Method` (and `Mcp-Name` for `tools/call`, `resources/read` and
+`prompts/get`). Count the HTTP methods in the trace:
+
+<!-- run -->
+```console
+$ scripts/record.sh --http --client tour-2026 lesson07m > /dev/null
+$ python3 -m tap.show "$(ls -dt runs/*-lesson07m | head -1)/trace.jsonl" | grep -o 'tap http-request #[0-9]* [A-Z]*' | awk '{print $4}' | sort | uniq -c | awk '{print $2 " x" $1}'
+```
+
+<!-- expect -->
+```text
+POST x30
+```
+
 ## Check yourself
 
 Answer from your own trace, then open the answers.
