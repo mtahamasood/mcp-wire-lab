@@ -29,15 +29,16 @@ Out (D14): the deprecated HTTP+SSE transport and OAuth (mission non-goals); resu
 ## M. Measured at the pins (2026-10-22)
 
 How: the built server started as `env -i PATH=… HOME=… LANG=C.UTF-8 PORT=<high port> node
-vendor/servers/src/everything/dist/index.js streamableHttp`, driven by `curl` and by a
-stdlib-only Python script (`http.client`), outputs kept outside the repository (A5). Paths:
+vendor/servers/src/everything/dist/index.js streamableHttp` (M1–M15) and with `PORT` set to a
+Unix-socket path (M16), driven by `curl` and by a stdlib-only Python script (`http.client`),
+outputs kept outside the repository (A5). Paths:
 `servers:` is `vendor/servers`, `sdk-server` is
 `vendor/servers/node_modules/@modelcontextprotocol/server/dist`, `sdk-client` the same for
 `client`, `spec` is `vendor/spec/docs/specification`.
 
 | Id | Fact | Where |
 | --- | --- | --- |
-| M1 | Started by `node dist/index.js streamableHttp`; port from `PORT` (default 3001); one endpoint `/mcp` for POST, GET and DELETE. It binds **every interface** (`ss -ltn` shows `*:<port>`), against the spec's SHOULD bind to localhost. It accepted TCP connections about 1 s after spawn. Logs go to stdout (one `Received MCP POST request` per POST, `Session initialized with ID: …`) and the listening line to stderr | `servers:src/everything/index.ts:35`; `servers:src/everything/transports/streamableHttp.ts:383`, `:187`, `:275`, `:307`; `servers:src/everything/transports/listen.ts:24`; `spec:2025-11-25/basic/transports.mdx:81` |
+| M1 | Started by `node dist/index.js streamableHttp`; `PORT` (default 3001) is passed unchanged to Express's `app.listen` with no host and is the only listening setting; one endpoint `/mcp` for POST, GET and DELETE. Given a port number it binds **every interface** (`ss -ltn` shows `*:<port>`), against the spec's SHOULD bind to localhost; given a path it listens on that Unix socket instead (M16). With a port it accepted TCP connections about 1 s after spawn. Logs go to stdout (one `Received MCP POST request` per POST, `Session initialized with ID: …`) and the listening line to stderr | `servers:src/everything/index.ts:35`; `servers:src/everything/transports/streamableHttp.ts:383`, `:187`, `:275`, `:307`; `servers:src/everything/transports/listen.ts:24`; `spec:2025-11-25/basic/transports.mdx:81` |
 | M2 | Era routing: a POST with `Mcp-Session-Id`, every GET and every DELETE are 2025 era; a session-less POST is 2026-07-28 when its body carries the `_meta` envelope claim, else 2025 | `streamableHttp.ts:18-21`, `:203-209` |
 | M3 | 2025 era: a POST carrying a request is always answered `200` `text/event-stream` (JSON mode is off); the stream opens with a priming event (`id: <uuid>`, empty `data:`; only when the negotiated version is 2025-11-25 or later, absent at 2025-06-18), then one `event: message` / `id: <uuid>` / `data: <one JSON-RPC message>` per message, and ends after the response | `sdk-server/index.mjs:391`, `:520-527`, `:669-673`, `:794-850`, `:994-995` |
 | M4 | A POST carrying a notification or a response is answered `202`, empty body | `sdk-server/index.mjs:771-776`; `spec:2025-11-25/basic/transports.mdx:96` |
@@ -52,6 +53,7 @@ stdlib-only Python script (`http.client`), outputs kept outside the repository (
 | M13 | 2026-07-28 over HTTP: no session id; `server/discover` and `tools/call echo` answered `200` `application/json`; a call that sends progress first is upgraded to `text/event-stream` (events with no `id`, no priming event); `MCP-Protocol-Version` and `Mcp-Method` (and `Mcp-Name` for `tools/call`) are required, else `400` code `-32020`; a GET is answered `400` "No valid session ID provided" by the 2025 route, not the spec's `405` | `sdk-server/index.mjs:101-137`; `sdk-server/src-Cqbh3MYc.mjs:5123-5142`; `streamableHttp.ts:278-287`; `spec:2026-07-28/basic/transports/streamable-http.mdx:244-291`, `:683` |
 | M14 | Python's `http.client` reads a chunked SSE response one line at a time (`readline`) while it streams, so the tap and the raw client need no library (P4) | measured |
 | M15 | The SDK client 2.3.1 opens its GET stream only after the `initialized` POST is answered `202`, and sends DELETE only from `terminateSession()` | `sdk-client/index.mjs:5797`, `:5836` |
+| M16 | With `PORT` set to a Unix-socket path the server listens on that socket only: its process has no TCP listener (`ss -ltnp`) and the socket is listed by `ss -lxp`. It accepted a connection about 0.35 s after spawn. A 2025-era `initialize` POST over the socket, sent with `Host: localhost` by `curl --unix-socket` and by an `http.client.HTTPConnection` subclass whose `connect` opens a `socket.AF_UNIX` socket, got `200` `text/event-stream` with `mcp-session-id`. The listening line on stderr names the path. The path must be short (the Unix limit is about 108 bytes; curl refused a 120-byte path): a `tempfile.mkdtemp()` directory under the system temp directory (mode 0700; under the D14 allowlist `TMPDIR` is unset, so `/tmp`) plus `server.sock` is under 40 bytes. SIGINT exits 0 without removing the socket file. A `python3` started under `env -i` with the D14 allowlist gives its child exactly that allowlist plus `PORT` (read from the server's `/proc/<pid>/environ`) | `servers:src/everything/transports/listen.ts:24`; `servers:src/everything/transports/streamableHttp.ts:383-387`, `:349-369`; measured |
 
 ## Parts, in order of value
 
@@ -94,8 +96,10 @@ heads reach the tap):
   `{exchange, id, retry}`; and when the stream ends, one `tap` record `http-end`, `http` =
   `{exchange, by, comments}` where `by` is `server`, `client` or `tap` and `comments` counts
   the comment lines forwarded but not recorded;
-- once, when the server is reachable, a `tap` record `listen` with `listen` and `upstream`
-  (each `127.0.0.1:<port>`);
+- once, when the server is reachable, a `tap` record `listen` with `listen`
+  (`127.0.0.1:<port>`) and `upstream` (`unix:<socket path>`, D2); the path is new on every
+  run, so committed docs write it only as `unix:<temp dir>/server.sock`, never a measured
+  value (P9);
 - the server's stdout and stderr are both `stderr` frames (in HTTP mode stdout carries logs,
   not protocol, M1); those from stdout carry `"stream": "stdout"`.
 
@@ -119,38 +123,53 @@ ask A2, 2026-10-20; register row 2026-10-22.
 
 ### D2 — The HTTP mode starts the server and stands in front of it (amends phase 1 D1, D4)
 
-`python3 -m tap --trace <file> --http <listen-port>:<upstream-port> -- <server command…>`.
-`--http` with `--delay` or `--drop`, or a value that is not two ports 1–65535, is a usage
-error (phase 1 D1: one `tap:` line or the usage, exit 2, no child started). The tap records
-`spawn`, starts the command as a child in its own process group with stdin `/dev/null`,
-relays the child's stdout and stderr to its own stderr (recording both, D1), then tries a TCP
-connection to `127.0.0.1:<upstream-port>` every 50 ms for up to 15 s (M1: about 1 s). When one
-succeeds it binds `127.0.0.1:<listen-port>` (loopback only), records `listen`, prints
-`tap: listening on http://127.0.0.1:<listen-port>` on stderr, and proxies (D3) until the child
-exits. If the child exits first, or the wait or the bind fails, the tap prints one `tap:` line,
-sends SIGINT to a child still running, records `exit` and exits with the child's code (1 if
-that is 0). Signals are forwarded as phase 1 D4 says; SIGINT is how a recording ends (M12).
-When the child exits the tap stops accepting, gives open exchanges up to 2 s to end (they end
-when the server's sockets close), writes `exit` last and exits with the child's code. The
-tap's own stdin and stdout are not used in HTTP mode.
+`python3 -m tap --trace <file> --http <listen-port> -- <server command…>`. `--http` with
+`--delay` or `--drop`, or a value that is not a port 1–65535, is a usage error (phase 1 D1: one
+`tap:` line or the usage, exit 2, no child started). The tap makes a private directory with
+`tempfile.mkdtemp()` under the system temp directory (mode 0700); if that fails, or
+`<directory>/server.sock` is longer than 100 bytes, it prints one `tap:` line and exits 1,
+starting nothing. It then records `spawn` and starts the command as a child in its own process
+group with stdin `/dev/null` and the tap's own environment plus `PORT=<directory>/server.sock`,
+so the pinned server listens on that Unix socket and on no network interface (M1, M16). It
+relays the child's stdout and stderr to its own stderr (recording both, D1), then tries to
+connect to the socket (`socket.AF_UNIX`) every 50 ms for up to 15 s (M16: about 0.35 s). When
+one succeeds it binds `127.0.0.1:<listen-port>` (loopback only), records `listen`, prints
+`tap: listening on http://127.0.0.1:<listen-port>` on stderr, and proxies (D3) to the socket
+until the child exits, with the standard library only (P4): an `http.client.HTTPConnection`
+subclass whose `connect` opens an `AF_UNIX` socket to that path. If the child exits first, or
+the wait or the bind fails, the tap prints one `tap:` line, sends SIGINT to a child still
+running, records `exit` and exits with the child's code (1 if that is 0). Signals are
+forwarded as phase 1 D4 says; SIGINT is how a recording ends (M12). When the child exits the
+tap stops accepting, gives open exchanges up to 2 s to end (they end when the server's sockets
+close), writes `exit` last and exits with the child's code. On every exit after the directory
+is made, the tap removes it and the socket in it (the server leaves the socket file behind,
+M16). The tap's own stdin and stdout are not used in HTTP mode.
 
 *Rationale:* one process owns the server's life and environment, so the recording allowlist
-(D7) applies unchanged and the trace still runs from `spawn` to `exit`; the client is given
-only the tap's port.
+(D7) still decides what the server sees and the trace still runs from `spawn` to `exit`; the
+client is given only the tap's port. The owner decided that the server's listening address
+comes from configuration (register row 2026-10-22): `PORT` set to a socket path in a directory
+only the tap's user can enter means no recording exposes the server on any network interface,
+and no upstream port has to be picked.
 *Rejected:* proxying to a server started separately (no `spawn`/`exit`, two processes for
 `record.sh` to manage); a forward proxy (each client would need proxy support; a reverse proxy
-needs only a URL).
-*Cost accepted:* readiness is a TCP connection, not an HTTP request; the server itself still
-binds every interface for the length of a recording (M1, accepted limit).
+needs only a URL); a loopback TCP port for the server (the pinned server takes no host, M1, so
+it would bind every interface); patching the server (the pin is read-only); a firewall rule
+(needs root and differs per platform).
+*Cost accepted:* readiness is a socket connection, not an HTTP request; a server under the tap
+must take its listening address from `PORT` as a socket path; the socket path is new on every
+run and appears in the server's listening line and the `listen` record (D1).
 *Source:* stakeholder ask A2, 2026-10-20; register row 2026-10-20 (transports); register row
-2026-10-22.
+2026-10-22 (the owner's decision that the server's binding comes from configuration).
 
 ### D3 — What the tap forwards unchanged, and what is its own (amends phase 1 D2)
 
 Forwarded unchanged: the request method, path and query, and body bytes; the response status
 and body bytes; every header except the hop-by-hop ones (`Connection`, `Keep-Alive`,
-`Proxy-*`, `TE`, `Trailer`, `Transfer-Encoding`, `Upgrade`); `Host` as received. The tap's own:
-one upstream connection per request (no reuse); the request body read whole and sent with a
+`Proxy-*`, `TE`, `Trailer`, `Transfer-Encoding`, `Upgrade`) and `Host`. The tap's own: `Host:
+localhost` upstream, always (the received `Host` names the tap's port, which differs per run;
+the socket has no host name; the server accepted `localhost`, M16); one upstream connection to
+the socket per request (no reuse); the request body read whole and sent with a
 `Content-Length`; a response body sent to the client with the upstream's `Content-Length`, or
 chunked when it had none, **each piece forwarded and flushed as soon as it is read** (a server
 request on a stream must reach the client before the stream's final response, M9). When the
@@ -197,7 +216,8 @@ with `, `: `accept`, `content-type`, `last-event-id`, and every header whose nam
 and `mcp-param-*`). Every other header is forwarded and not recorded.
 
 *Rationale:* these are the headers the two Streamable HTTP specs give rules for (M5, M6, M13);
-`Date`, `ETag`, `Host` (holds the port), `X-Powered-By` and the CORS headers change from run
+`Date`, `ETag`, `Host` (holds the tap's port; upstream it is always `localhost`, D3),
+`X-Powered-By` and the CORS headers change from run
 to run or say nothing about MCP.
 *Rejected:* recording every header (traces that differ on every run for no protocol reason).
 *Cost accepted:* a header outside the rule is invisible in the trace.
@@ -223,10 +243,15 @@ unchanged.
 
 `scripts/record.sh --http --client <mode> [name]` (modes: `http-tour`; after part B2 also
 `tour`, `server-tour` and `manual`; after parts C and D their modes). It makes the run folder
-as phase 1 D14 says, picks two free loopback ports (bind port 0, read it, release), starts the
-tap in HTTP mode in the background with the server command `env -i <D14 allowlist>
-PORT=<upstream> node <server> streamableHttp` (the allowlist gains `PORT`, the one variable the
-server reads to bind, M1; for HTTP runs only), waits up to 20 s for the tap's port to accept a
+as phase 1 D14 says, picks a free loopback port for the tap (bind port 0, read it, release),
+and starts the tap in HTTP mode in the background under the D14 allowlist: `env -i <D14
+allowlist> python3 -m tap --trace … --http <listen> -- node <server> streamableHttp`, with
+`python3` reached through a link in the run folder's `bin/` as `node` is. The tap gives the
+server its own environment plus `PORT` (D2), so the server's environment is exactly the
+allowlist plus `PORT` (M16): the allowlist gains `PORT`, the one variable the server reads to
+bind (M1), now carrying the socket path; for HTTP runs only. The `spawn` record's argv is
+`node <server> streamableHttp`; the allowlist is the tap's environment, not part of argv. It
+waits up to 20 s for the tap's port to accept a
 connection (else `record: server did not start`, exit 1), runs the client with `--url
 http://127.0.0.1:<listen>/mcp`, then sends SIGINT to the tap, waits for it, and prints the same
 `recorded:` and `read it:` lines, exiting with the client's status (phase 2 D5). The tap's
@@ -235,11 +260,14 @@ usage error: fixtures stay stdio (D14). `--help` describes `--http`.
 
 *Rationale:* one script still records everything (L16), with the same folder, allowlist and
 output lines, so lessons and tests read HTTP runs as they read stdio runs.
-*Rejected:* a second recording script (two copies of the allowlist logic).
-*Cost accepted:* two ports picked then released can be taken by another process before the
-tap binds them; the run then fails and says so.
+*Rejected:* a second recording script (two copies of the allowlist logic); `PORT` in the
+server command's `env -i` list (the tap makes the socket's directory, so the path is not known
+when the command is written).
+*Cost accepted:* the port picked then released can be taken by another process before the tap
+binds it; the run then fails and says so.
 *Source:* A5, 2026-10-20; owner decision, 2026-10-20 — registered in mission.md (A4,
-delegated; roadmap L16); register row 2026-10-22.
+delegated; roadmap L16); register row 2026-10-22 (the server's binding comes from
+configuration).
 
 ### D8 — The raw client's HTTP transport
 
@@ -361,7 +389,8 @@ notes for the server's log lines and for HTTP heads whose order varies). A note 
 or HTTP event cites the 2025-11-25 transport section that governs it and the server or SDK
 source that produced it (G8, `servers:` citations, which include the SDK under
 `vendor/servers/node_modules`); a prose section explains M2 and M13 (the 2026-07-28 shape),
-and the server's deviations from the spec (binds every interface, M1; GET answered `400`
+and the server's deviations from the spec (given a port it binds every interface, M1, which
+is why recordings give it a Unix socket, D2 and M16; GET answered `400`
 instead of `405` on the modern path, M13). `docs/lessons/07-streamable-http.md` has the L1
 sections: *Run* records `scripts/record.sh --http --client http-tour` in a runnable block (G9);
 *Read the trace* uses `tap.show`, `--explain` and `tap.check`; *Read the source* follows one
@@ -382,7 +411,7 @@ L3, L4, L5, L8); per-phase walkthrough P3; register row 2026-10-22.
 
 Declined for this phase: the HTTP+SSE transport (`sse`) and OAuth (mission non-goals);
 resumability — `Last-Event-ID`, replay, honouring `retry` (roadmap backlog); re-initialising
-after a `404`; TLS; the tap listening anywhere but `127.0.0.1`; the fault mode (`--delay`,
+after a `404`; TLS; the tap listening anywhere but `127.0.0.1`; an upstream on TCP; the fault mode (`--delay`,
 `--drop`) over HTTP; fixture recordings over HTTP (they need an HTTP driver, which would be a
 client, against phase 1 D9); `matrix` over HTTP; HTTP keep-alive reuse in the raw client;
 batch POSTs; the Base64 sentinel for `Mcp-Name`; Origin and DNS-rebinding experiments (the
@@ -396,7 +425,8 @@ method, and the atlas measures methods, not transports); any change to `client/w
 
 Approving this spec amends, for HTTP mode only: phase 1 D1 (the `--http` option, D2), D2
 (forwarding, D3), D3 (record fields, D1), D4 (lifecycle, D2), D5 (viewer summary, D6), D14
-(recording and the `PORT` allowlist entry, D7); and phase 2 D5 (client recordings over HTTP,
+(recording: the tap runs under the allowlist and the server gets the allowlist plus `PORT`, a
+socket path, D7); and phase 2 D5 (client recordings over HTTP,
 D7). The stdio behaviour of each is unchanged. The approval's register row names these.
 
 ## What this phase needs from phases 5 and 6
@@ -427,7 +457,7 @@ parallel:
 
 1. **Part A core.** `tap/http.py` and the `--http` option with unit tests against
    `tests/fake_servers/http_upstream.py` (a stdlib HTTP server the tap starts as its child,
-   scripted per path: JSON, SSE with and without priming, `202`, a slow stream, a stream that
+   listening on the Unix socket that `PORT` names, scripted per path: JSON, SSE with and without priming, `202`, a slow stream, a stream that
    waits for a second POST, a stream held open until DELETE, non-UTF-8 data). Test first.
 2. **Slice.** `client/http_wire.py` and `client/http_tour.py` with the four slice steps, unit
    tests against an in-process fake; `record.sh --http --client http-tour`; G5 gains
