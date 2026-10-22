@@ -22,7 +22,7 @@ gate G3 uvx mypy@2.4.0
 gate G3 node clients/sdk/node_modules/typescript/bin/tsc -p clients/sdk
 gate G4 python3 -m unittest discover -s tests -t . -v
 gate G4 node --test "clients/sdk/test/*.test.ts"
-gate G5 python3 -m unittest tests.test_e2e -v
+gate G5 python3 -m unittest tests.test_e2e tests.test_e2e_http -v
 gate G8 python3 tools/check_citations.py
 gate G9 python3 tools/check_lessons.py
 gate G10 python3 tools/atlas.py --check

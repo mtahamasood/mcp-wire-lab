@@ -64,7 +64,12 @@ dropped names a check that does not exist, or if run output is tracked.
 
 - Status: open
 
-Not built. Final atlas coverage (L8) is measured at close with `tools/atlas.py` after phases
+Parts A, B1 and E built on 2026-10-22 (rows C1-C21 and C28 have their checks; B2, C and D not
+built: C22-C27). Measured on seven fresh recordings of the HTTP tour: 73 records, 19 frames,
+11 HTTP exchanges (seven `200`, four `202`), five event streams ended by the server and one by the
+client, identical in anchors and counts on every run.
+
+Not built beyond that. Final atlas coverage (L8) is measured at close with `tools/atlas.py` after phases
 5–7 merge, and its counts (methods exercised of 31 in 2025-11-25 and of 21 in 2026-07-28) are
 written here.
 

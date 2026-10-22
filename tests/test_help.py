@@ -18,6 +18,7 @@ TOOLS: dict[str, list[str]] = {
     "tap.diff": [sys.executable, "-m", "tap.diff"],
     "sdk client": ["node", "clients/sdk/src/main.ts"],
     "client": [sys.executable, "-m", "client"],
+    "client.http_tour": [sys.executable, "-m", "client.http_tour"],
     "record.sh": ["scripts/record.sh"],
     "bootstrap.sh": ["scripts/bootstrap.sh"],
     "gate.sh": ["scripts/gate.sh"],
@@ -39,6 +40,9 @@ class HelpTest(unittest.TestCase):
                     self.assertEqual(done.returncode, 0, done.stderr)
                     self.assertIn("usage:", done.stdout)
                     self.assertEqual(done.stderr, "")
+
+    def test_tap_usage_names_http(self) -> None:
+        self.assertIn("--http", run(TOOLS["tap"], "--help").stdout)
 
     def test_client_help_after_a_mode(self) -> None:
         done = run(TOOLS["client"], "tour", "--help")

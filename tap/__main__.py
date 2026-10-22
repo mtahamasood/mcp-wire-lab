@@ -2,12 +2,16 @@
 
 Usage:
   python3 -m tap --trace <file> [--delay <dir>:<ms>] [--drop <dir>:<method>] -- <server command...>
+  python3 -m tap --trace <file> --http <listen-port> -- <server command...>
 
 Spawns the server command as a child and relays bytes unchanged: the tap's stdin to the
 child's stdin, the child's stdout to the tap's stdout, the child's stderr to the tap's
 stderr. Every frame (a run of bytes ending in a newline, or a final run without one) is
 written to the trace as one JSON Lines record, on a single timeline (D3). Forwarding never
 depends on recording: if the trace fails, the tap says so once and keeps relaying (D2).
+
+HTTP mode (phase 7, tap/http.py): --http runs the server on a private Unix socket and records a
+reverse proxy listening on 127.0.0.1:<listen-port>; the stdio relay above is not used.
 
 Fault mode (phase 4 D3), off unless asked: --delay holds every frame of one direction (c2s or
 s2c) for <ms> milliseconds before forwarding it; --drop does not forward the first frame of one
@@ -35,8 +39,11 @@ CHUNK = 65536
 USAGE = (
     "usage: python3 -m tap --trace <file> [--delay <dir>:<ms>] [--drop <dir>:<method>]"
     " -- <server command...>\n"
+    "       python3 -m tap --trace <file> --http <listen-port> -- <server command...>\n"
     "  Runs the server command between your client (this process's stdin and stdout) and the\n"
     "  server, and records every byte to the trace file.\n"
+    "  --http <port>           HTTP mode: the server listens on a private Unix socket, the tap\n"
+    "                          proxies http://127.0.0.1:<port> to it and records each exchange\n"
     "  <dir> is c2s (client to server) or s2c (server to client).\n"
     "  --delay <dir>:<ms>      hold every frame in that direction for <ms> after recording it\n"
     "  --drop <dir>:<method>   record the first such frame but never forward it\n"
@@ -325,6 +332,17 @@ def parse_fault(option: str, value: str, faults: dict[str, Faults]) -> None:
         entry.drop_method = argument
 
 
+def split_http(argv: list[str]) -> tuple[list[str], int | None]:
+    """Take `--http <port>` out of the options before `--`; the port must be 1-65535."""
+    if "--" not in argv or "--http" not in argv[: argv.index("--")]:
+        return argv, None
+    at = argv.index("--http")
+    value = argv[at + 1] if at + 1 < argv.index("--") else ""
+    if not (value.isascii() and value.isdecimal() and 1 <= int(value) <= 65535):
+        raise UsageError(f"{USAGE}\ntap: --http needs a port from 1 to 65535, got {value!r}")
+    return argv[:at] + argv[at + 2 :], int(value)
+
+
 def parse_args(argv: list[str]) -> tuple[Path, list[str], dict[str, Faults]]:
     if "--" not in argv:
         raise UsageError(f"{USAGE}\ntap: missing -- before the server command")
@@ -373,10 +391,17 @@ def main(argv: list[str]) -> int:
         print(USAGE)
         return 0
     try:
+        argv, http_port = split_http(argv)
         trace_path, command, faults = parse_args(argv)
+        if http_port is not None and faults:
+            raise UsageError(f"{USAGE}\ntap: --http cannot be combined with --delay or --drop")
     except UsageError as exc:
         say(str(exc))
         return 2
+    if http_port is not None:
+        from tap.http import run_http
+
+        return run_http(trace_path, http_port, command)
     try:
         trace = Trace(trace_path)
     except OSError as exc:
