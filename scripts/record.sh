@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 usage() {
-  echo "usage: scripts/record.sh <fixture> [name]   or   scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour|tour-2026|tasks-2026|manual-2026> [name]"
+  echo "usage: scripts/record.sh <fixture> [name]   or   scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour|sdk-tour-2026|tour-2026|tasks-2026|manual-2026> [name]"
   echo "  sdk-tour and sdk-server-tour record the TypeScript SDK client (phase 5; needs scripts/bootstrap.sh)."
   echo "  Records the run between the tap and the pinned server into runs/<time>-<name>/ and prints the path."
   echo "  A fixture is a file in tests/fixtures/. Set up once with scripts/bootstrap.sh."
@@ -29,15 +29,15 @@ if [ "${1:-}" = "--http" ]; then
 fi
 client=""
 if [ "${1:-}" = "--client" ]; then
-  client="${2:?usage: scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour|tour-2026|tasks-2026|manual-2026> [name]}"
+  client="${2:?usage: scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour|sdk-tour-2026|tour-2026|tasks-2026|manual-2026> [name]}"
   case "$client" in
     tour|manual|server-tour|tour-2026|tasks-2026|manual-2026) ;;
-    sdk-tour|sdk-server-tour)
+    sdk-tour|sdk-server-tour|sdk-tour-2026)
       [ -d clients/sdk/node_modules ] \
         || { echo "record: clients/sdk/node_modules missing (run scripts/bootstrap.sh)" >&2; exit 1; }
       ;;
     http-tour) [ "$http" = 1 ] || { echo "record: http-tour needs --http" >&2; exit 1; } ;;
-    *) echo "record: unknown client mode: $client (use tour, manual, server-tour, sdk-tour, sdk-server-tour, tour-2026, tasks-2026, manual-2026 or http-tour)" >&2; exit 1 ;;
+    *) echo "record: unknown client mode: $client (use tour, manual, server-tour, sdk-tour, sdk-server-tour, sdk-tour-2026, tour-2026, tasks-2026, manual-2026 or http-tour)" >&2; exit 1 ;;
   esac
   [ "$http" = 0 ] || [ "$client" = http-tour ] || { echo "record: --http runs only the http-tour mode" >&2; exit 1; }
   name="${3:-client-$client}"
@@ -99,6 +99,11 @@ case "$client" in
     # tap, which starts the server with the allowlisted environment.
     node clients/sdk/src/main.ts "${client#sdk-}" -- "${server_cmd[@]}" 2> "$dir/stderr.txt" \
       > /dev/null || status=$?
+    ;;
+  sdk-tour-2026)
+    # The same client in the 2026-07-28 era (phase 6 D12).
+    node clients/sdk/src/main.ts tour --era 2026-07-28 -- "${server_cmd[@]}" \
+      2> "$dir/stderr.txt" > /dev/null || status=$?
     ;;
   http-tour)
     # Streamable HTTP (phase 7 D7): the tap runs the server on a private Unix socket (it adds PORT
