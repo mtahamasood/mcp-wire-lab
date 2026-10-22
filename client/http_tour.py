@@ -78,7 +78,8 @@ class HttpTour:
         self.expect(head is not None, f"no HTTP response seen for {kind} {ident!r}")
         assert head is not None
         # A 202 has no body to describe; the server labels it text/plain, which proves nothing.
-        self.expect(head.status == status and (not content_type or head.content_type == content_type),
+        self.expect(head.status == status
+                    and (not content_type or head.content_type == content_type),
                     f"{kind} {ident!r}: expected HTTP {status} {content_type}, "
                     f"saw {head.status} {head.content_type}")
         return f"HTTP {head.status}" + (f" {head.content_type}" if content_type else "")
