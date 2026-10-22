@@ -97,6 +97,9 @@ prints the same text on stderr and exits non-zero.
 | `scripts/bootstrap.sh` | Checks Node and the two pinned submodules, builds the reference server. Run once. |
 | `scripts/record.sh <fixture> [name]` | Plays a scripted conversation from `tests/fixtures/` through the tap against the real server; prints the trace path. |
 | `scripts/record.sh --client <tour\|manual\|server-tour> [name]` | The same, with the raw Python client as the conversation. `manual` reads your typed lines on stdin; in a terminal, end it with `:quit` or Ctrl-D. |
+| `scripts/record.sh --http --client http-tour [name]` | The HTTP tour (lesson 07): the tap runs the server on a private Unix socket and proxies a free `127.0.0.1` port to it. |
+| `python3 -m tap --trace <file> --http <port> -- <server command>` | The tap in HTTP mode: a recording reverse proxy for Streamable HTTP servers that take their address from `PORT`. |
+| `python3 -m client.http_tour --url <url> [--no-stream]` | The raw client's HTTP tour against a running Streamable HTTP server. |
 | `python3 -m tap.show <trace> [--full\|--mermaid\|--explain <file>]` | Reads a trace: one line per frame, with replies paired to their requests and latencies. |
 | `python3 -m tap.check <trace> --revision 2025-11-25` | Validates every frame against the spec's JSON Schema. |
 | `python3 -m tap --trace <file> [--delay\|--drop ...] -- <server command>` | The tap itself, for when you want to put it in front of your own command. `--drop` and `--delay` inject faults (lesson 04). |
@@ -147,6 +150,11 @@ Do them in order.
 4. [The edge lab](docs/lessons/04-edge-lab.md): malformed and out-of-order messages, what the
    server answers against what the spec says, and losing a message at the tap.
    Walkthrough: [the edge experiments](docs/walkthrough/04-edge-lab.md).
+
+7. [The same messages over HTTP](docs/lessons/07-streamable-http.md): the raw client's HTTP tour
+   recorded through the tap's HTTP mode, read as exchanges: POSTs, event streams, the session id,
+   the GET stream, `202`s and a cancellation by closing the connection.
+   Walkthrough: [Streamable HTTP, record by record](docs/walkthrough/07-streamable-http.md).
 
 More lessons arrive with later phases; [`specs/roadmap.md`](specs/roadmap.md) lists what each
 phase adds.
