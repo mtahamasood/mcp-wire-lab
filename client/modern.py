@@ -22,7 +22,7 @@ from typing import Any, TextIO
 from client.handlers import Handlers
 from client.session import CLIENT_INFO, GRACE_SECONDS, NotInitialized, Session, UnsupportedVersion
 from client.tour import NOTE_WAIT, STATIC_DOC, Tour, TourFailure
-from client.wire import DEFAULT_TIMEOUT, Cancelled, Message, Pending, RpcError, key_of, stderr_report
+from client.wire import DEFAULT_TIMEOUT, Message, Pending, RpcError, key_of, stderr_report
 
 ERA = "2026-07-28"
 META = "io.modelcontextprotocol/"
@@ -134,7 +134,8 @@ class Subscription:
     def close(self) -> bool:
         """Cancel the listen request: `notifications/cancelled` with its id; stop waiting.
 
-        `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:82` "MUST NOT"
+        `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:82`
+        "MUST NOT"
         """
         if self.closed:
             return False
@@ -226,7 +227,8 @@ class ModernSession(Session):
         offered; any other error raises with a hint to try `--era 2025-11-25`. There is no
         fallback.
 
-        `spec:docs/specification/2026-07-28/basic/versioning.mdx:167` "SHOULD** send `server/discover` first"
+        `spec:docs/specification/2026-07-28/basic/versioning.mdx:167`
+        "SHOULD** send `server/discover` first"
         """
         params = envelope({}, self.capabilities)
         try:
@@ -266,7 +268,7 @@ class ModernSession(Session):
         caps = self.capabilities if capabilities is None else capabilities
         return self.wire.start_request(method, envelope(params, caps, log_level=log_level))
 
-    def request(  # type: ignore[override]
+    def request(
         self, method: str, params: Message | None = None, timeout: float | None = None,
         *, capabilities: Message | None = None, log_level: str | None = None,
     ) -> Any:
@@ -308,14 +310,16 @@ class ModernSession(Session):
         byte for byte when present (opaque: never parsed). Each retry is a fresh id with the full
         envelope. At most `max_rounds` requests are sent.
 
-        `spec:docs/specification/2026-07-28/server/tools.mdx:178` "clients include `inputResponses` and"
+        `spec:docs/specification/2026-07-28/server/tools.mdx:178`
+        "clients include `inputResponses` and"
         """
         base = copy.deepcopy(params) if params else {}
         current = dict(base)
         for number in range(1, max_rounds + 1):
             result = self.request(method, current, capabilities=capabilities, **options)
             if not isinstance(result, InputRequired):
-                return result
+                done: Message = result
+                return done
             if say is not None:
                 say(f"round {number}: {', '.join(result.input_requests) or '(state only)'}")
             if number == max_rounds:
@@ -340,7 +344,8 @@ class ModernSession(Session):
         `notifications/subscriptions/acknowledged` whose subscription id equals the listen
         request's id, type included.
 
-        `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:51` "io.modelcontextprotocol/subscriptionId"
+        `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:51`
+        "io.modelcontextprotocol/subscriptionId"
         """
         pending = self.start_request("subscriptions/listen", {"notifications": notifications})
         try:
@@ -414,7 +419,8 @@ class ModernTour(Tour):
     def discovery(self) -> None:
         """`server/discover`: the first message; replaces `initialize`.
 
-        `spec:docs/specification/2026-07-28/basic/versioning.mdx:167` "SHOULD** send `server/discover` first"
+        `spec:docs/specification/2026-07-28/basic/versioning.mdx:167`
+        "SHOULD** send `server/discover` first"
         """
         result = self.session.discover()
         info = (result.get("_meta") or {}).get(META + "serverInfo", {})
@@ -478,7 +484,8 @@ class ModernTour(Tour):
         """The log level is per request: absent means no `notifications/message` (replaces
         `logging/setLevel`).
 
-        `spec:docs/specification/2026-07-28/server/utilities/logging.mdx:63` "io.modelcontextprotocol/logLevel"
+        `spec:docs/specification/2026-07-28/server/utilities/logging.mdx:63`
+        "io.modelcontextprotocol/logLevel"
         """
         self.drain()
         self.tool("trigger-log-messages")
@@ -511,7 +518,8 @@ class ModernTour(Tour):
     def input_required(self) -> None:
         """No server-to-client requests: the server answers `input_required`; the client retries.
 
-        `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:55` "MUST NOT** write JSON-RPC _requests_"
+        `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:55`
+        "MUST NOT** write JSON-RPC _requests_"
         """
         bare = {"name": "get-roots-list", "arguments": {}}
         try:
@@ -577,7 +585,8 @@ class TasksRun(ModernTour):
     def without_the_extension(self) -> None:
         """A task-augmented call from a client that did not declare the extension fails.
 
-        `spec:seps/2663-tasks-extension.md:87` "invalid response"
+        `spec:seps/2663-tasks-extension.md:87`
+        "invalid response"
         """
         try:
             self.session.call("tools/call", {"name": "simulate-research-query",
@@ -618,7 +627,7 @@ class TasksRun(ModernTour):
         self.call("tasks/cancel", {"taskId": task_id})
         self.step("tasks/cancel", "acknowledged")
         got = self.call("tasks/get", {"taskId": task_id})
-        self.expect(got.get("status") == "cancelled", f"expected cancelled, got {got.get('status')}")
+        self.expect(got.get("status") == "cancelled", f"not cancelled: {got.get('status')}")
         self.step("tasks/get", "cancelled")
 
 
@@ -658,6 +667,6 @@ def _finish(tour: ModernTour, session: ModernSession,
 
 
 __all__ = [
-    "Cancelled", "ERA", "ModernSession", "ModernTour", "envelope", "run_modern_tour",
+    "ERA", "ModernSession", "ModernTour", "envelope", "run_modern_tour",
     "run_tasks",
 ]
