@@ -46,7 +46,10 @@ exist; or if run output is tracked.
 
 ## Result
 
-- Status: built on the builder's branch, awaiting merge and the gate (builder run 2026-10-22).
+Status: closed
+
+Merged to `main` 2026-10-22 and closed with `scripts/gate.sh` green on the merged tree (run by
+the agent after `scripts/bootstrap.sh`).
 
 Built 2026-10-22 under LP7 (tests alongside code, no mutation run, no review round). Measured
 on this machine (Node 24.22.0) against the pinned, built server:
@@ -93,7 +96,8 @@ one-line verdict under each after checking it against a fresh trace.
    **Before running it**, predict the new diff and what the SDK does with the two progress
    notifications (hint: `client.onerror`). Then record, diff, and explain every difference from
    your prediction. Commit the change yourself on that branch; do not merge it.
-3. *Debug.* The local branch `learning-check-05-fault` has one planted fault in `clients/sdk/`.
+3. *Debug.* The local branch `learning-check-05-fault` (planted by the agent when the owner
+   asks to take this check) has one planted fault in `clients/sdk/`.
    From `tap.diff` against a fresh raw trace, the trace and the test output only (no
    `git diff`, no `git log -p`), say what is wrong on the wire, which call causes it, and the
    fix. The agent reveals the fault after you answer.
