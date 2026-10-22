@@ -51,6 +51,7 @@ marked `yes`. Phase 2 and 3 claim code (`client/wire.py`, `client/session.py`,
 | C25 | Part D (D11). Cancelling a 2026-07-28 request closes its stream and posts no `notifications/cancelled` | `tests/test_client_http.py::Era2026Test::test_cancel_closes_stream_without_notification` | yes |
 | C26 | Part D (D11). Phase 6's 2026-07-28 tour over HTTP exits 0 and its fresh trace passes `tap.check --revision 2026-07-28` | `tests/test_e2e_http.py::Era2026HttpTest::test_2026_tour_over_http_checks` | not claim code (RP3) |
 | C27 | Part C (D12). The SDK client's tour over HTTP exits 0, its fresh trace passes `tap.check` and ends with a DELETE | `tests/test_e2e_http.py::SdkHttpTest::test_sdk_tour_over_http_checks_and_deletes` | not claim code (RP3) |
+| C29 | Part C, fixed after close. The SDK client's server tour over HTTP exits 0 with no `sdk:` error, its fresh trace passes `tap.check --revision 2025-11-25`, opens one GET after `notifications/initialized`, sends `tools/list` (and `prompts/list`, `resources/list`) after the GET is answered `200`, that `tools/list` answer holds the gated tools, and the trace ends with a DELETE; a GET answered `2xx` with `text/event-stream`, and only that, triggers the re-list | `tests/test_e2e_http.py::SdkServerTourHttpTest::test_sdk_server_tour_over_http_resyncs_after_the_get`, `clients/sdk/test/stream.test.ts` | not claim code (RP3) |
 
 ## E. Not-done conditions
 
@@ -88,6 +89,20 @@ so the counts are phase 6's: 0 of 21 methods of 2026-07-28 and 6 of 31 methods o
 `unexercised`; `tools/atlas.py --check` passes. Spot mutation (LP4, 2026-10-22): dropping the `Mcp-Name` header (C24) and sending
 `notifications/cancelled` on a 2026-07-28 cancel (C25) each fail `Era2026Test`.
 
+Fixed after close, 2026-10-22 (row C29 has its check): the SDK client's `server-tour` over HTTP,
+listed at close as an accepted limit, now exits 0 and `record.sh --http` records it. The measured
+cause stays as found: the SDK's transport opens its GET stream only after `notifications/initialized`
+is answered `202` (`sdk-client/dist/index.mjs:5797`; M15), and the pinned server drops the five
+`notifications/tools/list_changed` it sends while handling `initialized`, because no standalone
+stream is open yet (`sdk-server/dist/index.mjs:947`; M8). The fix is client behaviour, with no
+server change, no sleep and no skipped step: a client cannot rely on notifications sent before its
+GET stream existed, so once the GET is answered `200` with `text/event-stream` (seen through the
+transport's public `fetch` option, `clients/sdk/src/stream.ts`) the tour requests `tools/list`,
+`prompts/list` and `resources/list` once (`clients/sdk/src/server_tour.ts`). Measured on nine fresh
+recordings: each exits 0, passes `tap.check --revision 2025-11-25`, and shows the GET as exchange 2
+followed by the three list requests, the `tools/list` answer holding the five gated tools. The
+stdio path is unchanged (the hook exists only on the HTTP transport).
+
 ### Accepted limits
 
 - J rows, the learner walk (L15), the G6 clean-clone walk and lesson polish beyond the L1
@@ -109,16 +124,6 @@ so the counts are phase 6's: 0 of 21 methods of 2026-07-28 and 6 of 31 methods o
   recorded as measured and explained in the walkthrough.
 - Resumability, re-initialising after `404`, keep-alive reuse, the `Mcp-Name` Base64 form,
   fixtures and `matrix` over HTTP: out of scope (D14).
-- The SDK client's `server-tour` over HTTP exits 1 and is not recorded by `record.sh --http` (a
-  usage error that names this limit). Cause, measured 2026-10-22 (not our code): the SDK's
-  Streamable HTTP transport opens its GET stream only after `notifications/initialized` has been
-  answered `202` (`sdk-client/dist/index.mjs:5797`; M15), while the pinned server sends its five
-  `notifications/tools/list_changed` as it handles `initialized` and, with no standalone stream
-  open, drops them (`sdk-server/dist/index.mjs:947`; M8). The trace has no `list_changed` frame;
-  the `roots/list` sync, 350 ms later, arrives on the GET and is answered; the SDK never re-lists
-  the capability-gated tools and its tour's third step fails. The raw client opens the GET before
-  `initialized`, so its server tour passes over HTTP (C22). The SDK's tour is not bent to hide
-  this: the lesson explains it.
 - The SDK 2.3.1 posts `notifications/cancelled` when it closes a 2026-07-28 subscription over
   HTTP, with no `Mcp-Method` header, though the 2026-07-28 transport sends no notifications
   (`sdk-client/dist/index.mjs:4023`); recorded as measured in the walkthrough.

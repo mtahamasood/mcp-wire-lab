@@ -259,16 +259,47 @@ DELETE
 
 The walkthrough lists the other differences measured on a fresh pair.
 
-**Not recorded over HTTP: the SDK's server tour.** `record.sh --http --client sdk-server-tour` is
-refused, and the reason is a measurement, not a missing feature. The raw client opens its GET stream
-before `initialized`, so it hears the five `tools/list_changed` notifications the server sends the
-moment it sees `initialized`. The SDK's transport opens its GET only after that `initialized`
-has been answered `202`, and with no stream open the server drops what it sends unprompted
-(`servers:node_modules/@modelcontextprotocol/server/dist/index.mjs:947` "if (standaloneSse === void 0) return;"). The notifications are gone, the SDK never re-lists the tools that
-the declared capabilities unlock, and the SDK's server tour, which waits for that re-list, fails at
-its third step. The roots sync still arrives: the server sends it 350 ms later, after the GET is
-open. No code of ours is involved; the same tour over stdio passes, and so does the raw client's
-server tour over HTTP (`scripts/record.sh --http --client server-tour`).
+**A race over HTTP, and what a robust client does about it: the SDK's server tour.** The raw
+client opens its GET stream before `initialized`, so it hears the five `tools/list_changed`
+notifications the server sends the moment it sees `initialized`. The SDK's transport opens its GET
+only after that `initialized` has been answered `202`
+(`sdk:client/dist/index.mjs:5797` "if (isInitializedNotification(message)) this._startOrAuthSse({ resumptionToken: void 0 })"), and with no stream open the server drops what it sends
+unprompted
+(`servers:node_modules/@modelcontextprotocol/server/dist/index.mjs:947` "if (standaloneSse === void 0) return;"). The notifications are lost, not late: nothing
+ever delivers them. Before the fix, the SDK client never re-listed the tools that its declared
+capabilities unlock, and its server tour failed at step 3 with `tools/list` "lacking" five tools.
+The roots sync still arrived, because the server sends it 350 ms later, after the GET is open.
+
+The lesson is that a list-change notification is only a hint that something changed *while you
+were listening*. On stdio a client is always listening; over Streamable HTTP it hears unprompted
+messages only once its GET stream exists, so it cannot know what it missed before then. The fix is
+in the client, not the server: once the GET is answered with `text/event-stream`, the stream is
+open (the server registers it before it answers; it must answer an event stream or `405`,
+`spec:docs/specification/2025-11-25/basic/transports.mdx:140` "The server **MUST** either return `Content-Type: text/event-stream` in response to"). From then on
+every change is announced, so one fresh `tools/list` (and `prompts/list`, `resources/list`) taken
+after that moment is a complete picture. The SDK client sees that moment through the transport's
+public `fetch` option (`clients/sdk/src/stream.ts`) and re-lists then; no sleep is involved. Record
+it and look at the order:
+
+<!-- run -->
+```console
+$ scripts/record.sh --http --client sdk-server-tour lesson07r > /dev/null
+$ python3 -m tap.show "$(ls -dt runs/*-lesson07r | head -1)/trace.jsonl" | grep -E 'http-request #[0-9]+ GET|request tools/list|list_changed' | sed -E 's/^ *[0-9]+ +[0-9.]+ ms +//; s/ id=.*//; s/ \/mcp.*//' | head -3
+```
+
+<!-- expect -->
+```text
+..  tap http-request #2 GET
+->  request tools/list
+<-  notification notifications/tools/list_changed #2
+```
+
+The GET is exchange 2, right after the `initialized` `202`; the first `tools/list` follows it, with
+no `list_changed` heard before it (the burst was dropped); the next `list_changed`, sent when the
+tour later calls `trigger-list-changed`, arrives on the GET stream (`#2`) because by then it is
+open. The raw client's server tour over HTTP passes without this re-list only because it opens its
+GET early; a client that opens it late, or reconnects after losing it, must re-list each time the
+stream opens.
 
 **5. A phase 2 tour over stdio and over HTTP.** The raw client's `tour` takes `--url` as well as a
 server command. Record it both ways and compare what the client sent: the messages are the same,
