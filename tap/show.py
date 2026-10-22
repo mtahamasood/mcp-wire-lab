@@ -148,11 +148,40 @@ def annotate(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def http_summary(event: Any, http: dict[str, Any]) -> str:
+    """What follows the event name of an HTTP-mode `tap` record (phase 7 D6)."""
+    number = f"#{http.get('exchange')}"
+    if event == "http-request":
+        head = f"{number} {http.get('method')} {http.get('path')}"
+    elif event == "http-response":
+        head = f"{number} {http.get('status')}" + (f" by {http['by']}" if "by" in http else "")
+    elif event == "sse-event":
+        head = number + (f" id={http['id']}" if "id" in http else "")
+    elif event == "http-end":
+        head = f"{number} by {http.get('by')} comments={http.get('comments')}"
+    else:
+        head = number
+    headers = http.get("headers")
+    shown = [f"{name}={value}" for name, value in headers.items()] if isinstance(
+        headers, dict) else []
+    return " ".join([head, *shown])
+
+
 def describe(item: dict[str, Any]) -> str:
+    text = describe_record(item)
+    http = item.get("http")
+    if item["dir"] in OTHER and isinstance(http, dict) and "exchange" in http:
+        text += esc(f" #{http['exchange']}")
+    return text
+
+
+def describe_record(item: dict[str, Any]) -> str:
     msg: Any = item.get("json")
     kind = item["kind"]
     if item["dir"] == "tap":
         extra = item.get("argv") or item.get("code", "")
+        if isinstance(item.get("http"), dict):
+            extra = http_summary(item.get("event"), item["http"])
         return esc(f"tap {item.get('event')} {extra}".rstrip())
     if item["dir"] == "stderr":
         return "stderr " + esc(str(item.get("raw", "<binary>")).rstrip("\n"))

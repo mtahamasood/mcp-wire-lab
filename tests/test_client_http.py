@@ -425,7 +425,8 @@ class HttpStreamTest(Case):
         session, _ = self.session(fake)
         session.initialize()
         self.assertIsNone(session.close())
-        self.assertEqual([e["method"] for e in fake.log], ["POST", "POST"])
+        self.assertTrue(fake.wait_for(lambda e: b"notifications/initialized" in e["body"]))
+        self.assertEqual([e["method"] for e in fake.log], ["POST", "POST"])  # and no DELETE
 
 
 if __name__ == "__main__":
