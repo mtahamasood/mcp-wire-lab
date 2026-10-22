@@ -75,13 +75,14 @@ not yet completed is not cancellable) and was re-run: 8 of 8 killed, by
 
 ### Accepted limits
 
-- Learner walk L15 and J rows: deferred (LP5).
-- Atlas L8 and gate G10: deferred to the final pass (register row 2026-10-21, lean profile).
+- J rows: deferred (LP5). The learner walk L15 was done in the final pass for lessons 02-04 (A34, `audits/learner-walk-lessons-02-04.md`).
+- Atlas L8 and gate G10: were deferred to the final pass (register row 2026-10-21, lean profile); built there, and G10 is green.
 
 ### Owner learning check (LP6)
 
-**Required before the project is called complete** (register row 2026-10-21, learning
-check). Answers by the owner only; the agent adds a one-line verdict under each answer
+**Open by the owner's choice; it does not gate using the project** (register row 2026-10-21,
+learning check run by an agent, which softened the earlier "required before complete" rule;
+A36). Answers by the owner only; the agent adds a one-line verdict under each answer
 after checking it against a fresh trace. Set aside about 45 minutes, plus a few minutes of
 bootstrap if you use a second worktree for prompt 3 (`git worktree add ../lc-02 <branch>`,
 then `git submodule update --init --recursive` and `scripts/bootstrap.sh`).

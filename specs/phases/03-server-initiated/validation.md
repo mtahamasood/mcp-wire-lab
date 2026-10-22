@@ -47,7 +47,7 @@ Closed 2026-10-21 by the agent under the owner's delegation (register row 2026-1
 
 ### Accepted limits
 
-- Learner walk L15, J rows, G6 walk: deferred (LP5).
+- J rows and G6 walk: deferred (LP5). The learner walk L15 was done in the final pass for lessons 02-04 (A34, `audits/learner-walk-lessons-02-04.md`).
 - No review round for this phase (LP4).
 - The atlas has no capability column: the schemas do not encode which capability gates a method (D6).
 

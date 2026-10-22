@@ -58,7 +58,7 @@ frame or claiming `forwarded: true`; the first non-matching frame dropped.
 
 ### Accepted limits
 
-- Learner walk L15, J rows, G6 walk: deferred (LP5).
+- J rows and G6 walk: deferred (LP5). The learner walk L15 was done in the final pass for lessons 02-04 (A34, `audits/learner-walk-lessons-02-04.md`).
 
 ### Owner learning check (LP6)
 
