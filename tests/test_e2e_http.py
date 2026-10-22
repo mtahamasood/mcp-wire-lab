@@ -185,7 +185,7 @@ class RecordHttpTest(unittest.TestCase):
             ["scripts/record.sh", "--http", "--client", "tour"],
             cwd=ROOT, capture_output=True, text=True, timeout=20)
         self.assertEqual(other.returncode, 1)
-        self.assertIn("--http runs only the http-tour mode", other.stderr)
+        self.assertIn("--http runs only the http-tour and sdk-tour modes", other.stderr)
 
 
 class HttpTourTest(unittest.TestCase):
@@ -334,6 +334,35 @@ class HttpTourTest(unittest.TestCase):
         self.assertEqual([r for r in trace_records if r["dir"] == "tap"
                           and r.get("event") == "http-request"
                           and r["http"]["method"] == "GET"], [])
+
+
+class SdkHttpTest(unittest.TestCase):
+    """C27 (part C, D12): the SDK client's tour over its Streamable HTTP transport."""
+
+    def test_sdk_tour_over_http_checks_and_deletes(self) -> None:
+        assert SERVER.is_file(), f"{SERVER} missing: run scripts/bootstrap.sh"
+        done = subprocess.run(
+            ["scripts/record.sh", "--http", "--client", "sdk-tour", "test-sdk-http"],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        recording = run_dir(done.stdout)
+        trace = records(recording)
+        checked = subprocess.run(
+            [sys.executable, "-m", "tap.check", str(recording / "trace.jsonl"), "--revision",
+             "2025-11-25"], cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT)
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+        requests = [r["http"] for r in trace
+                    if r["dir"] == "tap" and r.get("event") == "http-request"]
+        deletes = [h for h in requests if h["method"] == "DELETE"]
+        self.assertEqual(len(deletes), 1)
+        self.assertEqual(requests[-1]["method"], "DELETE", "DELETE is the last request")
+        responses = {r["http"]["exchange"]: r["http"] for r in trace
+                     if r["dir"] == "tap" and r.get("event") == "http-response"}
+        self.assertEqual(responses[deletes[0]["exchange"]]["status"], 200)
+        sent = [r["json"]["method"] for r in trace if r["dir"] == "c2s" and r["json"]
+                and "method" in r["json"]]
+        self.assertIn("initialize", sent)
+        self.assertIn("notifications/initialized", sent)
 
 
 if __name__ == "__main__":

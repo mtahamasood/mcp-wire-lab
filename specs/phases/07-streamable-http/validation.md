@@ -69,6 +69,11 @@ built: C22-C27). Measured on seven fresh recordings of the HTTP tour: 73 records
 11 HTTP exchanges (seven `200`, four `202`), five event streams ended by the server and one by the
 client, identical in anchors and counts on every run.
 
+Part C built on 2026-10-22 (row C27 has its check): the SDK client's tour over
+`StreamableHTTPClientTransport` through the tap, 21 HTTP exchanges (GET stream opened after the
+`initialized` `202`, `notifications/cancelled` posted with the cancelled stream left open until
+the DELETE, DELETE the last request, `200`); its trace passes `tap.check --revision 2025-11-25`.
+
 Not built beyond that. Final atlas coverage (L8) is measured at close with `tools/atlas.py` after phases
 5–7 merge, and its counts (methods exercised of 31 in 2025-11-25 and of 21 in 2026-07-28) are
 written here.

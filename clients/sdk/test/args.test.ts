@@ -47,3 +47,19 @@ test("capabilities are the objects the raw client sends", () => {
   assert.deepEqual(capabilityObject(["elicitation-url"]), { elicitation: { url: {} } });
   assert.deepEqual(capabilityObject(["elicitation"]), { elicitation: { form: {} } });
 });
+
+test("--url replaces the server command (phase 7 D12)", () => {
+  assert.deepEqual(parseArgs(["tour", "--url", "http://127.0.0.1:1/mcp"]), {
+    kind: "run", mode: "tour", caps: undefined, era: "2025-11-25", command: [], url: "http://127.0.0.1:1/mcp",
+  });
+  assert.deepEqual(parseArgs(["server-tour", "--caps", "roots", "--url", "http://h/mcp"]), {
+    kind: "run", mode: "server-tour", caps: ["roots"], era: "2025-11-25", command: [], url: "http://h/mcp",
+  });
+});
+
+test("--url needs one URL and cannot be combined with a command", () => {
+  for (const argv of [["tour", "--url"], ["tour", "--url", "--caps"], ["tour", "--url", "u", "x"],
+    ["tour", "--url", "u", "--", "x"]]) {
+    assert.equal(parseArgs(argv).kind, "usage", argv.join(" "));
+  }
+});

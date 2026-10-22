@@ -155,9 +155,10 @@ export async function runTour(
   out: (line: string) => void,
   report: (line: string) => void,
   caps: readonly Capability[],
+  url?: string,
 ): Promise<number> {
   const steps = new Steps(out);
-  const lab = buildLab(caps, (line) => steps.say(`      ${line}`), report);
+  const lab = buildLab(caps, (line) => steps.say(`      ${line}`), report, url);
   const tour = new Tour(steps, lab);
   let status = 0;
   try {
@@ -168,7 +169,7 @@ export async function runTour(
     report(`sdk: tour failed at step ${failure.trim()}`);
     status = 1;
   }
-  await lab.client.close();
+  await lab.close();
   steps.step("close", "closed");
   return status;
 }
