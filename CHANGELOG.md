@@ -1,10 +1,15 @@
 # Changelog
 
 All notable changes to this repository are recorded here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The project publishes no releases;
-each phase ends with a git tag named after its lesson (`lesson-NN`) instead of a version number.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The project publishes no releases
+(no packages and no GitHub Releases); each phase ends with a git tag named after its lesson
+(`lesson-NN`), and an annotated `vX.Y.Z` tag marks a snapshot the owner asked to name.
 
 ## [Unreleased]
+
+## [0.7.0] - 2026-10-23
+
+Phases 1-7 built and closed; the final pass (LP5) and the phase 2 learning check are still open.
 
 ### Added
 
@@ -149,5 +154,6 @@ does a learner come to read it?
   home-directory paths and secret-shaped strings, and the pre-push hook runs G11 over every pushed
   commit.
 
-[Unreleased]: https://github.com/mtahamasood/mcp-wire-lab/compare/lesson-01...HEAD
+[Unreleased]: https://github.com/mtahamasood/mcp-wire-lab/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/mtahamasood/mcp-wire-lab/tree/v0.7.0
 [lesson-01]: https://github.com/mtahamasood/mcp-wire-lab/tree/lesson-01
