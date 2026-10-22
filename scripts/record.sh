@@ -2,13 +2,14 @@
 # Record one fixture, or one run of the raw client, against the pinned, built everything server
 # (D14; phase 2 D5).
 # Usage: scripts/record.sh <fixture> [name]
-#        scripts/record.sh --client <tour|manual|server-tour> [name]
+#        scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour> [name]
 # Writes runs/<UTC timestamp>-<name>/{trace.jsonl,stderr.txt}. runs/ is git-ignored (A5).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 usage() {
-  echo "usage: scripts/record.sh <fixture> [name]   or   scripts/record.sh --client <tour|manual|server-tour> [name]"
+  echo "usage: scripts/record.sh <fixture> [name]   or   scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour> [name]"
+  echo "  sdk-tour and sdk-server-tour record the TypeScript SDK client (phase 5; needs scripts/bootstrap.sh)."
   echo "  Records the run between the tap and the pinned server into runs/<time>-<name>/ and prints the path."
   echo "  A fixture is a file in tests/fixtures/. Set up once with scripts/bootstrap.sh."
 }
@@ -19,10 +20,14 @@ case "${1:-}" in
 esac
 client=""
 if [ "${1:-}" = "--client" ]; then
-  client="${2:?usage: scripts/record.sh --client <tour|manual|server-tour> [name]}"
+  client="${2:?usage: scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour> [name]}"
   case "$client" in
     tour|manual|server-tour) ;;
-    *) echo "record: unknown client mode: $client (use tour, manual or server-tour)" >&2; exit 1 ;;
+    sdk-tour|sdk-server-tour)
+      [ -d clients/sdk/node_modules ] \
+        || { echo "record: clients/sdk/node_modules missing (run scripts/bootstrap.sh)" >&2; exit 1; }
+      ;;
+    *) echo "record: unknown client mode: $client (use tour, manual, server-tour, sdk-tour or sdk-server-tour)" >&2; exit 1 ;;
   esac
   name="${3:-client-$client}"
 else
@@ -77,6 +82,12 @@ case "$client" in
     # The server tour (phase 3) declares every capability and answers the server's requests.
     python3 -m client server-tour -- "${server_cmd[@]}" 2> "$dir/stderr.txt" > /dev/null \
       || status=$?
+    ;;
+  sdk-tour|sdk-server-tour)
+    # The TypeScript SDK client (phase 5), run as source by Node; its stdio transport starts the
+    # tap, which starts the server with the allowlisted environment.
+    node clients/sdk/src/main.ts "${client#sdk-}" -- "${server_cmd[@]}" 2> "$dir/stderr.txt" \
+      > /dev/null || status=$?
     ;;
   manual)
     # Interactive: the learner's terminal is the client's stdin and stdout; stderr is shown

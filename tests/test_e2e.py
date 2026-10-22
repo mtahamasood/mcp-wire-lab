@@ -442,5 +442,29 @@ class ServerTourTest(unittest.TestCase):
         self.assertIn("legacy shim", explained.stdout)
 
 
+class SdkClientTest(unittest.TestCase):
+    """Phase 5: the SDK client against the real server, recorded through the tap."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        assert SERVER.is_file(), f"{SERVER} missing: run scripts/bootstrap.sh"
+        cls.sdk_tour = record_client("test-sdk-tour", mode="sdk-tour")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.sdk_tour, ignore_errors=True)
+
+    def test_slice_connect_echo_close(self) -> None:
+        sent = [r["json"] for r in frames(self.sdk_tour) if r.get("dir") == "c2s"]
+        self.assertEqual([m["method"] for m in sent],
+                         ["initialize", "notifications/initialized", "tools/call"])
+        done = subprocess.run(
+            [sys.executable, "-m", "tap.check", str(self.sdk_tour / "trace.jsonl"),
+             "--revision", "2025-11-25"],
+            cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT,
+        )
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

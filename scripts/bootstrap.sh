@@ -5,7 +5,7 @@ set -euo pipefail
 
 usage() {
   echo "usage: scripts/bootstrap.sh"
-  echo "  Takes no arguments. Checks Node and the two pinned submodules, then builds the reference server (about 10 s to a few minutes). Run once after cloning."
+  echo "  Takes no arguments. Checks Node and the two pinned submodules, then builds the reference server (about 10 s to a few minutes) and installs the SDK client's packages. Run once after cloning."
 }
 case "${1:-}" in
   "") ;;
@@ -19,6 +19,7 @@ cd "$root"
 want_node="v24.22.0"
 pin_servers="51b6382a3e827aceb6bce430b1208d69b93d95ea"
 pin_spec="1155ca460e5097019f32769b38dcba194432e2fb"
+want_sdk="2.3.1"
 
 fail() { echo "bootstrap: $*" >&2; exit 1; }
 
@@ -37,6 +38,13 @@ check_pin vendor/spec "$pin_spec"
 (cd vendor/servers/src/everything && npm run build)
 
 [ -f vendor/servers/src/everything/dist/index.js ] || fail "build did not produce dist/index.js"
+# The SDK client (phase 5 D1): the narrowest install, then the SDK must be the pinned version.
+(cd clients/sdk && npm ci --ignore-scripts)
+for pkg in client core; do
+  got="$(node -p "JSON.parse(require('fs').readFileSync('clients/sdk/node_modules/@modelcontextprotocol/$pkg/package.json', 'utf8')).version")"
+  [ "$got" = "$want_sdk" ] || fail "@modelcontextprotocol/$pkg is $got, expected $want_sdk"
+done
+
 [ -z "$(git -C vendor/servers status --porcelain)" ] || fail "vendor/servers working tree was modified"
 [ -z "$(git -C vendor/spec status --porcelain)" ] || fail "vendor/spec working tree was modified"
 
