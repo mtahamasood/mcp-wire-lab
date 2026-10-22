@@ -2,7 +2,7 @@
 // step for step with the same inputs, through @modelcontextprotocol/client pinned to the new era.
 // Everything era-specific lives here so that phase 5's files stay as they were.
 
-import { CLIENT_CAPABILITIES_META_KEY, Client, LOG_LEVEL_META_KEY, SUBSCRIPTION_ID_META_KEY } from "@modelcontextprotocol/client";
+import { CLIENT_CAPABILITIES_META_KEY, Client, LOG_LEVEL_META_KEY, StreamableHTTPClientTransport, SUBSCRIPTION_ID_META_KEY } from "@modelcontextprotocol/client";
 import type { ClientCapabilities, McpSubscription } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { capabilityObject } from "./args.ts";
@@ -39,6 +39,7 @@ class ModernTour {
   readonly errors: string[] = [];
   private subscription: McpSubscription | undefined;
   private subscriptionId: unknown;
+  private http = false;
 
   constructor(steps: Steps, caps: readonly Capability[], report: (line: string) => void) {
     this.steps = steps;
@@ -90,8 +91,9 @@ class ModernTour {
     });
   }
 
-  async run(command: readonly string[]): Promise<void> {
-    await this.discovery(command);
+  async run(command: readonly string[], url?: string): Promise<void> {
+    this.http = url !== undefined;
+    await this.discovery(command, url);
     await this.tools();
     await this.resources();
     await this.prompts();
@@ -104,9 +106,15 @@ class ModernTour {
     await this.closeSubscription();
   }
 
-  /** `connect` probes with `server/discover` (the pin), replacing `initialize`. */
-  async discovery(command: readonly string[]): Promise<void> {
-    await this.client.connect(new InPlaceStdioTransport({ command: command[0] as string, args: command.slice(1) }));
+  /**
+   * `connect` probes with `server/discover` (the pin), replacing `initialize`. With a URL the
+   * transport is the SDK's Streamable HTTP one (phase 7 D11): no session id, so no GET stream
+   * and no DELETE.
+   */
+  async discovery(command: readonly string[], url?: string): Promise<void> {
+    await this.client.connect(url === undefined
+      ? new InPlaceStdioTransport({ command: command[0] as string, args: command.slice(1) })
+      : new StreamableHTTPClientTransport(new URL(url)));
     const version = this.client.getNegotiatedProtocolVersion();
     this.steps.expect(version === MODERN_ERA, `the connection must run ${MODERN_ERA}, not ${version}`);
     this.steps.step("server/discover", `version ${version}, server ${this.client.getServerVersion()?.name}`);
@@ -218,8 +226,11 @@ class ModernTour {
     this.steps.expect(outcome instanceof Error, "a cancelled request must stop waiting");
     // The server's tool ignores the cancellation and finishes (measured); the SDK has forgotten
     // the token by then and reports the late progress through onerror.
-    const late = await traffic.waitFor(() => this.errors.slice(before).some((e) => e.includes("progress notification")), NOTE_WAIT);
-    this.steps.expect(late, "the late progress notification never arrived");
+    // Over HTTP the abort closes the response stream (the cancellation, D11), so nothing arrives.
+    if (!this.http) {
+      const late = await traffic.waitFor(() => this.errors.slice(before).some((e) => e.includes("progress notification")), NOTE_WAIT);
+      this.steps.expect(late, "the late progress notification never arrived");
+    }
     await new Promise((resolve) => setTimeout(resolve, 300));
     this.steps.step("tools/call long-running (cancelled)", "cancelled after progress 1");
   }
@@ -281,12 +292,13 @@ export async function runModernTour(
   out: (line: string) => void,
   report: (line: string) => void,
   caps: readonly Capability[],
+  url?: string,
 ): Promise<number> {
   const steps = new Steps(out);
   const tour = new ModernTour(steps, caps, report);
   let status = 0;
   try {
-    await tour.run(command);
+    await tour.run(command, url);
   } catch (error) {
     const failure = `${String(steps.n).padStart(2)}  FAILED  ${(error as Error).name}: ${(error as Error).message}`;
     steps.say(failure);

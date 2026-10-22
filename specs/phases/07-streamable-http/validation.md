@@ -62,7 +62,7 @@ dropped names a check that does not exist, or if run output is tracked.
 
 ## Result
 
-- Status: open
+Status: closed
 
 Parts A, B1 and E built on 2026-10-22 (rows C1-C21 and C28 have their checks; B2, C and D not
 built: C22-C27). Measured on seven fresh recordings of the HTTP tour: 73 records, 19 frames,
@@ -74,9 +74,19 @@ Part C built on 2026-10-22 (row C27 has its check): the SDK client's tour over
 `initialized` `202`, `notifications/cancelled` posted with the cancelled stream left open until
 the DELETE, DELETE the last request, `200`); its trace passes `tap.check --revision 2025-11-25`.
 
-Not built beyond that. Final atlas coverage (L8) is measured at close with `tools/atlas.py` after phases
-5–7 merge, and its counts (methods exercised of 31 in 2025-11-25 and of 21 in 2026-07-28) are
-written here.
+Parts B2 and D built on 2026-10-22 (rows C22-C26 have their checks): `--url` for the raw client's
+`tour`, `server-tour` and `manual`, and for `tour` and `manual` with `--era 2026-07-28`
+(`client/modern_http.py`, `HttpWire(era=...)`); the SDK client's `--url` with `--era 2026-07-28`.
+Measured on fresh recordings: the 2025 `tour` over HTTP sends phase 2's 19 messages and ends with
+the DELETE; the 2026-07-28 tour is 30 POSTs (25 `application/json`, 4 event streams, one `400`
+carrying a JSON-RPC error), no GET, no DELETE, two streams ended by the client, no
+`notifications/cancelled`; every trace passes `tap.check` for its revision. The SDK's 2026 tour
+makes the same 30 POSTs plus one `notifications/cancelled` posted when it closes its subscription.
+
+Final atlas coverage (L8), measured at close: lesson 07 declares no `exercises` line (D13, D14),
+so the counts are phase 6's: 0 of 21 methods of 2026-07-28 and 6 of 31 methods of 2025-11-25
+`unexercised`; `tools/atlas.py --check` passes. Spot mutation (LP4, 2026-10-22): dropping the `Mcp-Name` header (C24) and sending
+`notifications/cancelled` on a 2026-07-28 cancel (C25) each fail `Era2026Test`.
 
 ### Accepted limits
 
@@ -99,8 +109,22 @@ written here.
   recorded as measured and explained in the walkthrough.
 - Resumability, re-initialising after `404`, keep-alive reuse, the `Mcp-Name` Base64 form,
   fixtures and `matrix` over HTTP: out of scope (D14).
-- Parts C and D: if phases 5 or 6 are not built in this run, the part is dropped by a register
-  row and its rows (C24–C27) move here.
+- The SDK client's `server-tour` over HTTP exits 1 and is not recorded by `record.sh --http` (a
+  usage error that names this limit). Cause, measured 2026-10-22 (not our code): the SDK's
+  Streamable HTTP transport opens its GET stream only after `notifications/initialized` has been
+  answered `202` (`sdk-client/dist/index.mjs:5797`; M15), while the pinned server sends its five
+  `notifications/tools/list_changed` as it handles `initialized` and, with no standalone stream
+  open, drops them (`sdk-server/dist/index.mjs:947`; M8). The trace has no `list_changed` frame;
+  the `roots/list` sync, 350 ms later, arrives on the GET and is answered; the SDK never re-lists
+  the capability-gated tools and its tour's third step fails. The raw client opens the GET before
+  `initialized`, so its server tour passes over HTTP (C22). The SDK's tour is not bent to hide
+  this: the lesson explains it.
+- The SDK 2.3.1 posts `notifications/cancelled` when it closes a 2026-07-28 subscription over
+  HTTP, with no `Mcp-Method` header, though the 2026-07-28 transport sends no notifications
+  (`sdk-client/dist/index.mjs:4023`); recorded as measured in the walkthrough.
+- Over HTTP the two tours' cancelled call is a closed stream, so the stdio tours' wait for the
+  server's late second progress notification is skipped (raw `tour` and the SDK's 2026 tour);
+  `tasks` and `matrix` stay on stdio.
 
 ### Owner learning check (LP6)
 

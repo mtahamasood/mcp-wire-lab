@@ -16,7 +16,8 @@ export const USAGE = [
   "  of lesson 03, answered through the SDK's handlers. The default for --caps is none for tour",
   "  and all four for server-tour (the 2026 tour declares roots, sampling and form elicitation).",
   "  --url: use the SDK's Streamable HTTP transport to a running server instead of starting one,",
-  "  and end the session with a DELETE (phase 7 D12); it runs in 2025-11-25 only.",
+  "  (phase 7 D12). In 2025-11-25 the session ends with a DELETE; in 2026-07-28 there is no session",
+  "  to delete (D11).",
   "  To record a run with the tap in between, use scripts/record.sh --client <sdk-tour|sdk-server-tour|sdk-tour-2026>",
   "  (add --http for the HTTP transport).",
 ].join("\n");
@@ -98,7 +99,6 @@ export function parseArgs(argv: readonly string[]): Parsed {
     }
   }
   if (first === "server-tour" && era !== ERAS[0]) return { kind: "usage", message: `server-tour runs only in ${ERAS[0]}` };
-  if (url !== undefined && era !== ERAS[0]) return { kind: "usage", message: `--url runs only in ${ERAS[0]}` };
   return url === undefined
     ? { kind: "run", mode: first as Mode, caps, era, command }
     : { kind: "run", mode: first as Mode, caps, era, command, url };

@@ -124,6 +124,47 @@ The messages themselves are the SDK's, as in [walkthrough 05](05-sdk-client.md).
 - **No reply POSTs.** The tour declares no capabilities, so the server asks nothing and the trace
   has no client reply (no `c2s` response with its own `202`), where the raw tour has two.
 
+## The earlier tours and the 2026-07-28 era over HTTP
+
+`python3 -m client <tour|server-tour|manual> --url <url>` (and `tour`/`manual` with `--era
+2026-07-28`) run phase 2, 3 and 6 modes over the same `HttpWire`; `scripts/record.sh --http --client
+<mode>` records them. Measured on fresh recordings:
+
+- **The 2025 tours.** `tour` sends the same 19 messages as over stdio and ends with the DELETE.
+  One step differs: after the cancelled call the stdio tour waits for the server's second progress
+  notification, which the server still sends; over HTTP cancelling closes the connection that
+  carried the stream, so that progress can never arrive and the tour does not wait for it.
+  `server-tour` declares every capability, so it opens the GET stream before `initialized` and
+  hears the server's list-change burst and `roots/list` there.
+- **The 2026-07-28 tour.** 30 POSTs and nothing else: no `initialize`, no session id, no GET, no
+  DELETE. Every POST carries `MCP-Protocol-Version: 2026-07-28` and `Mcp-Method`, and `Mcp-Name`
+  for `tools/call`, `resources/read` and `prompts/get`
+  (`spec:docs/specification/2026-07-28/basic/transports/streamable-http.mdx:252` "Every POST request to the MCP endpoint **MUST** include an"). 25 answers are `application/json`; 4 are
+  event streams (the calls that send progress or logs first, and `subscriptions/listen`); one is a
+  `400` whose body is the JSON-RPC error `-32021` for the call that declared no capability. Two
+  streams end `by client`: the cancelled call and the subscription closed at the end. Neither is
+  followed by a `notifications/cancelled`, because on Streamable HTTP the closed stream is the
+  cancellation
+  (`spec:docs/specification/2026-07-28/basic/transports/streamable-http.mdx:235` "Closing the SSE response stream **MUST** be treated by the server as").
+- **The SDK client's 2026 tour over HTTP** (`record.sh --http --client sdk-tour-2026`) makes 31
+  POSTs, the raw client's 30 with the same headers plus one, which is a departure from the spec: when it closes its
+  subscription it also POSTs `notifications/cancelled` (a `202`, and the only POST with no
+  `Mcp-Method`), although the 2026 transport sends no notifications
+  (`sdk:client/dist/index.mjs:4023` `method: "notifications/cancelled",`).
+  Its probe is the first POST: `server/discover` with the id `server-discover-probe-1`.
+
+### Why the SDK's server tour is not recorded over HTTP
+
+`node clients/sdk/src/main.ts server-tour --url <url>` exits 1: step 3 reports that `tools/list`
+"lacks" `get-roots-list` and four other gated tools. Measured through the tap: the SDK client sends
+`notifications/initialized` and opens its GET only after that POST is answered `202`
+(`sdk:client/dist/index.mjs:5797` "if (isInitializedNotification(message)) this._startOrAuthSse({ resumptionToken: void 0 })"). The server sends its five `tools/list_changed` notifications as it
+handles `initialized`, before any GET exists; with no standalone stream it returns without writing
+(`servers:node_modules/@modelcontextprotocol/server/dist/index.mjs:947` "if (standaloneSse === void 0) return;"). The trace has no `list_changed` frame at all; the roots sync, which the server
+delays by 350 ms, arrives after the GET and is answered. The raw client opens the GET before
+`initialized` and its trace shows the five notifications right after the `202`. The cause is the
+SDK transport's order and the server's drop rule, not the tap or the raw client.
+
 ## Notes
 
 #### `tap.spawn.0`

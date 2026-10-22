@@ -1,6 +1,8 @@
-"""Phase 7 parts A, B1, E (G5): `record.sh --http` and the HTTP tour against the real server.
+"""Phase 7 parts A, B1, B2, D, E (G5): `record.sh --http` and the HTTP modes against the real
+server.
 
-C10 (record.sh), C28 (no TCP listener), C16-C18 (the tour's trace), C20 (the walkthrough).
+C10 (record.sh), C28 (no TCP listener), C16-C18 (the tour's trace), C20 (the walkthrough), C22
+(the earlier tours), C26 (the 2026-07-28 tour).
 Each test class records the tour once and checks facts about that run.
 """
 
@@ -19,6 +21,13 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+from tests.test_e2e import (
+    MODERN_TOUR_METHODS,
+    MODERN_TOUR_TOOLS,
+    SERVER_NOTES,
+    SERVER_REQUESTS,
+    TOUR_METHODS,
+)
 from tests.test_tap_http import free_port
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -182,10 +191,10 @@ class RecordHttpTest(unittest.TestCase):
         self.assertIn("record: --http needs --client http-tour", done.stderr)
         self.assertEqual(set((ROOT / "runs").glob("*")), before, "a run folder was made")
         other = subprocess.run(
-            ["scripts/record.sh", "--http", "--client", "tour"],
+            ["scripts/record.sh", "--http", "--client", "tasks-2026"],
             cwd=ROOT, capture_output=True, text=True, timeout=20)
         self.assertEqual(other.returncode, 1)
-        self.assertIn("--http runs only the http-tour and sdk-tour modes", other.stderr)
+        self.assertIn("tasks-2026 runs only on stdio", other.stderr)
 
 
 class HttpTourTest(unittest.TestCase):
@@ -363,6 +372,118 @@ class SdkHttpTest(unittest.TestCase):
                 and "method" in r["json"]]
         self.assertIn("initialize", sent)
         self.assertIn("notifications/initialized", sent)
+
+
+def record_http(name: str, mode: str) -> Path:
+    """`record.sh --http --client <mode>`; the run folder, after asserting the client's exit 0."""
+    done = subprocess.run(["scripts/record.sh", "--http", "--client", mode, name], cwd=ROOT,
+                          capture_output=True, text=True, timeout=TIMEOUT)
+    assert done.returncode == 0, done.stderr
+    return run_dir(done.stdout)
+
+
+def checked(recording: Path, revision: str) -> None:
+    done = subprocess.run(
+        [sys.executable, "-m", "tap.check", str(recording / "trace.jsonl"), "--revision", revision],
+        cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT)
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def sent_frames(trace: list[Record]) -> list[Record]:
+    return [r["json"] for r in trace if r["dir"] == "c2s" and r["json"]]
+
+
+class HttpModesTest(unittest.TestCase):
+    """C22 (part B2, D10): the phase 2 and 3 tours over HTTP, through the tap."""
+
+    def test_tour_over_http(self) -> None:
+        recording = record_http("test-http-tour-2025", "tour")
+        trace = records(recording)
+        self.assertEqual([m["method"] for m in sent_frames(trace)], TOUR_METHODS)
+        checked(recording, "2025-11-25")
+        requests = [r["http"] for r in tap_events(trace, "http-request")]
+        self.assertEqual(requests[-1]["method"], "DELETE")
+
+    def test_server_tour_over_http(self) -> None:
+        recording = record_http("test-http-server-tour", "server-tour")
+        trace = records(recording)
+        from_server = [r["json"] for r in trace if r["dir"] == "s2c" and r["json"]]
+        asked = [m for m in from_server if "method" in m and "id" in m]
+        self.assertEqual({m["method"] for m in asked}, SERVER_REQUESTS)
+        notes = {m["method"] for m in from_server if "method" in m and "id" not in m}
+        self.assertTrue(SERVER_NOTES <= notes, SERVER_NOTES - notes)
+        sent = sent_frames(trace)
+        answers = [m for m in sent if "method" not in m]
+        self.assertEqual(sorted(a["id"] for a in answers), sorted(m["id"] for m in asked))
+        self.assertIn("notifications/roots/list_changed", {m.get("method") for m in sent})
+        called = {m["params"]["name"] for m in sent if m.get("method") == "tools/call"}
+        for tool in ("get-roots-list", "trigger-sampling-request", "trigger-elicitation-request",
+                     "trigger-multi-step-elicitation", "trigger-url-elicitation",
+                     "trigger-log-messages", "trigger-list-changed", "trigger-resource-update"):
+            self.assertIn(tool, called)
+        checked(recording, "2025-11-25")
+
+
+class Era2026HttpTest(unittest.TestCase):
+    """C26 (part D, D11): phase 6's 2026-07-28 tour over HTTP, through the tap."""
+
+    def test_2026_tour_over_http_checks(self) -> None:
+        recording = record_http("test-http-tour-2026", "tour-2026")
+        trace = records(recording)
+        sent = sent_frames(trace)
+        # the two `notifications/cancelled` of the stdio tour are closed streams here (D11)
+        expected = [m for m in MODERN_TOUR_METHODS if m != "notifications/cancelled"]
+        self.assertEqual([m["method"] for m in sent], expected)
+        self.assertEqual([m["params"]["name"] for m in sent if m["method"] == "tools/call"],
+                         MODERN_TOUR_TOOLS)
+        requests = [r["http"] for r in tap_events(trace, "http-request")]
+        self.assertEqual({h["method"] for h in requests}, {"POST"}, "no GET and no DELETE")
+        for http in requests:
+            headers = http["headers"]
+            self.assertEqual(headers["mcp-protocol-version"], "2026-07-28")
+            self.assertNotIn("mcp-session-id", headers)
+        named = [h["headers"].get("mcp-name") for h in requests
+                 if h["headers"]["mcp-method"] in ("tools/call", "resources/read", "prompts/get")]
+        self.assertTrue(all(named), named)
+        cancelled = [h for h in tap_events(trace, "http-end") if h["http"]["by"] == "client"]
+        self.assertGreaterEqual(len(cancelled), 2, "the cancelled call and the subscription")
+        checked(recording, "2026-07-28")
+
+
+class SdkEra2026HttpTest(unittest.TestCase):
+    """Part D with the SDK client (D11, D12): its 2026-07-28 tour over its HTTP transport."""
+
+    def test_sdk_tour_2026_over_http_checks(self) -> None:
+        recording = record_http("test-sdk-http-2026", "sdk-tour-2026")
+        trace = records(recording)
+        requests = [r["http"] for r in tap_events(trace, "http-request")]
+        self.assertEqual({h["method"] for h in requests}, {"POST"}, "no GET and no DELETE")
+        for http in requests:
+            self.assertEqual(http["headers"]["mcp-protocol-version"], "2026-07-28")
+        # The SDK 2.3.1 posts `notifications/cancelled` when it closes its subscription, with no
+        # `Mcp-Method` header, though the 2026-07-28 transport sends no notifications (measured;
+        # sdk-client/dist/index.mjs, listed in the walkthrough's accepted differences).
+        bare = [h for h in requests if "mcp-method" not in h["headers"]]
+        self.assertEqual(len(bare), 1, bare)
+        self.assertEqual(sent_frames(trace)[0]["method"], "server/discover")
+        self.assertEqual(sent_frames(trace)[-1]["method"], "notifications/cancelled")
+        checked(recording, "2026-07-28")
+
+
+class RecordHttpRefusalsTest(unittest.TestCase):
+    """The modes `record.sh --http` refuses, and why (usage errors: nothing is started)."""
+
+    def refused(self, mode: str) -> str:
+        done = subprocess.run(["scripts/record.sh", "--http", "--client", mode, "test-refused"],
+                              cwd=ROOT, capture_output=True, text=True, timeout=30)
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        return done.stderr
+
+    def test_sdk_server_tour_is_refused_with_the_measured_reason(self) -> None:
+        self.assertIn("burst is dropped", self.refused("sdk-server-tour"))
+
+    def test_tasks_stays_on_stdio(self) -> None:
+        self.assertIn("only on stdio", self.refused("tasks-2026"))
 
 
 if __name__ == "__main__":

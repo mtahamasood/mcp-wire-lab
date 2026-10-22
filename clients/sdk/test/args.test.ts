@@ -57,6 +57,13 @@ test("--url replaces the server command (phase 7 D12)", () => {
   });
 });
 
+test("--url runs the 2026-07-28 tour too (phase 7 D11)", () => {
+  assert.deepEqual(parseArgs(["tour", "--era", "2026-07-28", "--url", "http://h/mcp"]), {
+    kind: "run", mode: "tour", caps: undefined, era: "2026-07-28", command: [], url: "http://h/mcp",
+  });
+  assert.equal(parseArgs(["server-tour", "--era", "2026-07-28", "--url", "http://h/mcp"]).kind, "usage");
+});
+
 test("--url needs one URL and cannot be combined with a command", () => {
   for (const argv of [["tour", "--url"], ["tour", "--url", "--caps"], ["tour", "--url", "u", "x"],
     ["tour", "--url", "u", "--", "x"]]) {

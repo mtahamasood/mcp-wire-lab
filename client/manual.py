@@ -24,6 +24,7 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import Any, TextIO
 
 from client.handlers import CANNED_TEXT, Handlers, capability_object
+from client.http_wire import HttpSession
 from client.modern import ModernSession
 from client.session import Session
 from client.wire import Key, Message, classify, key_of, stderr_report
@@ -114,7 +115,7 @@ class Manual:
 def run_manual(command: list[str], lines: Iterable[str], out: TextIO,
                settle: float = SETTLE_SECONDS,
                report: Callable[[str], None] = stderr_report,
-               caps: Sequence[str] = (), era: str = "2025-11-25") -> int:
+               caps: Sequence[str] = (), era: str = "2025-11-25", url: str | None = None) -> int:
     holder: list[Manual] = []
 
     def observe(arrow: str, message: Any) -> None:
@@ -131,9 +132,15 @@ def run_manual(command: list[str], lines: Iterable[str], out: TextIO,
         callbacks = {"on_request": handlers.handle_request,
                      "on_notification": handlers.handle_notification}
     session: Session
-    if era == "2026-07-28":  # `:req` params then go through the envelope (phase 6 D8)
+    if era == "2026-07-28" and url is not None:  # phase 7 D11
+        from client.modern_http import ModernHttpSession
+        session = ModernHttpSession.open_http(
+            url, capabilities=capability_object(caps), observer=observe, report=report)
+    elif era == "2026-07-28":  # `:req` params then go through the envelope (phase 6 D8)
         session = ModernSession.open_modern(
             command, capabilities=capability_object(caps), observer=observe, report=report)
+    elif url is not None:  # phase 7 D10: every typed line is one POST, exactly as typed
+        session = HttpSession.connect(url, observer=observe, report=report, **callbacks)
     else:
         session = Session.open(command, observer=observe, report=report, **callbacks)
     if handlers is not None:
