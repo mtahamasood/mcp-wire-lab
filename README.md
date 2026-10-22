@@ -96,7 +96,7 @@ prints the same text on stderr and exits non-zero.
 | --- | --- |
 | `scripts/bootstrap.sh` | Checks Node and the two pinned submodules, builds the reference server. Run once. |
 | `scripts/record.sh <fixture> [name]` | Plays a scripted conversation from `tests/fixtures/` through the tap against the real server; prints the trace path. |
-| `scripts/record.sh --client <tour\|manual\|server-tour> [name]` | The same, with the raw Python client as the conversation. `manual` reads your typed lines on stdin; in a terminal, end it with `:quit` or Ctrl-D. |
+| `scripts/record.sh --client <tour\|manual\|server-tour> [name]` | The same, with the raw Python client as the conversation. `manual` reads your typed lines on stdin; in a terminal, end it with `:quit` or Ctrl-D. `tour-2026`, `tasks-2026` and `manual-2026` run the 2026-07-28 era (lesson 06). |
 | `python3 -m tap.show <trace> [--full\|--mermaid\|--explain <file>]` | Reads a trace: one line per frame, with replies paired to their requests and latencies. |
 | `python3 -m tap.check <trace> --revision 2025-11-25` | Validates every frame against the spec's JSON Schema. |
 | `python3 -m tap --trace <file> [--delay\|--drop ...] -- <server command>` | The tap itself, for when you want to put it in front of your own command. `--drop` and `--delay` inject faults (lesson 04). |
@@ -147,6 +147,11 @@ Do them in order.
 4. [The edge lab](docs/lessons/04-edge-lab.md): malformed and out-of-order messages, what the
    server answers against what the spec says, and losing a message at the tap.
    Walkthrough: [the edge experiments](docs/walkthrough/04-edge-lab.md).
+
+6. [The same client, a new era](docs/lessons/06-era-2026.md): the raw client speaks the
+   2026-07-28 revision (`--era 2026-07-28`): discovery, the `_meta` envelope, input requests in
+   results, `subscriptions/listen` and tasks; you check it and diff it against the 2025 tour.
+   Walkthrough: [the 2026 era, frame by frame](docs/walkthrough/06-era-2026.md).
 
 More lessons arrive with later phases; [`specs/roadmap.md`](specs/roadmap.md) lists what each
 phase adds.

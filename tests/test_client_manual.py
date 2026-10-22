@@ -28,6 +28,16 @@ def run(lines: list[str]) -> tuple[list[str], list[str], bool]:
                 Path(str(log) + ".eof").exists())
 
 
+def run_modern(lines: list[str], caps: tuple[str, ...] = ()) -> tuple[list[str], list[str]]:
+    """Manual mode in the 2026 era on the modern fake server: what it received, what was printed."""
+    out = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        log = Path(tmp) / "received.log"
+        manual.run_manual([sys.executable, MODERN_FAKE, str(log)], lines, out, settle=3.0,
+                          report=lambda _text: None, caps=caps, era="2026-07-28")
+        return log.read_text().splitlines(), out.getvalue().splitlines()
+
+
 class ManualTest(unittest.TestCase):
     def test_typed_line_sent_verbatim(self) -> None:
         typed = '{"id":7,  "method":"echo","params":{"a":1} }'  # no jsonrpc, odd spacing
@@ -65,18 +75,6 @@ class ManualTest(unittest.TestCase):
         self.assertTrue(
             any(ln.startswith("manual: the params are not valid JSON") for ln in printed))
 
-
-def run_modern(lines: list[str], caps: tuple[str, ...] = ()) -> tuple[list[str], list[str]]:
-    """Manual mode in the 2026 era on the modern fake server: what it received, what was printed."""
-    out = io.StringIO()
-    with tempfile.TemporaryDirectory() as tmp:
-        log = Path(tmp) / "received.log"
-        manual.run_manual([sys.executable, MODERN_FAKE, str(log)], lines, out, settle=3.0,
-                          report=lambda _text: None, caps=caps, era="2026-07-28")
-        return log.read_text().splitlines(), out.getvalue().splitlines()
-
-
-class ModernManualTest(unittest.TestCase):
     def test_typed_line_in_2026_era_sent_verbatim(self) -> None:
         typed = '{"id":7,  "method":"echo","params":{"a":1} }'  # no jsonrpc, no envelope
         received, printed = run_modern([typed])
