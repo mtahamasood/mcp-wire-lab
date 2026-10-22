@@ -96,7 +96,7 @@ prints the same text on stderr and exits non-zero.
 | --- | --- |
 | `scripts/bootstrap.sh` | Checks Node and the two pinned submodules, builds the reference server, installs the SDK client's packages. Run once. |
 | `scripts/record.sh <fixture> [name]` | Plays a scripted conversation from `tests/fixtures/` through the tap against the real server; prints the trace path. |
-| `scripts/record.sh --client <tour\|manual\|server-tour\|sdk-tour\|sdk-server-tour> [name]` | The same, with a client as the conversation: the raw Python client, or (`sdk-…`) the TypeScript SDK client. `manual` reads your typed lines on stdin; in a terminal, end it with `:quit` or Ctrl-D. |
+| `scripts/record.sh --client <tour\|manual\|server-tour\|sdk-tour\|sdk-server-tour> [name]` | The same, with a client as the conversation: the raw Python client, or (`sdk-…`) the TypeScript SDK client. `manual` reads your typed lines on stdin; in a terminal, end it with `:quit` or Ctrl-D. `tour-2026`, `tasks-2026` and `manual-2026` run the raw client in the 2026-07-28 era (lesson 06). |
 | `scripts/record.sh --http --client http-tour [name]` | The HTTP tour (lesson 07): the tap runs the server on a private Unix socket and proxies a free `127.0.0.1` port to it. |
 | `python3 -m tap --trace <file> --http <port> -- <server command>` | The tap in HTTP mode: a recording reverse proxy for Streamable HTTP servers that take their address from `PORT`. |
 | `python3 -m client.http_tour --url <url> [--no-stream]` | The raw client's HTTP tour against a running Streamable HTTP server. |
@@ -158,6 +158,10 @@ Do them in order.
    TypeScript SDK, a message-by-message diff of the two traces, and one request followed through
    the SDK's source.
    Walkthrough: [the SDK client](docs/walkthrough/05-sdk-client.md).
+6. [The same client, a new era](docs/lessons/06-era-2026.md): the raw client speaks the
+   2026-07-28 revision (`--era 2026-07-28`): discovery, the `_meta` envelope, input requests in
+   results, `subscriptions/listen` and tasks; you check it and diff it against the 2025 tour.
+   Walkthrough: [the 2026 era, frame by frame](docs/walkthrough/06-era-2026.md).
 7. [The same messages over HTTP](docs/lessons/07-streamable-http.md): the raw client's HTTP tour
    recorded through the tap's HTTP mode, read as exchanges: POSTs, event streams, the session id,
    the GET stream, `202`s and a cancellation by closing the connection.

@@ -76,8 +76,9 @@ names a check that does not exist, or if run output is tracked.
 - The pinned server's departures from the 2026-07-28 spec (progress after cancellation, a
   later request claiming another version served on a pinned connection, no listen response at
   shutdown) are recorded and explained, not worked around.
-- Coverage (L8), measured at close: *to be filled* (2026-07-28 methods declared by lesson 06,
-  of 21; unexercised methods per revision in the regenerated atlas).
+- Coverage (L8), measured at close (Part A, 2026-10-22): lesson 06 declares 21 of the 21
+  methods of 2026-07-28, each found in a fresh `tour-2026` trace; the regenerated atlas marks
+  0 of 21 methods of 2026-07-28 and 6 of 31 methods of 2025-11-25 `unexercised`.
 - Mutation run (LP4): *to be filled* at close.
 
 ### Owner learning check (LP6)

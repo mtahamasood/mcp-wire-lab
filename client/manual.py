@@ -23,7 +23,8 @@ import time
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any, TextIO
 
-from client.handlers import CANNED_TEXT, Handlers
+from client.handlers import CANNED_TEXT, Handlers, capability_object
+from client.modern import ModernSession
 from client.session import Session
 from client.wire import Key, Message, classify, key_of, stderr_report
 
@@ -96,7 +97,10 @@ class Manual:
         return True
 
     def run(self, lines: Iterable[str]) -> int:
-        self.session.initialize(self.capabilities)
+        if isinstance(self.session, ModernSession):
+            self.session.discover()  # 2026-07-28: discovery, not initialize (phase 6 D8)
+        else:
+            self.session.initialize(self.capabilities)
         for line in lines:
             if not self.handle(line):
                 break
@@ -110,7 +114,7 @@ class Manual:
 def run_manual(command: list[str], lines: Iterable[str], out: TextIO,
                settle: float = SETTLE_SECONDS,
                report: Callable[[str], None] = stderr_report,
-               caps: Sequence[str] = ()) -> int:
+               caps: Sequence[str] = (), era: str = "2025-11-25") -> int:
     holder: list[Manual] = []
 
     def observe(arrow: str, message: Any) -> None:
@@ -126,7 +130,12 @@ def run_manual(command: list[str], lines: Iterable[str], out: TextIO,
     if handlers is not None:
         callbacks = {"on_request": handlers.handle_request,
                      "on_notification": handlers.handle_notification}
-    session = Session.open(command, observer=observe, report=report, **callbacks)
+    session: Session
+    if era == "2026-07-28":  # `:req` params then go through the envelope (phase 6 D8)
+        session = ModernSession.open_modern(
+            command, capabilities=capability_object(caps), observer=observe, report=report)
+    else:
+        session = Session.open(command, observer=observe, report=report, **callbacks)
     if handlers is not None:
         handlers.attach(session.wire)
     manual = Manual(session, out, settle, None if handlers is None else handlers.capabilities)
