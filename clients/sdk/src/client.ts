@@ -18,6 +18,8 @@ export type Lab = {
   client: Client;
   traffic: Traffic;
   roots: Root[];
+  /** Every error the SDK reported through onerror, in order. */
+  errors: string[];
   /** Make the transport for a server command (the SDK starts the process). */
   transport(command: readonly string[]): StdioClientTransport;
 };
@@ -41,7 +43,11 @@ export function buildLab(
       resources: { onChanged: (error, items) => listed("resources", error, items?.map((r) => r.uri)) },
     },
   });
-  client.onerror = (error) => report(`sdk: ${error.message}`);
+  const errors: string[] = [];
+  client.onerror = (error) => {
+    errors.push(error.message);
+    report(`sdk: ${error.message}`);
+  };
 
   // The SDK re-lists after its 300 ms debounce and hands the new list to onChanged.
   function listed(kind: string, error: Error | null, names: string[] | undefined): void {
@@ -96,6 +102,7 @@ export function buildLab(
     client,
     traffic,
     roots,
+    errors,
     transport: (command) => new StdioClientTransport({ command: command[0] as string, args: command.slice(1) }),
   };
 }
