@@ -4,7 +4,7 @@
 register row 2026-10-22, phases 5–7 un-stubbed; approved as one batch with phases 5 and 7
 before any test or code). Phases 1–4 decisions stand unless amended here. Phase 5's SDK client
 is assumed as listed in *What this phase needs from phase 5*. The spec is in two parts: **Part
-A, the raw client** (D1–D10), and **Part B, the SDK client** (D11–D13). Part B can be dropped
+A, the raw client** (D1–D10 and D14), and **Part B, the SDK client** (D11–D13). Part B can be dropped
 (a register row and one *Accepted limits* line) without changing anything in Part A.
 
 ## Learning objective
@@ -67,7 +67,24 @@ written without this recon; where it disagrees, this section wins.
   `tasks/get` reports status, `tasks/cancel` → `cancelled`. `trigger-sampling-request-async`
   returns a handle in `input_required` with `inputRequests`; `tasks/update` with
   `inputResponses`, then `tasks/get` → `completed` with the result. `tasks/list` → `-32601`.
-  The pinned spec has **no schema** for the extension (only `docs/extensions/tasks/overview.mdx`).
+  The pinned `schema.json` has **no definition** for the extension. What the pin does carry is
+  SEP-2663 (`vendor/spec/seps/2663-tasks-extension.md`, status Final) with the extension's
+  TypeScript types (`Task` at line 137, the five status variants 196–252, `CreateTaskResult`
+  262, `GetTaskRequest` 317, `GetTaskResult` 337, `UpdateTaskRequest` 357, `CancelTaskRequest`
+  392, `TaskStatusNotification` 421), the guide `docs/extensions/tasks/overview.mdx` and one
+  example, `schema/2026-07-28/examples/ServerCapabilities/extensions-tasks.json`.
+- **Tasks against SEP-2663 (measured 2026-10-22, second pass).** A throwaway transcription of
+  those types into JSON Schema with P8's keywords only, run with `tap.check`'s own validator on
+  a fresh tasks trace (22 frames: discover; `-32021`; the `trigger-sampling-request-async` and
+  `simulate-research-query` handles; five `tasks/get`; `tasks/update`; `tasks/cancel`; a
+  `tasks/get` for an unknown id → `-32602`), files outside the repository: **every frame
+  conforms**. Both handles are `CreateTaskResult` (`resultType: "task"`, plus a `content: []` the
+  SEP's open shape allows; the async one already `input_required` with `inputRequests`); every
+  `tasks/get` result has `resultType: "complete"` and its status's fields (`inputRequests`,
+  then `result` once `completed`; `cancelled` after `tasks/cancel`); `tasks/update` and
+  `tasks/cancel` are acknowledged with `resultType: "complete"`. The server sends no
+  `notifications/tasks` (none was asked for). The same transcription rejects a `completed` task
+  without `result`, a `tasks/get` result typed `task`, and an unknown status.
 - **Schema check.** `tap.check --revision 2026-07-28` loads the 2026 schema with no
   unimplemented keyword and all three envelope definitions. On a trace of all of the above,
   it fails 13 of 60 frames: the 3 `input_required` results (checked against `CallToolResult`,
@@ -93,8 +110,9 @@ written without this recon; where it disagrees, this section wins.
 
 In, Part A (raw client): the era option and the 2026 session (D1–D4), subscriptions (D5), the
 2026 tour (D6), a reduced tasks run (D7), manual mode in the new era (D8), recording (D9), the
-schema check for the new era (D10's first half), walkthrough 06 with the era diff, lesson 06
-and the atlas declaration (D10). In, Part B (SDK client): the SDK client's 2026 mode (D11), its
+schema check for the new era (D10's first half) with an authored schema of the tasks extension
+transcribed from SEP-2663 (D14), walkthrough 06 with the era diff, lesson 06 and the atlas
+declaration (D10). In, Part B (SDK client): the SDK client's 2026 mode (D11), its
 recording (D12), the raw-vs-SDK diff of the 2026 tour (D13).
 
 Out, each with its reason:
@@ -107,8 +125,14 @@ Out, each with its reason:
   every trace. The tasks run (D7) completes one task by `tasks/update` and cancels the other.
   Reduced.
 - **Tasks in the SDK client**: SDK 2.3.1 rejects task results (recon). Cut, measured.
-- **A schema for the tasks extension**: none is pinned; `tap.check` keeps reporting its frames
-  as `unknown method` (D7, D10). Hand-writing one would present unpinned text as normative.
+- **The parts of SEP-2663 a transcription cannot check** (D14): its prose rules (ISO 8601
+  timestamps, integer milliseconds, `inputRequests` keys unique over a task's life,
+  cooperative cancellation), the `taskIds` field it adds to the core `subscriptions/listen`
+  filter (the extension file never amends a core definition), and whether a task was sent to a
+  client that declared the extension (a capability rule, not a shape). Cut: P8 has no keyword
+  for the first, and the other two are not schema checks. The earlier cut of any hand-written
+  tasks schema is withdrawn by D14: the text is pinned (SEP-2663 at the pinned commit), only
+  its transcription is authored, and every report says so.
 - **URL elicitation over MRTR, `ping`, `logging/setLevel`, `resources/subscribe` in a
   recorded tour**: the removed methods have no 2026 schema definition, so a tour sending them
   could not pass `tap.check`; they are shown in lesson 06's experiments through manual mode,
@@ -242,9 +266,10 @@ coverage).
 `input_required`), `tasks/update` with the canned sampling answer for its `inputRequests`, and
 `tasks/get` (expects `completed` with a result); `tools/call` `simulate-research-query`
 (expects `working`), `tasks/get` (expects `working`), `tasks/cancel`, `tasks/get` (expects
-`cancelled`); shutdown. It never polls in a loop (scope). Its trace does not pass `tap.check`:
-the extension's methods have no schema in the pinned spec, and the check says so as `unknown
-method`; the walkthrough explains this, and the e2e check accepts exactly those failures.
+`cancelled`); shutdown. It never polls in a loop (scope). Its trace passes `tap.check
+--revision 2026-07-28`, the extension's frames checked against the SEP-2663 schema of D14 and
+labelled so; with `--no-extensions` it fails exactly on the `tasks/*` frames (`unknown method`:
+the pinned schema has none). The walkthrough explains both.
 
 *Source:* roadmap.md phase 6 row (tasks); register row 2026-10-22 (phases 5–7 un-stubbed);
 the reduction is this spec's scope cut, approved with the batch.
@@ -280,8 +305,8 @@ added rule in the definition choice (phase 2 D6): when the revision's schema def
 `InputRequiredResult`, a response whose `result.resultType` is `"input_required"` is checked
 against `InputRequiredResult` instead of the method's result definition (measured: without it,
 every MRTR interim result fails `CallToolResult`). The 2025-11-25 schema has no such
-definition, so 2025 checks are unchanged. Nothing else changes: an extension method stays
-`unknown method`. The tour's fresh trace (D6) must pass with no failure.
+definition, so 2025 checks are unchanged. The only other change is D14's extension schema for
+the tasks frames. The tour's fresh trace (D6) must pass with no failure.
 
 **Walkthrough.** `docs/walkthrough/06-era-2026.md` has the section `## tour` (one note per
 frame of a fresh `tour-2026` trace), `## tasks` (one per frame of a fresh `tasks-2026` trace)
@@ -312,7 +337,8 @@ message (G8). It contains:
 `tour-2026` and `tasks-2026`, checks the 2026 tour with `tap.check --revision 2026-07-28` and
 runs `tap.diff … --explain docs/walkthrough/06-era-2026.md#era-diff` in runnable blocks, and
 declares `<!-- exercises: … -->` the 21 methods of the 2026-07-28 schema. `README.md` lists it.
-Its experiments include manual mode (D8) with a removed method and `--caps none` on the tour.
+Its experiments include manual mode (D8) with a removed method, `--caps none` on the tour, and
+the tasks trace checked with and without `--no-extensions` (D14).
 
 **Atlas (L8, already built: phase 3 D6, G10).** Phase 6 changes no generator code; the
 regenerated `docs/atlas.md` gains lesson 06 in its rows. Phase 3 D6's check that a lesson's
@@ -328,6 +354,101 @@ methods of the same names. Coverage is measured at close and recorded in the Res
 L3, L5, L7, L8, L12, L13); per-phase walkthrough P3; roadmap.md phase 6 row (era diff, atlas
 coverage). The amendment of phase 3 D6's trace check is to be named in the register row
 that approves this batch (proposed alongside register row 2026-10-22).
+
+### D14 — The tasks extension schema, transcribed from SEP-2663
+
+**Why.** The pinned `schema/2026-07-28/schema.json` defines no tasks message; the extension's
+types exist at the pin only as TypeScript in SEP-2663 (recon). Without a schema, `tap.check`
+reports every `tasks/*` frame as `unknown method` and checks nothing in it. This record keeps
+that limit visible and adds what is possible: a small JSON Schema transcribed by hand from the
+SEP at the pinned commit, used only for the extension's frames, and named as a transcription
+wherever it is used.
+
+**The file.** `tap/schemas/2026-07-28/sep-2663-tasks.json`, authored content of this repository
+(the spec submodule is never modified, P7). Top level: `$schema`, a `description` saying it is
+transcribed from SEP-2663 at the pinned spec commit and is not part of the pinned
+`schema.json`, and `$defs` with exactly these definitions, each transcribed from the SEP line
+given, and each with a `description` that opens with the G8 citation of that line
+(`` `spec:seps/2663-tasks-extension.md:<line>` "<fragment>" ``):
+
+| Definition | SEP line | Transcription |
+| --- | --- | --- |
+| `Task` | 137 | object: `taskId` string; `status` enum of the five statuses; `statusMessage`, `createdAt`, `lastUpdatedAt` strings; `ttlMs` number or null; `pollIntervalMs` number; required: every field the SEP does not mark optional |
+| `WorkingTask`, `InputRequiredTask`, `CompletedTask`, `FailedTask`, `CancelledTask` | 196, 204, 217, 231, 243 | `allOf` `Task`, `status` const; `inputRequests` (core `InputRequests`), `result` and `error` (objects) required in the variant that has them |
+| `DetailedTask` | 252 | `anyOf` the five variants |
+| `CreateTaskResult` | 262, 128 | `allOf` core `Result` and `Task`; `resultType` const `"task"` |
+| `GetTaskRequest` | 317 | `method` const `tasks/get`; params `taskId` |
+| `GetTaskResult` | 337, 340 | `allOf` core `Result` and `DetailedTask`; `resultType` const `"complete"` |
+| `UpdateTaskRequest` | 357 | `method` const `tasks/update`; params `taskId`, `inputResponses` (core `InputResponses`) |
+| `UpdateTaskResult` | 376, 383 | `allOf` core `Result`; `resultType` const `"complete"` |
+| `CancelTaskRequest` | 392 | `method` const `tasks/cancel`; params `taskId` |
+| `CancelTaskResult` | 403, 412 | as `UpdateTaskResult` |
+| `TaskStatusNotification` | 421, 419 | `method` const `notifications/tasks`; params `allOf` core `NotificationParams` and `Task` |
+
+Transcription rules, so that the file follows from the SEP and not from the server:
+
+- Shapes come from the TypeScript declarations. A MUST sentence that fixes a field's value on a
+  result is checked as `const` (`resultType` at lines 128, 340, 383, 412); other prose is not
+  checked (scope).
+- The core types the SEP names (`Result`, the request `id` as `RequestId`, `InputRequests`,
+  `InputResponses`, `NotificationParams`) are `$ref`s into the pinned schema's `$defs`, never
+  copied. Request params also take `allOf` core `RequestParams`: the SEP's requests extend
+  `JSONRPCRequest`, and the core requires the `_meta` envelope on every request
+  (`spec:docs/specification/2026-07-28/basic/index.mdx:368` "fields marked as required").
+- Objects stay open (no `additionalProperties: false`), as the TypeScript interfaces and the
+  generated pinned schema are; `JSONObject` is `{"type": "object"}`.
+- Keywords: only those `tap.check` implements (P8: `type`, `$ref`, `properties`, `required`,
+  `const`, `enum`, `allOf`, `anyOf`, and the annotations `$schema`, `$defs`, `description`). The
+  validator is not changed; it still stops on any other keyword.
+
+**How `tap.check` uses it.** For `--revision 2026-07-28` only (the file is named for that
+revision in `tap/check.py`; 2025-11-25, whose `tasks/*` are core methods with their own
+definitions, never loads it), and always for that revision, not only when the trace's
+`server/discover` advertises the extension. Reasons: the check is per frame and offline; the
+extension's method names have no core definition, so applying it never changes how a core frame
+is checked; a trace need not hold a discover (manual mode, or an era pinned by an opening
+`tools/call`), and gating on it would send task frames back to `unknown method` exactly when
+the learner needs the check; and whether a task should have been sent to that client is a
+capability rule (SEP line 87), not a shape. Loading merges the file's `$defs` into the pinned
+schema's, and stops with exit 2, as for an unimplemented keyword, if a definition name or a
+`method` const is in both (the extension never shadows the pinned schema) or if one of its
+`$ref`s does not resolve. Definition choice (amends phase 2 D6, beside D10's `input_required`
+rule):
+
+- `tasks/get`, `tasks/update`, `tasks/cancel` and `notifications/tasks` resolve through the
+  merged `method` index like core methods, and their results by the existing naming rule
+  (`GetTaskRequest` → `GetTaskResult`);
+- a response whose `result.resultType` is `"task"` is checked against `CreateTaskResult` when it
+  answers `tools/call`, the only method the SEP lets a task augment (line 115); on any other
+  method it fails as `resultType "task" on <method>` (line 87: an invalid response);
+- `--no-extensions` checks against the pinned schema alone: the extension's frames are `unknown
+  method` again and a task handle is checked against `CallToolResult`, as before this record.
+
+**Labels.** A frame checked against an extension definition names it `SEP-2663:<Name>` in its
+failure line (for example `seq 9  $.result.status  SEP-2663:GetTaskResult  …`). When at least
+one frame was checked that way, the check prints on stdout, before its summary, `check: <k> of
+<n> frames checked against the SEP-2663 extension schema
+(tap/schemas/2026-07-28/sep-2663-tasks.json), not the pinned schema.json`. A trace with no such
+frame prints exactly what it printed before (the tour's output does not change).
+
+**When the server disagrees with the SEP.** A disagreement is a finding like any other: exit 1,
+the line labelled `SEP-2663:`, never allow-listed or filtered. The builder first rechecks the
+definition against its cited SEP line (a transcription error is the likelier cause, and is
+fixed in the file); a confirmed departure is recorded in walkthrough 06 `## tasks` with its SEP
+line, as D10 records the server's other departures, and C11's test then expects exactly it.
+At the pin there is none (recon, second pass).
+
+**Lesson.** Lesson 06 keeps its teaching point that the pinned schema has no tasks: walkthrough
+06 `## shared` and the lesson's *Read the trace* say that the `tasks/*` frames are checked
+against a transcription of SEP-2663, not the normative `schema.json`, and why; its experiments
+run `tap.check` on the `tasks-2026` trace with and without `--no-extensions` and read the
+difference.
+
+*Source:* register row 2026-10-22 (owner decision: keep tasks, documented as a limit of the
+pinned schema, and add what else is possible); SEP-2663 at the pin,
+`seps/2663-tasks-extension.md` lines 137, 196–252, 262, 317, 337, 357, 376, 392, 403, 419–421
+(types) and 87, 115, 128, 340, 383, 412 (rules); roadmap.md L7 (schema check); mission.md P7,
+P8.
 
 ## Part B — the SDK client
 
@@ -437,17 +558,23 @@ Part A first; each step test-first (LP2).
 7. Walkthrough `#tour`, era diff, source tour, lesson 06 with its `exercises` line, README, the
    atlas-check amendment and regenerated atlas; `scripts/gate.sh` adds `06` to G12's
    `--phases` once the rows' tests exist (phase 2 D7).
-8. The tasks run, `record.sh --client tasks-2026`, walkthrough `#tasks`. Droppable last: if
-   cut, a register row and one *Accepted limits* line.
-9. Part B (after phase 5 is merged, register row 2026-10-22): `--era` parsing with a
-   `node:test` test, the transport subclass and the 2026 tour (D11), `record.sh --client
-   sdk-tour-2026` (D12), the diff notes (D13).
-10. Close: Result (coverage values, mutation run), CHANGELOG, tag `lesson-06`. No review round
-    (LP4): the only change to earlier claim code is D10's rule in `tap/check.py`, inert for
-    2025-11-25 and covered by its own tests and the unchanged phase 2 tests.
+8. The extension schema (D14): the tests with synthetic frames first, then
+   `tap/schemas/2026-07-28/sep-2663-tasks.json` (each definition checked against its cited SEP
+   line while written), the loader and its exit-2 guards, the `resultType: "task"` rule, the
+   labels and `--no-extensions`. It needs no tasks run, so it stays if step 9 is cut.
+9. The tasks run, `record.sh --client tasks-2026`, walkthrough `#tasks`; its trace passes
+   `tap.check` through step 8. Droppable last: if cut, a register row and one *Accepted
+   limits* line.
+10. Part B (after phase 5 is merged, register row 2026-10-22): `--era` parsing with a
+    `node:test` test, the transport subclass and the 2026 tour (D11), `record.sh --client
+    sdk-tour-2026` (D12), the diff notes (D13).
+11. Close: Result (coverage values, mutation run), CHANGELOG, tag `lesson-06`. No review round
+    (LP4): the only changes to earlier claim code are D10's rule and D14's loader and rule in
+    `tap/check.py`, inert for 2025-11-25 and for traces without extension frames, and covered
+    by their own tests and the unchanged phase 2 tests.
 
-Builder: Sonnet, medium. Part A steps 1–7 are about half a session; steps 8 and 9 a quarter
-each.
+Builder: Sonnet, medium. Part A steps 1–7 are about half a session; step 8 an eighth; steps 9
+and 10 a quarter each.
 
 ## Stop condition
 
