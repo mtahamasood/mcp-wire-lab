@@ -168,7 +168,7 @@ temporary folder:
 ```console
 $ dir=$(mktemp -d)
 $ port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
-$ python3 -m tap --trace "$dir/trace.jsonl" --http "$port" -- node vendor/servers/src/everything/dist/index.js streamableHttp 2> "$dir/stderr.txt" &
+$ python3 -m tap --trace "$dir/trace.jsonl" --http "$port" -- node vendor/servers/src/everything/dist/index.js streamableHttp 2> "$dir/stderr.txt" > /dev/null &
 $ tap_pid=$!
 $ for _ in $(seq 1 200); do grep -q 'tap: listening' "$dir/stderr.txt" && break; sleep 0.1; done
 $ python3 -m client.http_tour --url "http://127.0.0.1:$port/mcp" --no-stream | grep 'roots/list'
@@ -297,7 +297,7 @@ one broken line into `manual --url` and prints the status the client reported on
 ```console
 $ dir=$(mktemp -d)
 $ port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
-$ python3 -m tap --trace "$dir/trace.jsonl" --http "$port" -- node vendor/servers/src/everything/dist/index.js streamableHttp 2> "$dir/stderr.txt" &
+$ python3 -m tap --trace "$dir/trace.jsonl" --http "$port" -- node vendor/servers/src/everything/dist/index.js streamableHttp 2> "$dir/stderr.txt" > /dev/null &
 $ tap_pid=$!
 $ for _ in $(seq 1 200); do grep -q 'tap: listening' "$dir/stderr.txt" && break; sleep 0.1; done
 $ printf '%s\n' '{"jsonrpc":"2.0","id":9,"method":"ping"' ':quit' | python3 -m client manual --url "http://127.0.0.1:$port/mcp" 2>&1 > /dev/null | grep -o 'POST failed: HTTP 400'
