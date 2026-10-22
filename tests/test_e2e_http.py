@@ -302,7 +302,6 @@ class HttpTourTest(unittest.TestCase):
         self.assertNotIn("(no frame)", done.stdout)
 
 
-class NoStreamTest(unittest.TestCase):
     def test_without_the_stream_roots_list_never_arrives(self) -> None:
         assert SERVER.is_file(), f"{SERVER} missing: run scripts/bootstrap.sh"
         port = free_port()
