@@ -10,7 +10,7 @@ dated register row in `mission.md`.
 | Node | 24.22.0 | P2 (ratified 2026-10-20) |
 | Python | 3.12 (stdlib only for runtime code) | Register 2026-10-20 (client language); P4 |
 | Raw client | Python, no MCP library | Register 2026-10-20 (two clients; client language) |
-| SDK client | TypeScript, `@modelcontextprotocol/client` 2.3.1 exact; test tool chosen in the phase 5 spec | Register 2026-10-20 (client language); P1 |
+| SDK client | TypeScript, `@modelcontextprotocol/client` 2.3.1 exact; dev: `typescript` 5.9.3 and `@types/node` 24.19.2 exact; run as source by Node 24, no build step; unit tests with Node's built-in `node:test` (phase 5 D1, D5) | Register 2026-10-20 (client language); P1; register 2026-10-22 (phase 5-7 specs approved) |
 | Wire tap | Python, stdlib only | P4, P5 |
 | Python lint | ruff 0.17.1, run via `uvx ruff@0.17.1` | P6 |
 | Python typecheck | mypy 2.4.0 `--strict`, run via `uvx mypy@2.4.0` | P6 |
@@ -29,12 +29,12 @@ phases 2–7*, RP1–RP7; register row 2026-10-21, review profile).
 | --- | --- | --- |
 | G1 | Provenance lint: every decision record in `specs/phases/*/requirements.md` (any `##`-`####` D heading) has a `*Source:*` paragraph whose dates are all register row dates and that resolves to an ask (an `A<n>` that exists), a register row (written as `register row` or `registered in mission.md`), or a constitution file (any mention of `mission.md`, `roadmap.md` or `tech-stack.md`); a D heading without a Source fails. Accepted limit (B9): G1 matches words, not meaning, so a Source that negates its reference still resolves | check |
 | G2 | Lint (ruff) | check |
-| G3 | Typecheck (mypy `--strict`; `tsc --strict` from phase 5) | check |
-| G4 | Unit tests | check |
+| G3 | Typecheck (mypy `--strict`; from phase 5, `tsc -p clients/sdk` with `strict`, no emit, phase 5 D5) | check |
+| G4 | Unit tests (Python `unittest`; from phase 5, `node --test` on `clients/sdk/test/*.test.ts`, phase 5 D5) | check |
 | G5 | End-to-end: the phase's flows against the real, pinned, built server | check |
 | G6 | Clean-clone walk: fresh `git clone --recurse-submodules` in a new directory, bootstrap, `scripts/gate.sh` | measurement, per phase |
 | G7 | `CHANGELOG.md` has an entry for the phase once a phase's Result has the line `Status: closed` (any value other than open or closed fails) | check (G1 script) |
-| G8 | Citations: every `` `<submodule>:<path>:<line>` "fragment" `` in `docs/`, `tap/`, and the clients resolves in the submodule as checked out (the path stays inside it) and a fragment of at least 6 characters is on that line (L2, L3, L13). The pin itself is checked by `scripts/bootstrap.sh`, not by G8 (accepted limit, R12) | check |
+| G8 | Citations: every `` `<submodule>:<path>:<line>` "fragment" `` in `docs/`, `tap/`, and the clients resolves in the submodule as checked out (the path stays inside it) and a fragment of at least 6 characters is on that line (L2, L3, L13). The pin itself is checked by `scripts/bootstrap.sh`, not by G8 (accepted limit, R12). From phase 5 a third root, `sdk`, resolves to `clients/sdk/node_modules/@modelcontextprotocol/` and is pinned by the lockfile's integrity hash, not a submodule; G8 also scans `clients/sdk/src/` and `clients/sdk/test/` (phase 5 D6) | check |
 | G9 | Lessons: every lesson has the L1 sections, as headings outside fenced blocks and in order (a fence opens on a line of three or more backticks or tildes and closes only on a line of the same character, at least as long; an unclosed fence runs to the end of the file); every block marked runnable exits 0 under `bash -eo pipefail -c` and its expected-output block appears in its output (L1, L4) | check |
 | G10 | Atlas: regenerating `docs/atlas.md` from the pinned schemas and the lessons' declared methods produces the committed file (L8; specified in phase 3 D6, built early) | check |
 | G11 | No run output in git: no tracked file under `runs/`; every tracked trace-shaped file (a text file, whatever its name or case, whose JSON lines carry `seq`, `dir` and `t_ns`, or `*.jsonl` whose records carry `seq` and `dir`) is under `tests/fixtures/` and opens with a `{"dir":"tap","event":"synthetic"}` record; no tracked text file (read from the index and, where it differs, from the working tree, whatever either entry's type; undecodable bytes replaced; a symlink, in the index or the working tree, read as its target path and never followed) contains an environment dump (a JSON object, or three or more `KEY=VALUE` lines, each optionally indented and prefixed by `export` or `declare -x`, with three or more of `PATH`, `HOME`, `USER`, `SHELL`, `PWD`), a home-directory path (regex `/(home/[A-Za-z0-9._-]+|Users/[A-Za-z0-9._-]+|root)` not followed by a name character `[A-Za-z0-9._-]`), or a secret (regexes `gh[opsu]_[A-Za-z0-9]{30,}`, `github_pat_[A-Za-z0-9_]{30,}`, `sk-[A-Za-z0-9_-]{20,}`, `AKIA[0-9A-Z]{16}`, `xox[abprs]-[A-Za-z0-9-]{10,}`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`). The patterns are written so this row does not match itself. Runs in `scripts/gate.sh`, in CI, and as a pre-push hook that `scripts/bootstrap.sh` installs in the repo's own hooks directory, which reads every file a pushed commit adds, modifies or changes the type of, and the files a merge commit adds against each parent. Accepted limits (B3): JSON with escaped slashes and a Windows-style home path are not recognized | check |
@@ -55,7 +55,8 @@ profile (register row 2026-10-21, review profile).
   synthetic trace fixtures in `tests/fixtures/`.
 - Citation form: `` `servers:src/everything/transports/stdio.ts:49` "serveStdio(" `` or
   `` `spec:docs/specification/2025-11-25/basic/lifecycle.mdx:57` "\"method\": \"initialize\"" ``.
-  The submodule name is `servers` or `spec`. The fragment is short, verbatim, and on the
+  The submodule name is `servers` or `spec`; from phase 5 the root may also be `sdk`, as in
+  `` `sdk:client/dist/index.mjs:<line>` "<fragment>" `` (phase 5 D6). The fragment is short, verbatim, and on the
   cited line. (Incident, 2026-10-20: the agent first wrote both examples from memory with
   the wrong line numbers, 47 and 12; measured against the pins, they are 49 and 57. This is
   the case G8 exists for.)
