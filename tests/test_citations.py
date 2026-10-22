@@ -125,6 +125,67 @@ class CitationsTest(unittest.TestCase):
             link.symlink_to(real)
             self.assertEqual(check_citations.check(link), (1, []))
 
+    # -- phase 5 D6: the `sdk` root (C12) ----------------------------------------------------
+
+    @staticmethod
+    def add_sdk(root: Path, installed: bool = True) -> None:
+        (root / "clients/sdk/src").mkdir(parents=True)
+        (root / "clients/sdk/test").mkdir()
+        if installed:
+            dist = root / "clients/sdk/node_modules/@modelcontextprotocol/client/dist"
+            dist.mkdir(parents=True)
+            body = "one\nasync callTool(params) {\nthree\n"
+            (dist / "index.mjs").write_text(body, encoding="utf-8")
+
+    def test_sdk_root_resolves(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_tree(root, '`sdk:client/dist/index.mjs:2` "async callTool("')
+            self.add_sdk(root)
+            self.assertEqual(check_citations.check(root), (1, []))
+            # a wrong line, a short fragment and a path leaving the root each fail
+            (root / "docs/x.md").write_text(
+                '`sdk:client/dist/index.mjs:1` "async callTool("\n'
+                '`sdk:client/dist/index.mjs:2` "async"\n'
+                '`sdk:../../../../docs/x.md:1` "sdk:../../"\n', encoding="utf-8")
+            _, errors = check_citations.check(root)
+            self.assertEqual(len(errors), 3, errors)
+            self.assertIn("not on line 1", errors[0])
+            self.assertIn("at least 6", errors[1])
+            self.assertIn("outside", errors[2])
+            # the scanned client sources are checked too
+            (root / "docs/x.md").write_text("none", encoding="utf-8")
+            (root / "clients/sdk/src/a.ts").write_text(
+                '// `sdk:client/dist/index.mjs:3` "async callTool("', encoding="utf-8")
+            (root / "clients/sdk/test/a.test.ts").write_text(
+                '// `sdk:client/dist/index.mjs:2` "async callTool("', encoding="utf-8")
+            total, errors = check_citations.check(root)
+            self.assertEqual(total, 2)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("clients/sdk/src/a.ts", errors[0])
+
+    def test_sdk_root_missing_fails_with_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_tree(root, '`sdk:client/dist/index.mjs:2` "async callTool("')
+            self.add_sdk(root, installed=False)
+            _, errors = check_citations.check(root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("scripts/bootstrap.sh", errors[0])
+
+    def test_node_modules_not_scanned(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_tree(root, "none")
+            self.add_sdk(root)
+            # a citation-shaped string inside an installed package is not ours to check
+            installed = root / "clients/sdk/node_modules/@modelcontextprotocol/client/dist"
+            (installed / "index.mjs").write_text(
+                '`sdk:client/dist/index.mjs:1` "does not matter"', encoding="utf-8")
+            (root / "clients/sdk/node_modules/pkg.md").write_text(
+                '`sdk:client/dist/index.mjs:1` "nope-nope"', encoding="utf-8")
+            self.assertEqual(check_citations.check(root), (0, []))
+
     def test_undecodable_doc_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

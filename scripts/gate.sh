@@ -19,13 +19,15 @@ gate() { local id="$1"; shift; echo "== $id: $*"; "$@"; }
 gate G1 python3 tools/check_provenance.py
 gate G2 uvx ruff@0.17.1 check .
 gate G3 uvx mypy@2.4.0
+gate G3 node clients/sdk/node_modules/typescript/bin/tsc -p clients/sdk
 gate G4 python3 -m unittest discover -s tests -t . -v
+gate G4 node --test "clients/sdk/test/*.test.ts"
 gate G5 python3 -m unittest tests.test_e2e -v
 gate G8 python3 tools/check_citations.py
 gate G9 python3 tools/check_lessons.py
 gate G10 python3 tools/atlas.py --check
 gate G11 python3 tools/check_no_run_output.py
 # Phases are listed as they are built; a phase that is only specified names tests not yet written.
-gate G12 python3 tools/check_claims.py --phases 02,03,04
+gate G12 python3 tools/check_claims.py --phases 02,03,04,05
 
 echo "gate: all green"

@@ -1,5 +1,6 @@
-"""G8: every `<submodule>:<path>:<line>` "fragment" citation resolves in the checked-out submodule
-(bootstrap checks the pin).
+"""G8: every `<root>:<path>:<line>` "fragment" citation resolves in its root: a checked-out
+submodule (`servers`, `spec`; bootstrap checks the pin) or, from phase 5, `sdk`, the SDK client's
+installed packages (the lockfile and bootstrap's version check are its pin).
 
 Usage: python3 tools/check_citations.py [repo-root]
 """
@@ -12,7 +13,9 @@ from pathlib import Path
 
 CITATION = re.compile(r'`([A-Za-z0-9_-]+):([^`\s:]+):(\d+)`\s+"((?:[^"\\]|\\.)*)"')
 SUBMODULES = {"servers": "vendor/servers", "spec": "vendor/spec"}
-SCANNED = ("README.md", "docs", "tap", "client")
+SDK_ROOT = "clients/sdk/node_modules/@modelcontextprotocol"
+ROOTS = {**SUBMODULES, "sdk": SDK_ROOT}
+SCANNED = ("README.md", "docs", "tap", "client", "clients/sdk/src", "clients/sdk/test")
 MIN_FRAGMENT = 6
 
 
@@ -40,20 +43,20 @@ def check_text(root: Path, label: str, text: str) -> tuple[int, list[str]]:
         count += 1
         sub, rel, line_no, raw = m.group(1), m.group(2), int(m.group(3)), m.group(4)
         cite = f'{label}: `{sub}:{rel}:{line_no}` "{raw}"'
-        if sub not in SUBMODULES:
+        if sub not in ROOTS:
             errors.append(f"{cite}: unknown submodule {sub!r}")
             continue
-        base = (root / SUBMODULES[sub]).resolve()
+        base = (root / ROOTS[sub]).resolve()
         target = (base / rel).resolve()
         if not target.is_relative_to(base):
-            errors.append(f"{cite}: path is outside {SUBMODULES[sub]}")
+            errors.append(f"{cite}: path is outside {ROOTS[sub]}")
             continue
         fragment = _unescape(raw)
         if len(fragment) < MIN_FRAGMENT:
             errors.append(f"{cite}: fragment must be at least {MIN_FRAGMENT} characters")
             continue
         if not target.is_file():
-            errors.append(f"{cite}: file does not exist in {SUBMODULES[sub]}")
+            errors.append(f"{cite}: file does not exist in {ROOTS[sub]}")
             continue
         lines = target.read_text(encoding="utf-8", errors="replace").split("\n")
         if lines and lines[-1] == "":
@@ -70,6 +73,10 @@ def check(root: Path) -> tuple[int, list[str]]:
         d = root / path
         if not d.is_dir() or not any(d.iterdir()):
             return 0, [f"submodule {name} is not checked out at {path}"]
+    # The SDK root exists once the SDK client's packages are installed (scripts/bootstrap.sh).
+    sdk = root / SDK_ROOT
+    if (root / "clients/sdk").is_dir() and not sdk.is_dir():
+        return 0, [f"sdk root is not installed at {SDK_ROOT} (run scripts/bootstrap.sh)"]
     total = 0
     errors: list[str] = []
     for f in _scanned_files(root):
