@@ -13,8 +13,9 @@ a review budget stated in its plan. Phase 1 ran a heavier profile. That profile 
 by the lean profile (LP1–LP6 in `mission.md`; register row 2026-10-21, lean profile): two
 short spec files per phase, one review round at phase 2's close only, and learner walks,
 J rows and the atlas (L8, G10) deferred to a final pass. In this run phases 2, 3 and 4 are
-built; phases 5, 6 and 7 were first specified as stubs, then specified in full and approved
-for building (register row 2026-10-22, phases 5-7 specs approved).
+built; phases 5, 6 and 7 were first specified as stubs, then specified in full, approved
+(register row 2026-10-22, phases 5-7 specs approved) and built under LP7 (register rows
+2026-10-22 and 2026-10-23, phase 5, 6 and 7 builds).
 
 | # | Phase | Learning features | Exit criteria (all must hold) |
 | --- | --- | --- | --- |
