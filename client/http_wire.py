@@ -46,6 +46,8 @@ EVENT_STREAM = "text/event-stream"
 ACCEPT = f"application/json, {EVENT_STREAM}"
 CONNECT_TIMEOUT = 10.0
 ERROR_BODY_LIMIT = 65536
+MODERN_ERA = "2026-07-28"
+NAMED_METHODS = {"tools/call": "name", "resources/read": "uri", "prompts/get": "name"}
 
 
 class HttpStatusError(Exception):
@@ -129,6 +131,7 @@ class HttpWire(Wire):
         observer: Callable[[str, Any], None] | None = None,
         on_request: Callable[[Message], None] | None = None,
         on_notification: Callable[[Message], None] | None = None,
+        era: str | None = None,
     ) -> None:
         super().__init__(io.BytesIO(), io.BytesIO(), report=report, observer=observer,
                          on_request=on_request, on_notification=on_notification)
@@ -138,8 +141,9 @@ class HttpWire(Wire):
         self._host = parts.hostname
         self._port = parts.port or 80
         self._target = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
+        self.era = era  # MODERN_ERA: no session, request headers on every POST (D11)
         self.session_id: str | None = None
-        self.protocol_version: str | None = None
+        self.protocol_version: str | None = MODERN_ERA if era == MODERN_ERA else None
         self.server_requests: list[tuple[str, Any]] = []  # (method, id) of each, in order
         self.stream_end: str | None = None  # "server" or "client", once the GET stream is over
         self._init_key: Key | None = None
@@ -166,6 +170,29 @@ class HttpWire(Wire):
                 headers["Mcp-Session-Id"] = self.session_id
             if self.protocol_version is not None:
                 headers["MCP-Protocol-Version"] = self.protocol_version
+        return headers
+
+    def _request_headers(self, message: Any) -> dict[str, str]:
+        """The 2026-07-28 request headers of one POST (D11): the version, the method, and for
+        `tools/call`, `resources/read` and `prompts/get` the name or URI the call is about.
+
+        A name that is not plain ASCII is refused before anything is sent (the Base64 form is
+        D14).
+
+        `spec:docs/specification/2026-07-28/basic/transports/streamable-http.mdx:252`
+        "Every POST request to the MCP endpoint **MUST** include an"
+        """
+        headers = {"MCP-Protocol-Version": MODERN_ERA}
+        if isinstance(message, dict) and isinstance(message.get("method"), str):
+            method = message["method"]
+            headers["Mcp-Method"] = method
+            key = NAMED_METHODS.get(method)
+            params = message.get("params")
+            if key is not None and isinstance(params, dict) and key in params:
+                name = str(params[key])
+                if not all(0x20 <= ord(c) < 0x7F for c in name):
+                    raise ValueError(f"Mcp-Name must be plain ASCII, refusing {name!r}")
+                headers["Mcp-Name"] = name
         return headers
 
     def _send(self, method: str, headers: dict[str, str], body: bytes | None = None) -> Carrier:
@@ -206,12 +233,11 @@ class HttpWire(Wire):
         except ValueError:
             message = None  # manual mode may send junk; it is posted as typed
         is_init = isinstance(message, dict) and message.get("method") == "initialize"
+        extra = {"Content-Type": "application/json", "Accept": ACCEPT}
+        if self.era == MODERN_ERA:
+            extra.update(self._request_headers(message))  # refuses a non-ASCII name, sends nothing
         carrier = self._send(
-            "POST",
-            self._headers(session=not is_init, extra={
-                "Content-Type": "application/json", "Accept": ACCEPT}),
-            text.encode("utf-8"),
-        )
+            "POST", self._headers(session=not is_init, extra=extra), text.encode("utf-8"))
         kind = classify(message)
         with self._lock:
             if kind == "request":

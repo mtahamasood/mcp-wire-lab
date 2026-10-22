@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable, Sequence
-from typing import TextIO
+from typing import Any, TextIO
 
 from client.handlers import CAPABILITIES, Handlers
+from client.http_wire import HttpSession
 from client.session import Session
 from client.wire import Message, stderr_report
 
@@ -213,9 +214,10 @@ class ServerTour:
 
 def run_server_tour(
     command: Sequence[str], out: TextIO, caps: Sequence[str] = CAPABILITIES,
-    report: Callable[[str], None] | None = None,
+    report: Callable[[str], None] | None = None, url: str | None = None,
 ) -> int:
-    """Run the server tour against the server command; 0 if every step saw its traffic."""
+    """Run the server tour against the server command (or, with `url`, over Streamable HTTP,
+    phase 7 D10); 0 if every step saw its traffic."""
     say_lock = threading.Lock()
 
     def say(text: str) -> None:
@@ -223,10 +225,11 @@ def run_server_tour(
             print(f"      {text}", file=out, flush=True)
 
     handlers = Handlers(caps, say=say, report=report or stderr_report)
-    session = Session.open(
-        command, report=report or stderr_report,
-        on_request=handlers.handle_request, on_notification=handlers.handle_notification,
-    )
+    callbacks: dict[str, Any] = {
+        "report": report or stderr_report, "on_request": handlers.handle_request,
+        "on_notification": handlers.handle_notification}
+    session = Session.open(command, **callbacks) if url is None else HttpSession.connect(
+        url, **callbacks)
     handlers.attach(session.wire)
     tour = ServerTour(session, handlers, out)
     status = 0

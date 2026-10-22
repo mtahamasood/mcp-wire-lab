@@ -1,8 +1,11 @@
-"""Phase 7 part B1, C11-C15: the raw client's HTTP transport against an in-process fake server."""
+"""Phase 7 parts B1, B2, D, C11-C15, C23-C25: the raw client's HTTP transport against an
+in-process fake server."""
 
 from __future__ import annotations
 
+import contextlib
 import http.server
+import io
 import json
 import select
 import socket
@@ -12,8 +15,11 @@ import unittest
 from collections.abc import Callable
 from typing import Any
 
+from client import __main__ as client_main
+from client import manual
 from client.handlers import Handlers
 from client.http_wire import HttpSession, HttpStatusError, HttpWire, SessionEnded
+from client.modern_http import ModernHttpSession
 from client.wire import RpcError
 
 Script = Callable[["Fake", http.server.BaseHTTPRequestHandler, bytes], None]
@@ -427,6 +433,127 @@ class HttpStreamTest(Case):
         self.assertIsNone(session.close())
         self.assertTrue(fake.wait_for(lambda e: b"notifications/initialized" in e["body"]))
         self.assertEqual([e["method"] for e in fake.log], ["POST", "POST"])  # and no DELETE
+
+
+class HttpModesTest(Case):
+    """C23 (part B2, D10): manual over HTTP, and `--url` against `-- <command>`."""
+
+    def test_manual_posts_typed_line_verbatim(self) -> None:
+        junk = "{not json at all"
+        typed = '{"id":7,  "method":"ping" }'  # no jsonrpc, odd spacing
+
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            if body.decode() == junk:
+                reply_json(h, 400, b'{"error":"Bad Request: junk"}')
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        reports: list[str] = []
+        out = io.StringIO()
+        status = manual.run_manual([], [typed, junk], out, settle=0.5, report=reports.append,
+                                   url=fake.url)
+        self.assertEqual(status, 0)
+        with fake.lock:
+            bodies = [e["body"].decode() for e in fake.log if e["method"] == "POST"]
+        self.assertEqual(bodies[2:4], [typed, junk])  # after initialize and initialized
+        self.assertIn(f"-> {junk}", out.getvalue())
+        refusal = [r for r in reports if "HTTP 400" in r]
+        self.assertEqual(len(refusal), 1, reports)
+        self.assertIn("Bad Request: junk", refusal[0])
+
+    def test_url_and_command_are_exclusive(self) -> None:
+        url = "http://127.0.0.1:9/mcp"
+        for argv in (["tour", "--url", url, "--", "cmd"], ["tour", "--", "cmd", "--url", url],
+                     ["tour", "--url"], ["tour", "--url", url, "extra"], ["tour"],
+                     ["matrix", "--url", url], ["tasks", "--era", "2026-07-28", "--url", url]):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(client_main.main(argv), 2, argv)
+            self.assertIn("usage:", err.getvalue())
+
+
+DISCOVER = {"supportedVersions": ["2026-07-28"], "capabilities": {},
+            "serverInfo": {"name": "fake", "version": "0"}}
+
+
+def modern(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+    """A 2026-07-28 server: JSON for discover, an event stream for everything else."""
+    message = json.loads(body)
+    if message["method"] == "server/discover":
+        reply_json(h, 200, json.dumps(result(message, DISCOVER)).encode())
+    elif message["method"] == "long":
+        stream_head(h)
+        piece(h, event({"jsonrpc": "2.0", "method": "notifications/progress",
+                        "params": {"progressToken": "t", "progress": 1}}))
+        fake.event("long-open").set()
+        if hung_up(h):
+            fake.event("hung-up").set()
+    else:
+        stream_head(h)
+        piece(h, event(result(message)))
+        end_stream(h)
+
+
+class Era2026Test(Case):
+    """C24, C25 (part D, D11): the 2026-07-28 era over HTTP."""
+
+    def modern(self, fake: Fake) -> ModernHttpSession:
+        session = ModernHttpSession.open_http(fake.url, report=lambda _text: None, timeout=5)
+        self.addCleanup(session.close)
+        session.discover()
+        return session
+
+    def test_every_post_carries_the_request_headers(self) -> None:
+        fake = self.serve(modern)
+        session = self.modern(fake)
+        session.call("tools/call", {"name": "echo", "arguments": {}})
+        session.call("resources/read", {"uri": "demo://x"})
+        session.call("prompts/get", {"name": "simple-prompt"})
+        session.call("tools/list")
+        with fake.lock:
+            log = [e for e in fake.log if e["method"] == "POST"]
+        seen = [(json.loads(e["body"])["method"], e["headers"].get("mcp-method"),
+                 e["headers"].get("mcp-name"), e["headers"].get("mcp-protocol-version"))
+                for e in log]
+        self.assertEqual(seen, [
+            ("server/discover", "server/discover", None, "2026-07-28"),
+            ("tools/call", "tools/call", "echo", "2026-07-28"),
+            ("resources/read", "resources/read", "demo://x", "2026-07-28"),
+            ("prompts/get", "prompts/get", "simple-prompt", "2026-07-28"),
+            ("tools/list", "tools/list", None, "2026-07-28"),
+        ])
+
+    def test_no_session_stream_or_delete(self) -> None:
+        fake = self.serve(modern)
+        session = self.modern(fake)
+        session.call("tools/list")
+        self.assertIsNone(session.close())
+        with fake.lock:
+            log = list(fake.log)
+        self.assertEqual({e["method"] for e in log}, {"POST"})
+        for entry in log:
+            self.assertNotIn("mcp-session-id", entry["headers"])
+
+    def test_non_ascii_name_is_refused(self) -> None:
+        fake = self.serve(modern)
+        session = self.modern(fake)
+        before = len(fake.log)
+        with self.assertRaises(ValueError) as caught:
+            session.call("tools/call", {"name": "écho", "arguments": {}})
+        self.assertIn("plain ASCII", str(caught.exception))
+        self.assertEqual(len(fake.log), before, "nothing was sent")
+
+    def test_cancel_closes_stream_without_notification(self) -> None:
+        fake = self.serve(modern)
+        session = self.modern(fake)
+        pending = session.start_request("long")
+        self.assertTrue(fake.event("long-open").wait(5))
+        self.assertTrue(session.cancel(pending, "test"))
+        self.assertTrue(fake.event("hung-up").wait(5), "the stream's connection was closed")
+        with fake.lock:
+            methods = [json.loads(e["body"])["method"] for e in fake.log if e["body"]]
+        self.assertNotIn("notifications/cancelled", methods)
 
 
 if __name__ == "__main__":

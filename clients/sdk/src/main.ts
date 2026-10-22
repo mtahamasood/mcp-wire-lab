@@ -22,7 +22,7 @@ async function main(argv: string[]): Promise<number> {
   if (parsed.mode === "server-tour") {
     return runServerTour(parsed.command, out, report, parsed.caps ?? ["roots", "sampling", "elicitation", "elicitation-url"], parsed.url);
   }
-  if (parsed.era === MODERN_ERA) return runModernTour(parsed.command, out, report, parsed.caps ?? MODERN_TOUR_CAPS);
+  if (parsed.era === MODERN_ERA) return runModernTour(parsed.command, out, report, parsed.caps ?? MODERN_TOUR_CAPS, parsed.url);
   return runTour(parsed.command, out, report, parsed.caps ?? [], parsed.url);
 }
 

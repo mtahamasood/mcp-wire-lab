@@ -17,6 +17,7 @@ from collections.abc import Callable, Sequence
 from typing import Any, TextIO
 
 from client.handlers import Handlers
+from client.http_wire import HttpSession
 from client.session import Session
 from client.wire import Cancelled, Message, classify, stderr_report
 
@@ -253,17 +254,23 @@ class Tour:
             pass
         else:
             raise TourFailure("a cancelled request must stop waiting")
-        # The server's tool ignores the cancellation and finishes its second step (measured).
-        self.wait_for_progress("tour-cancel", 2)
-        time.sleep(0.3)  # room for a late reply, which the wire drops and reports
+        if isinstance(self.session, HttpSession):
+            # Cancelling closed the connection that carried the stream, so the second progress
+            # and the late reply can never arrive (phase 7 D8, M10).
+            time.sleep(0.3)
+        else:
+            # The server's tool ignores the cancellation and finishes its second step (measured).
+            self.wait_for_progress("tour-cancel", 2)
+            time.sleep(0.3)  # room for a late reply, which the wire drops and reports
         self.step("tools/call long-running (cancelled)", "cancelled after progress 1")
 
 
 def run_tour(
     command: Sequence[str], out: TextIO, report: Callable[[str], None] | None = None,
-    caps: Sequence[str] = (),
+    caps: Sequence[str] = (), url: str | None = None,
 ) -> int:
-    """Run the tour against the server command; 0 if every step got its expected reply.
+    """Run the tour against the server command (or, with `url`, over Streamable HTTP, phase 7
+    D10); 0 if every step got its expected reply.
 
     With `caps` the client declares them and answers what the server then asks (phase 3), so the
     server's re-lists and requests interleave with the tour's and its ids no longer run 0 to 16.
@@ -281,7 +288,8 @@ def run_tour(
     if handlers is not None:
         kwargs.update(on_request=handlers.handle_request,
                       on_notification=handlers.handle_notification)
-    session = Session.open(command, **kwargs)
+    session = (Session.open(command, **kwargs) if url is None
+               else HttpSession.connect(url, **kwargs))
     if handlers is not None:
         handlers.attach(session.wire)
     tour = Tour(session, out, None if handlers is None else handlers.capabilities)

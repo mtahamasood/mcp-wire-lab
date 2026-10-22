@@ -552,9 +552,12 @@ class ModernTour(Tour):
 
 def run_modern_tour(
     command: Sequence[str], out: TextIO, report: Callable[[str], None] | None = None,
-    caps: Sequence[str] = ("roots", "sampling", "elicitation"),
+    caps: Sequence[str] = ("roots", "sampling", "elicitation"), url: str | None = None,
 ) -> int:
-    """Run the 2026 tour; 0 only if every step got the reply it expects (D6)."""
+    """Run the 2026 tour; 0 only if every step got the reply it expects (D6).
+
+    With `url` the tour runs over Streamable HTTP (phase 7 D11) instead of a server command.
+    """
     handlers = Handlers(caps, report=report or stderr_report)
     holder: list[ModernTour] = []
 
@@ -562,9 +565,16 @@ def run_modern_tour(
         if holder:
             holder[0].observe(arrow, message)
 
-    session = ModernSession.open_modern(
-        command, capabilities=handlers.capabilities, observer=observe,
-        report=report or stderr_report)
+    session: ModernSession
+    if url is None:
+        session = ModernSession.open_modern(
+            command, capabilities=handlers.capabilities, observer=observe,
+            report=report or stderr_report)
+    else:
+        from client.modern_http import ModernHttpSession  # imports this module, so not at the top
+        session = ModernHttpSession.open_http(
+            url, capabilities=handlers.capabilities, observer=observe,
+            report=report or stderr_report)
     tour = ModernTour(session, out, handlers)
     holder.append(tour)
     return _finish(tour, session, report)
