@@ -1,7 +1,8 @@
 // The SDK client (phase 5): the raw client's two tours, run through @modelcontextprotocol/client.
-// Usage: node clients/sdk/src/main.ts <tour|server-tour> [--caps <list>] (-- <server command...> | --url <url>)
+// Usage: node clients/sdk/src/main.ts <tour|server-tour> [--caps <list>] [--era <era>] (-- <server command...> | --url <url>)
 
 import { parseArgs, USAGE } from "./args.ts";
+import { MODERN_ERA, MODERN_TOUR_CAPS, runModernTour } from "./era.ts";
 import { runServerTour } from "./server_tour.ts";
 import { runTour } from "./tour.ts";
 
@@ -21,6 +22,7 @@ async function main(argv: string[]): Promise<number> {
   if (parsed.mode === "server-tour") {
     return runServerTour(parsed.command, out, report, parsed.caps ?? ["roots", "sampling", "elicitation", "elicitation-url"], parsed.url);
   }
+  if (parsed.era === MODERN_ERA) return runModernTour(parsed.command, out, report, parsed.caps ?? MODERN_TOUR_CAPS);
   return runTour(parsed.command, out, report, parsed.caps ?? [], parsed.url);
 }
 

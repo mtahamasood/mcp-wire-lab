@@ -28,6 +28,6 @@ gate G9 python3 tools/check_lessons.py
 gate G10 python3 tools/atlas.py --check
 gate G11 python3 tools/check_no_run_output.py
 # Phases are listed as they are built; a phase that is only specified names tests not yet written.
-gate G12 python3 tools/check_claims.py --phases 02,03,04,05
+gate G12 python3 tools/check_claims.py --phases 02,03,04,05,06
 
 echo "gate: all green"

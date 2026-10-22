@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 usage() {
-  echo "usage: scripts/record.sh <fixture> [name]   or   scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour> [name]"
+  echo "usage: scripts/record.sh <fixture> [name]   or   scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour|sdk-tour-2026|tour-2026|tasks-2026|manual-2026> [name]"
   echo "  sdk-tour and sdk-server-tour record the TypeScript SDK client (phase 5; needs scripts/bootstrap.sh)."
   echo "  Records the run between the tap and the pinned server into runs/<time>-<name>/ and prints the path."
   echo "  A fixture is a file in tests/fixtures/. Set up once with scripts/bootstrap.sh."
@@ -30,18 +30,18 @@ if [ "${1:-}" = "--http" ]; then
 fi
 client=""
 if [ "${1:-}" = "--client" ]; then
-  client="${2:?usage: scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour> [name]}"
+  client="${2:?usage: scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour|sdk-tour-2026|tour-2026|tasks-2026|manual-2026> [name]}"
   case "$client" in
-    tour|manual|server-tour) ;;
-    sdk-tour|sdk-server-tour)
+    tour|manual|server-tour|tour-2026|tasks-2026|manual-2026) ;;
+    sdk-tour|sdk-server-tour|sdk-tour-2026)
       [ -d clients/sdk/node_modules ] \
         || { echo "record: clients/sdk/node_modules missing (run scripts/bootstrap.sh)" >&2; exit 1; }
       ;;
     http-tour) [ "$http" = 1 ] || { echo "record: http-tour needs --http" >&2; exit 1; } ;;
-    *) echo "record: unknown client mode: $client (use tour, manual, server-tour, sdk-tour, sdk-server-tour or http-tour)" >&2; exit 1 ;;
+    *) echo "record: unknown client mode: $client (use tour, manual, server-tour, sdk-tour, sdk-server-tour, sdk-tour-2026, tour-2026, tasks-2026, manual-2026 or http-tour)" >&2; exit 1 ;;
   esac
   case "$client:$http" in
-    tour:1|manual:1|server-tour:1|sdk-server-tour:1) echo "record: --http runs only the http-tour and sdk-tour modes" >&2; exit 1 ;;
+    tour:1|manual:1|server-tour:1|sdk-server-tour:1|sdk-tour-2026:1|tour-2026:1|tasks-2026:1|manual-2026:1) echo "record: --http runs only the http-tour and sdk-tour modes" >&2; exit 1 ;;
   esac
   name="${3:-client-$client}"
 else
@@ -105,6 +105,11 @@ case "$run_as" in
     node clients/sdk/src/main.ts "${client#sdk-}" -- "${server_cmd[@]}" 2> "$dir/stderr.txt" \
       > /dev/null || status=$?
     ;;
+  sdk-tour-2026)
+    # The same client in the 2026-07-28 era (phase 6 D12).
+    node clients/sdk/src/main.ts tour --era 2026-07-28 -- "${server_cmd[@]}" \
+      2> "$dir/stderr.txt" > /dev/null || status=$?
+    ;;
   http-tour|http-sdk-tour)
     # Streamable HTTP (phase 7 D7): the tap runs the server on a private Unix socket (it adds PORT
     # to the server's environment) and listens on a free loopback port; the client posts to the tap.
@@ -138,6 +143,15 @@ case "$run_as" in
     # Interactive: the learner's terminal is the client's stdin and stdout; stderr is shown
     # and kept.
     python3 -m client manual -- "${server_cmd[@]}" 2> >(tee "$dir/stderr.txt" >&2) || status=$?
+    ;;
+  tour-2026|tasks-2026)
+    # The 2026-07-28 era (phase 6): the same run as the 2025 modes, with --era.
+    python3 -m client "${client%-2026}" --era 2026-07-28 -- "${server_cmd[@]}" \
+      2> "$dir/stderr.txt" > /dev/null || status=$?
+    ;;
+  manual-2026)
+    python3 -m client manual --era 2026-07-28 -- "${server_cmd[@]}" \
+      2> >(tee "$dir/stderr.txt" >&2) || status=$?
     ;;
 esac
 [ -s "$dir/trace.jsonl" ] || { echo "record: no trace was written (exit $status)" >&2; exit 1; }

@@ -52,7 +52,20 @@ names a check that does not exist, or if run output is tracked.
 
 ## Result
 
-- Status: open
+Status: closed
+
+Part A (raw client) and Part B (SDK client) built 2026-10-22 under LP7 (tests alongside code, no
+mutation run, no review round); every C row's check passes on the merged tree. Part B measured
+on this machine (Node 24.22.0) against the pinned, built server:
+
+- Fresh `sdk-tour-2026` trace: 74 frames, one tap `spawn`, opens with `server/discover`
+  (id `"server-discover-probe-1"`), passes `tap.check --revision 2026-07-28`; the SDK's stderr
+  holds one `sdk:` line (the late progress of the cancelled call).
+- `tap.diff` of fresh `tour-2026` and `sdk-tour-2026` traces: 74 pairs, 30 equal, 44 differ,
+  none in one trace only; `docs/walkthrough/06-sdk-2026.md` has a note for each.
+- Checks run: `python3 -m unittest discover -s tests -t .` 420 tests OK;
+  `node --test "clients/sdk/test/*.test.ts"` 16 pass; `tsc -p clients/sdk` clean.
+- Mutation testing deferred to the final pass (LP7).
 
 ### Accepted limits
 
@@ -76,8 +89,9 @@ names a check that does not exist, or if run output is tracked.
 - The pinned server's departures from the 2026-07-28 spec (progress after cancellation, a
   later request claiming another version served on a pinned connection, no listen response at
   shutdown) are recorded and explained, not worked around.
-- Coverage (L8), measured at close: *to be filled* (2026-07-28 methods declared by lesson 06,
-  of 21; unexercised methods per revision in the regenerated atlas).
+- Coverage (L8), measured at close (Part A, 2026-10-22): lesson 06 declares 21 of the 21
+  methods of 2026-07-28, each found in a fresh `tour-2026` trace; the regenerated atlas marks
+  0 of 21 methods of 2026-07-28 and 6 of 31 methods of 2025-11-25 `unexercised`.
 - Mutation run (LP4): *to be filled* at close.
 
 ### Owner learning check (LP6)

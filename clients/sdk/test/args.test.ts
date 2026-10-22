@@ -4,18 +4,18 @@ import { capabilityObject, parseArgs, parseCaps } from "../src/args.ts";
 
 test("both modes parse, with the server command after --", () => {
   assert.deepEqual(parseArgs(["tour", "--", "node", "server.js", "stdio"]), {
-    kind: "run", mode: "tour", caps: undefined, command: ["node", "server.js", "stdio"],
+    kind: "run", mode: "tour", caps: undefined, era: "2025-11-25", command: ["node", "server.js", "stdio"],
   });
   assert.deepEqual(parseArgs(["server-tour", "--", "x"]), {
-    kind: "run", mode: "server-tour", caps: undefined, command: ["x"],
+    kind: "run", mode: "server-tour", caps: undefined, era: "2025-11-25", command: ["x"],
   });
 });
 
 test("--caps takes a list, or none", () => {
   const run = parseArgs(["tour", "--caps", "roots,sampling", "--", "x"]);
-  assert.deepEqual(run, { kind: "run", mode: "tour", caps: ["roots", "sampling"], command: ["x"] });
+  assert.deepEqual(run, { kind: "run", mode: "tour", caps: ["roots", "sampling"], era: "2025-11-25", command: ["x"] });
   const none = parseArgs(["server-tour", "--caps", "none", "--", "x"]);
-  assert.deepEqual(none, { kind: "run", mode: "server-tour", caps: [], command: ["x"] });
+  assert.deepEqual(none, { kind: "run", mode: "server-tour", caps: [], era: "2025-11-25", command: ["x"] });
 });
 
 test("an unknown capability is a usage error that names it", () => {
@@ -50,10 +50,10 @@ test("capabilities are the objects the raw client sends", () => {
 
 test("--url replaces the server command (phase 7 D12)", () => {
   assert.deepEqual(parseArgs(["tour", "--url", "http://127.0.0.1:1/mcp"]), {
-    kind: "run", mode: "tour", caps: undefined, command: [], url: "http://127.0.0.1:1/mcp",
+    kind: "run", mode: "tour", caps: undefined, era: "2025-11-25", command: [], url: "http://127.0.0.1:1/mcp",
   });
   assert.deepEqual(parseArgs(["server-tour", "--caps", "roots", "--url", "http://h/mcp"]), {
-    kind: "run", mode: "server-tour", caps: ["roots"], command: [], url: "http://h/mcp",
+    kind: "run", mode: "server-tour", caps: ["roots"], era: "2025-11-25", command: [], url: "http://h/mcp",
   });
 });
 

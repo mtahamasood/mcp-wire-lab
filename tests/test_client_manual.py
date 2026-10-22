@@ -13,6 +13,7 @@ from client import manual
 
 ROOT = Path(__file__).resolve().parent.parent
 FAKE = str(ROOT / "tests/fake_servers/scripted.py")
+MODERN_FAKE = str(ROOT / "tests/fake_servers/modern.py")
 
 
 def run(lines: list[str]) -> tuple[list[str], list[str], bool]:
@@ -25,6 +26,16 @@ def run(lines: list[str]) -> tuple[list[str], list[str], bool]:
         # run_manual returns after the server has exited, so the marker is already written
         return (log.read_text().splitlines(), out.getvalue().splitlines(),
                 Path(str(log) + ".eof").exists())
+
+
+def run_modern(lines: list[str], caps: tuple[str, ...] = ()) -> tuple[list[str], list[str]]:
+    """Manual mode in the 2026 era on the modern fake server: what it received, what was printed."""
+    out = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        log = Path(tmp) / "received.log"
+        manual.run_manual([sys.executable, MODERN_FAKE, str(log)], lines, out, settle=3.0,
+                          report=lambda _text: None, caps=caps, era="2026-07-28")
+        return log.read_text().splitlines(), out.getvalue().splitlines()
 
 
 class ManualTest(unittest.TestCase):
@@ -63,6 +74,32 @@ class ManualTest(unittest.TestCase):
         self.assertTrue(any(ln.startswith("manual: not a command") for ln in printed))
         self.assertTrue(
             any(ln.startswith("manual: the params are not valid JSON") for ln in printed))
+
+    def test_typed_line_in_2026_era_sent_verbatim(self) -> None:
+        typed = '{"id":7,  "method":"echo","params":{"a":1} }'  # no jsonrpc, no envelope
+        received, printed = run_modern([typed])
+        self.assertEqual(json.loads(received[0])["method"], "server/discover", "discovers first")
+        self.assertEqual(received[1:], [typed])
+        self.assertIn(f"-> {typed}", printed)
+        self.assertTrue(any(ln.startswith("<- ") and '"id":7' in ln for ln in printed), printed)
+
+    def test_req_in_2026_era_carries_envelope(self) -> None:
+        received, printed = run_modern(
+            [':req echo {"b":2}', ":req echo", ':note notifications/custom {"c":3}'],
+            caps=("roots",))
+        sent = [json.loads(ln) for ln in received]
+        self.assertEqual([m.get("method") for m in sent],
+                         ["server/discover", "echo", "echo", "notifications/custom"])
+        meta = sent[1]["params"]["_meta"]
+        self.assertEqual(meta["io.modelcontextprotocol/protocolVersion"], "2026-07-28")
+        self.assertEqual(meta["io.modelcontextprotocol/clientCapabilities"],
+                         {"roots": {"listChanged": True}})
+        self.assertEqual(sent[1]["params"]["b"], 2)
+        self.assertIn("_meta", sent[2]["params"], "a bare :req still gets the envelope")
+        self.assertEqual(sent[3], {"jsonrpc": "2.0", "method": "notifications/custom",
+                                   "params": {"c": 3}}, "a notification is sent as typed")
+        self.assertTrue(any(ln.startswith("<- ") and '"resultType":"complete"' in ln
+                            for ln in printed))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,412 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The tasks extension (io.modelcontextprotocol/tasks), transcribed by hand from SEP-2663 at the pinned spec commit (vendor/spec/seps/2663-tasks-extension.md). It is NOT part of the pinned schema/2026-07-28/schema.json, which defines no tasks message. Only the shapes in the SEP's TypeScript declarations and the MUST sentences that fix a result's resultType are transcribed; its other prose rules are not checked. Core types are $refs into the pinned schema.",
+  "$defs": {
+    "Task": {
+      "description": "`spec:seps/2663-tasks-extension.md:137` \"interface Task {\" A task: operational metadata about ongoing work. Required: every field the SEP does not mark optional (`statusMessage` and `pollIntervalMs` are optional).",
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "working",
+            "input_required",
+            "completed",
+            "cancelled",
+            "failed"
+          ],
+          "type": "string"
+        },
+        "statusMessage": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "lastUpdatedAt": {
+          "type": "string"
+        },
+        "ttlMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "pollIntervalMs": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "taskId",
+        "status",
+        "createdAt",
+        "lastUpdatedAt",
+        "ttlMs"
+      ]
+    },
+    "WorkingTask": {
+      "description": "`spec:seps/2663-tasks-extension.md:196` \"export interface WorkingTask extends Task {\" A task in a normal working state.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Task"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "working",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        }
+      ]
+    },
+    "InputRequiredTask": {
+      "description": "`spec:seps/2663-tasks-extension.md:204` \"export interface InputRequiredTask extends Task {\" A task waiting for input from the client.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Task"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "input_required",
+              "type": "string"
+            },
+            "inputRequests": {
+              "$ref": "#/$defs/InputRequests"
+            }
+          },
+          "required": [
+            "status",
+            "inputRequests"
+          ]
+        }
+      ]
+    },
+    "CompletedTask": {
+      "description": "`spec:seps/2663-tasks-extension.md:217` \"export interface CompletedTask extends Task {\" A task that completed successfully.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Task"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "completed",
+              "type": "string"
+            },
+            "result": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "status",
+            "result"
+          ]
+        }
+      ]
+    },
+    "FailedTask": {
+      "description": "`spec:seps/2663-tasks-extension.md:231` \"export interface FailedTask extends Task {\" A task that failed with a JSON-RPC error.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Task"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "failed",
+              "type": "string"
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "status",
+            "error"
+          ]
+        }
+      ]
+    },
+    "CancelledTask": {
+      "description": "`spec:seps/2663-tasks-extension.md:243` \"export interface CancelledTask extends Task {\" A task that was cancelled.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Task"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "cancelled",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        }
+      ]
+    },
+    "DetailedTask": {
+      "description": "`spec:seps/2663-tasks-extension.md:252` \"export type DetailedTask =\" The union of the five task variants.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WorkingTask"
+        },
+        {
+          "$ref": "#/$defs/InputRequiredTask"
+        },
+        {
+          "$ref": "#/$defs/CompletedTask"
+        },
+        {
+          "$ref": "#/$defs/FailedTask"
+        },
+        {
+          "$ref": "#/$defs/CancelledTask"
+        }
+      ]
+    },
+    "CreateTaskResult": {
+      "description": "`spec:seps/2663-tasks-extension.md:262` \"type CreateTaskResult = Result & Task;\" `spec:seps/2663-tasks-extension.md:128` \"MUST** set `resultType` to\" What a server returns in place of a standard result; `resultType` is `task`.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Result"
+        },
+        {
+          "$ref": "#/$defs/Task"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resultType": {
+              "const": "task",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "GetTaskRequest": {
+      "description": "`spec:seps/2663-tasks-extension.md:317` \"interface GetTaskRequest extends JSONRPCRequest\" The `tasks/get` request.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "jsonrpc": {
+          "const": "2.0",
+          "type": "string"
+        },
+        "method": {
+          "const": "tasks/get",
+          "type": "string"
+        },
+        "params": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/RequestParams"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "taskId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "taskId"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "jsonrpc",
+        "method",
+        "params"
+      ]
+    },
+    "GetTaskResult": {
+      "description": "`spec:seps/2663-tasks-extension.md:337` \"type GetTaskResult = Result & DetailedTask;\" `spec:seps/2663-tasks-extension.md:340` \"field **MUST** be set to\" A task in its current status; `resultType` is `complete`.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Result"
+        },
+        {
+          "$ref": "#/$defs/DetailedTask"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resultType": {
+              "const": "complete",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "UpdateTaskRequest": {
+      "description": "`spec:seps/2663-tasks-extension.md:357` \"interface UpdateTaskRequest extends JSONRPCRequest\" The `tasks/update` request.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "jsonrpc": {
+          "const": "2.0",
+          "type": "string"
+        },
+        "method": {
+          "const": "tasks/update",
+          "type": "string"
+        },
+        "params": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/RequestParams"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "taskId": {
+                  "type": "string"
+                },
+                "inputResponses": {
+                  "$ref": "#/$defs/InputResponses"
+                }
+              },
+              "required": [
+                "taskId",
+                "inputResponses"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "jsonrpc",
+        "method",
+        "params"
+      ]
+    },
+    "UpdateTaskResult": {
+      "description": "`spec:seps/2663-tasks-extension.md:376` \"type UpdateTaskResult = Result;\" `spec:seps/2663-tasks-extension.md:383` \"field **MUST** be set to\" An empty acknowledgement; `resultType` is `complete`.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Result"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resultType": {
+              "const": "complete",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "CancelTaskRequest": {
+      "description": "`spec:seps/2663-tasks-extension.md:392` \"interface CancelTaskRequest extends JSONRPCRequest\" The `tasks/cancel` request.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "jsonrpc": {
+          "const": "2.0",
+          "type": "string"
+        },
+        "method": {
+          "const": "tasks/cancel",
+          "type": "string"
+        },
+        "params": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/RequestParams"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "taskId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "taskId"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "jsonrpc",
+        "method",
+        "params"
+      ]
+    },
+    "CancelTaskResult": {
+      "description": "`spec:seps/2663-tasks-extension.md:403` \"type CancelTaskResult = Result;\" `spec:seps/2663-tasks-extension.md:412` \"field **MUST** be set to\" An empty acknowledgement; `resultType` is `complete`.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Result"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resultType": {
+              "const": "complete",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "TaskStatusNotification": {
+      "description": "`spec:seps/2663-tasks-extension.md:421` \"export interface TaskStatusNotification extends JSONRPCNotification\" `spec:seps/2663-tasks-extension.md:419` \"TaskStatusNotificationParams = NotificationParams & Task\" A server's push of a task's status.",
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0",
+          "type": "string"
+        },
+        "method": {
+          "const": "notifications/tasks",
+          "type": "string"
+        },
+        "params": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/NotificationParams"
+            },
+            {
+              "$ref": "#/$defs/Task"
+            }
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method",
+        "params"
+      ]
+    }
+  }
+}

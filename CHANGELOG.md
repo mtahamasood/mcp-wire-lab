@@ -14,6 +14,14 @@ each phase ends with a git tag named after its lesson (`lesson-NN`) instead of a
   diff with `--explain`; G3 `tsc`, G4 `node --test` and a G8 `sdk` citation root; lesson 05 and
   walkthrough 05; `scripts/bootstrap.sh` installs the SDK client's packages.
 
+- Phase 6, the 2026-07-28 era in both clients (`specs/phases/06-era-2026/`): the raw client's
+  `--era 2026-07-28` (`tour`, `tasks`, `manual`; `client/modern.py`), `tap.check`'s
+  `input_required` rule and the SEP-2663 tasks extension schema, the SDK client's `--era` option
+  and 2026 tour (`clients/sdk/src/era.ts`, on a member-less subclass of `StdioClientTransport` so
+  the `server/discover` probe stays on one connection),
+  `scripts/record.sh --client tour-2026|tasks-2026|manual-2026|sdk-tour-2026`; lesson 06 and
+  walkthroughs 06 and 06b (the raw-vs-SDK diff of the new era); G12 now covers phase 06.
+
 ### Changed
 
 - `-h` / `--help` on `tap`, `tap.show`, `tap.check`, `client`, `record.sh`, `bootstrap.sh` and

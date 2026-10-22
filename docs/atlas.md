@@ -19,37 +19,37 @@ Counts: 2025-11-25: 31 methods, 2026-07-28: 21 methods.
 
 | Method | Kind | Direction | Revisions | Lessons |
 | --- | --- | --- | --- | --- |
-| `completion/complete` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md) |
-| `elicitation/create` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
+| `completion/complete` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
+| `elicitation/create` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md), [06](lessons/06-era-2026.md) |
 | `initialize` | request | client to server | 2025-11-25 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [04](lessons/04-edge-lab.md), [05](lessons/05-sdk-client.md) |
 | `logging/setLevel` | request | client to server | 2025-11-25 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md) |
-| `notifications/cancelled` | notification | client to server and server to client | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md) |
+| `notifications/cancelled` | notification | client to server and server to client | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
 | `notifications/elicitation/complete` | notification | server to client | 2025-11-25 | unexercised |
 | `notifications/initialized` | notification | client to server | 2025-11-25 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [04](lessons/04-edge-lab.md), [05](lessons/05-sdk-client.md) |
-| `notifications/message` | notification | server to client | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md) |
-| `notifications/progress` | notification | 2025-11-25: client to server and server to client; 2026-07-28: server to client | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md) |
-| `notifications/prompts/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
-| `notifications/resources/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
-| `notifications/resources/updated` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
+| `notifications/message` | notification | server to client | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
+| `notifications/progress` | notification | 2025-11-25: client to server and server to client; 2026-07-28: server to client | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
+| `notifications/prompts/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md), [06](lessons/06-era-2026.md) |
+| `notifications/resources/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md), [06](lessons/06-era-2026.md) |
+| `notifications/resources/updated` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md), [06](lessons/06-era-2026.md) |
 | `notifications/roots/list_changed` | notification | client to server | 2025-11-25 | [03](lessons/03-server-initiated.md) |
-| `notifications/subscriptions/acknowledged` | notification | server to client | 2026-07-28 | unexercised |
+| `notifications/subscriptions/acknowledged` | notification | server to client | 2026-07-28 | [06](lessons/06-era-2026.md) |
 | `notifications/tasks/status` | notification | client to server and server to client | 2025-11-25 | unexercised |
-| `notifications/tools/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
+| `notifications/tools/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md), [06](lessons/06-era-2026.md) |
 | `ping` | request | client to server and server to client | 2025-11-25 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [04](lessons/04-edge-lab.md), [05](lessons/05-sdk-client.md) |
-| `prompts/get` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md) |
-| `prompts/list` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md) |
-| `resources/list` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md) |
-| `resources/read` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md) |
+| `prompts/get` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
+| `prompts/list` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
+| `resources/list` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
+| `resources/read` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
 | `resources/subscribe` | request | client to server | 2025-11-25 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md) |
-| `resources/templates/list` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md) |
+| `resources/templates/list` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
 | `resources/unsubscribe` | request | client to server | 2025-11-25 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md) |
-| `roots/list` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
-| `sampling/createMessage` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md) |
-| `server/discover` | request | client to server | 2026-07-28 | unexercised |
-| `subscriptions/listen` | request | client to server | 2026-07-28 | unexercised |
+| `roots/list` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md), [06](lessons/06-era-2026.md) |
+| `sampling/createMessage` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md), [06](lessons/06-era-2026.md) |
+| `server/discover` | request | client to server | 2026-07-28 | [06](lessons/06-era-2026.md) |
+| `subscriptions/listen` | request | client to server | 2026-07-28 | [06](lessons/06-era-2026.md) |
 | `tasks/cancel` | request | client to server and server to client | 2025-11-25 | unexercised |
 | `tasks/get` | request | client to server and server to client | 2025-11-25 | unexercised |
 | `tasks/list` | request | client to server and server to client | 2025-11-25 | unexercised |
 | `tasks/result` | request | client to server and server to client | 2025-11-25 | unexercised |
-| `tools/call` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md) |
-| `tools/list` | request | client to server | 2025-11-25, 2026-07-28 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [04](lessons/04-edge-lab.md), [05](lessons/05-sdk-client.md) |
+| `tools/call` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
+| `tools/list` | request | client to server | 2025-11-25, 2026-07-28 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [04](lessons/04-edge-lab.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
