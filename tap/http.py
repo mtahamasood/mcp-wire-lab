@@ -124,7 +124,7 @@ class SseParser:
         return events
 
     def finish(self) -> SseEvent | None:
-        """The end of the stream: an unterminated last line counts, a missing blank line does not."""
+        """The stream's end: an unterminated last line counts; a missing blank line does not."""
         line, self._buf = self._buf, b""
         if line.endswith(b"\r"):
             line = line[:-1]
@@ -616,8 +616,9 @@ def run_http(trace_path: Path, port: int, command: list[str]) -> int:
 
     deadline = time.monotonic() + READY_TIMEOUT
     while not socket_accepts(socket_path):
-        if child.poll() is not None:
-            return give_up(f"the server exited before it listened (code {exit_code(child.poll())})")
+        gone = child.poll()
+        if gone is not None:
+            return give_up(f"the server exited before it listened (code {exit_code(gone)})")
         if time.monotonic() > deadline:
             return give_up(f"the server did not listen on {socket_path} within {READY_TIMEOUT:g} s")
         time.sleep(READY_POLL)

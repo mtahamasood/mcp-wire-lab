@@ -33,6 +33,7 @@ import base64
 import http.server
 import json
 import os
+import resource
 import select
 import socket
 import socketserver
@@ -145,7 +146,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.stream_head()
             self.piece(EVENT)
             time.sleep(1.0)
-            self.piece(b'event: message\nid: e2\ndata: {"jsonrpc":"2.0","id":1,"result":{"n":2}}\n\n')
+            self.piece(EVENT.replace(b"e1", b"e2").replace(b"{}", b'{"n":2}'))
             self.end_stream()
         elif route == "/roundtrip":
             self.stream_head()
@@ -191,6 +192,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main() -> int:
     path = os.environ["PORT"]
+    _, hard = resource.getrlimit(resource.RLIMIT_FSIZE)  # a test may limit the tap's file size
+    resource.setrlimit(resource.RLIMIT_FSIZE, (hard, hard))
     if len(sys.argv) > 2:
         time.sleep(float(sys.argv[2]))
     server = Server(path, Handler)
