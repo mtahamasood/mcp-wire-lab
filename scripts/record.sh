@@ -3,7 +3,7 @@
 # (D14; phase 2 D5).
 # Usage: scripts/record.sh <fixture> [name]
 #        scripts/record.sh --client <tour|manual|server-tour|sdk-tour|sdk-server-tour> [name]
-#        scripts/record.sh --http --client http-tour [name]
+#        scripts/record.sh --http --client <http-tour|sdk-tour> [name]
 # Writes runs/<UTC timestamp>-<name>/{trace.jsonl,stderr.txt}. runs/ is git-ignored (A5).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -13,7 +13,8 @@ usage() {
   echo "  sdk-tour and sdk-server-tour record the TypeScript SDK client (phase 5; needs scripts/bootstrap.sh)."
   echo "  Records the run between the tap and the pinned server into runs/<time>-<name>/ and prints the path."
   echo "  A fixture is a file in tests/fixtures/. Set up once with scripts/bootstrap.sh."
-  echo "  scripts/record.sh --http --client http-tour [name]: the same over Streamable HTTP; the tap runs"
+  echo "  scripts/record.sh --http --client <http-tour|sdk-tour> [name]: the same over"
+  echo "  Streamable HTTP (the SDK modes use its HTTP transport and end with a DELETE); the tap runs"
   echo "  the server on a private Unix socket and listens on a free 127.0.0.1 port."
 }
 case "${1:-}" in
@@ -25,7 +26,7 @@ http=0
 if [ "${1:-}" = "--http" ]; then
   http=1
   shift
-  [ "${1:-}" = "--client" ] || { echo "record: --http needs --client http-tour (fixtures stay on stdio)" >&2; usage >&2; exit 1; }
+  [ "${1:-}" = "--client" ] || { echo "record: --http needs --client http-tour or sdk-tour (fixtures stay on stdio)" >&2; usage >&2; exit 1; }
 fi
 client=""
 if [ "${1:-}" = "--client" ]; then
@@ -39,7 +40,9 @@ if [ "${1:-}" = "--client" ]; then
     http-tour) [ "$http" = 1 ] || { echo "record: http-tour needs --http" >&2; exit 1; } ;;
     *) echo "record: unknown client mode: $client (use tour, manual, server-tour, sdk-tour, sdk-server-tour or http-tour)" >&2; exit 1 ;;
   esac
-  [ "$http" = 0 ] || [ "$client" = http-tour ] || { echo "record: --http runs only the http-tour mode" >&2; exit 1; }
+  case "$client:$http" in
+    tour:1|manual:1|server-tour:1|sdk-server-tour:1) echo "record: --http runs only the http-tour and sdk-tour modes" >&2; exit 1 ;;
+  esac
   name="${3:-client-$client}"
 else
   fixture="${1:?usage: scripts/record.sh <fixture> [name]}"
@@ -80,7 +83,9 @@ server_cmd=(
 # record is the exit code, so a non-zero status is reported, not fatal. A client run's status
 # is the client's verdict on its own steps, so it is passed on after the lines below.
 status=0
-case "$client" in
+run_as="$client"
+[ "$http" = 0 ] || [ "$client" = http-tour ] || run_as="http-$client"
+case "$run_as" in
   "")
     python3 tests/drive.py "$fixture" -- "${server_cmd[@]}" 2> "$dir/stderr.txt" > /dev/null \
       || status=$?
@@ -100,7 +105,7 @@ case "$client" in
     node clients/sdk/src/main.ts "${client#sdk-}" -- "${server_cmd[@]}" 2> "$dir/stderr.txt" \
       > /dev/null || status=$?
     ;;
-  http-tour)
+  http-tour|http-sdk-tour)
     # Streamable HTTP (phase 7 D7): the tap runs the server on a private Unix socket (it adds PORT
     # to the server's environment) and listens on a free loopback port; the client posts to the tap.
     ln -s "$(command -v python3)" "$dir/bin/python3"
@@ -116,8 +121,14 @@ case "$client" in
       sleep 0.05
     done
     if [ "$ready" -eq 1 ]; then
-      python3 -m client.http_tour --url "http://127.0.0.1:$port/mcp" 2>> "$dir/stderr.txt" > /dev/null \
-        || status=$?
+      # The raw client, or the SDK client (phase 7 D12) over its Streamable HTTP transport.
+      if [ "$client" = http-tour ]; then
+        python3 -m client.http_tour --url "http://127.0.0.1:$port/mcp" 2>> "$dir/stderr.txt" > /dev/null \
+          || status=$?
+      else
+        node clients/sdk/src/main.ts "${client#sdk-}" --url "http://127.0.0.1:$port/mcp" \
+          2>> "$dir/stderr.txt" > /dev/null || status=$?
+      fi
     fi
     kill -INT "$tap_pid" 2> /dev/null || true
     wait "$tap_pid" || true

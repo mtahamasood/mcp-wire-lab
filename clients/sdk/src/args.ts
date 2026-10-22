@@ -7,18 +7,22 @@ export type Mode = (typeof MODES)[number];
 
 export const USAGE = [
   "usage: node clients/sdk/src/main.ts <tour|server-tour> [--caps <list>] -- <server command...>",
+  "       node clients/sdk/src/main.ts <tour|server-tour> [--caps <list>] --url <url>",
   `  --caps: comma-separated from ${CAPABILITIES.join(", ")}, or none`,
   "  tour: the raw client's scripted conversation, run through @modelcontextprotocol/client",
   "  (exits 0 if every step got the reply it expects). server-tour: the server-initiated traffic",
   "  of lesson 03, answered through the SDK's handlers. The default for --caps is none for tour",
   "  and all four for server-tour.",
-  "  To record a run with the tap in between, use scripts/record.sh --client <sdk-tour|sdk-server-tour>.",
+  "  --url: use the SDK's Streamable HTTP transport to a running server instead of starting one,",
+  "  and end the session with a DELETE (phase 7 D12).",
+  "  To record a run with the tap in between, use scripts/record.sh --client <sdk-tour|sdk-server-tour>",
+  "  (add --http for the HTTP transport).",
 ].join("\n");
 
 export type Parsed =
   | { kind: "help" }
   | { kind: "usage"; message?: string }
-  | { kind: "run"; mode: Mode; caps: Capability[] | undefined; command: string[] };
+  | { kind: "run"; mode: Mode; caps: Capability[] | undefined; command: string[]; url?: string };
 
 /** A `--caps` value as a list of capability names; throws on an unknown one. */
 export function parseCaps(text: string): Capability[] {
@@ -56,10 +60,21 @@ export function parseArgs(argv: readonly string[]): Parsed {
   if (first === undefined || !(MODES as readonly string[]).includes(first)) return { kind: "usage" };
   const rest = argv.slice(1);
   const split = rest.indexOf("--");
-  if (split < 0) return { kind: "usage" };
-  const options = rest.slice(0, split);
-  const command = rest.slice(split + 1);
-  if (command.length === 0) return { kind: "usage" };
+  const urlAt = rest.indexOf("--url");
+  let url: string | undefined;
+  let options: string[];
+  let command: string[] = [];
+  if (urlAt >= 0 && (split < 0 || urlAt < split)) {
+    // `--url <url>` replaces `-- <command...>`; nothing may follow the URL.
+    url = rest[urlAt + 1];
+    if (url === undefined || url.startsWith("-") || rest.length !== urlAt + 2) return { kind: "usage" };
+    options = rest.slice(0, urlAt);
+  } else {
+    if (split < 0) return { kind: "usage" };
+    options = rest.slice(0, split);
+    command = rest.slice(split + 1);
+    if (command.length === 0) return { kind: "usage" };
+  }
   let caps: Capability[] | undefined;
   if (options.length > 0) {
     if (options.length !== 2 || options[0] !== "--caps") return { kind: "usage" };
@@ -69,5 +84,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
       return { kind: "usage", message: (error as Error).message };
     }
   }
-  return { kind: "run", mode: first as Mode, caps, command };
+  return url === undefined
+    ? { kind: "run", mode: first as Mode, caps, command }
+    : { kind: "run", mode: first as Mode, caps, command, url };
 }
