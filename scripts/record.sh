@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 usage() {
-  echo "usage: scripts/record.sh <fixture> [name]   or   scripts/record.sh --client <tour|manual|server-tour> [name]"
+  echo "usage: scripts/record.sh <fixture> [name]   or   scripts/record.sh --client <tour|manual|server-tour|tour-2026|tasks-2026|manual-2026> [name]"
   echo "  Records the run between the tap and the pinned server into runs/<time>-<name>/ and prints the path."
   echo "  A fixture is a file in tests/fixtures/. Set up once with scripts/bootstrap.sh."
 }
@@ -19,10 +19,10 @@ case "${1:-}" in
 esac
 client=""
 if [ "${1:-}" = "--client" ]; then
-  client="${2:?usage: scripts/record.sh --client <tour|manual|server-tour> [name]}"
+  client="${2:?usage: scripts/record.sh --client <tour|manual|server-tour|tour-2026|tasks-2026|manual-2026> [name]}"
   case "$client" in
-    tour|manual|server-tour) ;;
-    *) echo "record: unknown client mode: $client (use tour, manual or server-tour)" >&2; exit 1 ;;
+    tour|manual|server-tour|tour-2026|tasks-2026|manual-2026) ;;
+    *) echo "record: unknown client mode: $client (use tour, manual, server-tour, tour-2026, tasks-2026 or manual-2026)" >&2; exit 1 ;;
   esac
   name="${3:-client-$client}"
 else
@@ -82,6 +82,15 @@ case "$client" in
     # Interactive: the learner's terminal is the client's stdin and stdout; stderr is shown
     # and kept.
     python3 -m client manual -- "${server_cmd[@]}" 2> >(tee "$dir/stderr.txt" >&2) || status=$?
+    ;;
+  tour-2026|tasks-2026)
+    # The 2026-07-28 era (phase 6): the same run as the 2025 modes, with --era.
+    python3 -m client "${client%-2026}" --era 2026-07-28 -- "${server_cmd[@]}" \
+      2> "$dir/stderr.txt" > /dev/null || status=$?
+    ;;
+  manual-2026)
+    python3 -m client manual --era 2026-07-28 -- "${server_cmd[@]}" \
+      2> >(tee "$dir/stderr.txt" >&2) || status=$?
     ;;
 esac
 [ -s "$dir/trace.jsonl" ] || { echo "record: no trace was written (exit $status)" >&2; exit 1; }
