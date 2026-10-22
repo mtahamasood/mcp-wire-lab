@@ -97,6 +97,33 @@ as measured): given a port it binds every interface (above); and a GET on the mo
 answered `400` by the 2025 route, where the 2026 spec asks for `405` on GET and DELETE
 (`spec:docs/specification/2026-07-28/basic/transports/streamable-http.mdx:683` "HTTP GET or DELETE to the MCP endpoint"). This tour speaks only the 2025 shape.
 
+## The SDK client over HTTP: where its traffic differs from the raw client's
+
+`scripts/record.sh --http --client sdk-tour` records the phase 5 SDK client's tour (the raw
+client's phase 2 tour, so a different message list from the HTTP tour above) with
+`StreamableHTTPClientTransport` in place of stdio; `node clients/sdk/src/main.ts tour --url <url>`
+runs it against any Streamable HTTP server. Measured on a fresh pair, one recording of each
+(the SDK's trace passes `tap.check --revision 2025-11-25`), the HTTP layer differs in these ways.
+The messages themselves are the SDK's, as in [walkthrough 05](05-sdk-client.md).
+
+- **The GET stream opens after `initialized`, not before.** The raw tour declares `roots` and
+  `sampling` and opens its GET stream between the `initialize` result and `notifications/initialized`
+  (exchange 1). The SDK sends `initialized` (a `202`, exchange 1) and the transport then opens the
+  GET (exchange 2) on seeing that notification
+  (`sdk:client/dist/index.mjs:5797` "if (isInitializedNotification(message)) this._startOrAuthSse({ resumptionToken: void 0 })"). It does so even
+  when the tour declares no capabilities, which the raw client never does.
+- **Cancelling leaves the stream open.** The raw client closes the connection of the cancelled call
+  (`http-end` `by client`) and also posts `notifications/cancelled`. The SDK posts
+  `notifications/cancelled` (`202`) and keeps reading the call's stream: it has no `http-end` until
+  the session is deleted, then ends `by server`, together with the GET stream, just before the
+  DELETE's `200`. The late `notifications/progress` is read and dropped by the SDK.
+- **DELETE only on `terminateSession()`.** Closing the SDK client sends nothing; the tour calls
+  `terminateSession()` first
+  (`sdk:client/dist/index.mjs:5836` "async terminateSession() {"), so the trace ends with the DELETE, as the raw tour's does.
+  The DELETE carries `accept: */*` (the fetch default), where the raw client's carries no `accept`.
+- **No reply POSTs.** The tour declares no capabilities, so the server asks nothing and the trace
+  has no client reply (no `c2s` response with its own `202`), where the raw tour has two.
+
 ## Notes
 
 #### `tap.spawn.0`

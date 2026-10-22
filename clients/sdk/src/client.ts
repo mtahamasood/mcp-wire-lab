@@ -4,6 +4,7 @@
 
 import { Client } from "@modelcontextprotocol/client";
 import type { ClientCapabilities } from "@modelcontextprotocol/client";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { capabilityObject } from "./args.ts";
 import type { Capability } from "./args.ts";
@@ -20,8 +21,10 @@ export type Lab = {
   roots: Root[];
   /** Every error the SDK reported through onerror, in order. */
   errors: string[];
-  /** Make the transport for a server command (the SDK starts the process). */
-  transport(command: readonly string[]): StdioClientTransport;
+  /** Make the transport: stdio for a server command (the SDK starts the process), or, when the lab was built with a URL, Streamable HTTP to it. */
+  transport(command: readonly string[]): StdioClientTransport | StreamableHTTPClientTransport;
+  /** End the session: over HTTP the SDK sends DELETE only on `terminateSession()` (M15), then close. */
+  close(): Promise<void>;
 };
 
 /**
@@ -32,6 +35,7 @@ export function buildLab(
   caps: readonly Capability[],
   say: (line: string) => void,
   report: (line: string) => void,
+  url?: string,
 ): Lab {
   const traffic = new Traffic();
   const roots: Root[] = DEFAULT_ROOTS.map((r) => ({ ...r }));
@@ -98,11 +102,20 @@ export function buildLab(
     });
   });
 
+  let http: StreamableHTTPClientTransport | undefined;
   return {
     client,
     traffic,
     roots,
     errors,
-    transport: (command) => new StdioClientTransport({ command: command[0] as string, args: command.slice(1) }),
+    transport: (command) => {
+      if (url === undefined) return new StdioClientTransport({ command: command[0] as string, args: command.slice(1) });
+      http = new StreamableHTTPClientTransport(new URL(url));
+      return http;
+    },
+    close: async () => {
+      if (http?.sessionId !== undefined) await http.terminateSession();
+      await client.close();
+    },
   };
 }
