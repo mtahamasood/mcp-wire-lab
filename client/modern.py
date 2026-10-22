@@ -96,7 +96,7 @@ def classify_result(result: Any, tasks_declared: bool) -> InputRequired | Messag
     `complete` or absent -> the result; `input_required` -> an InputRequired; `task` only when the
     request declared the tasks extension; anything else -> InvalidResult.
 
-    `spec:schema/2026-07-28/schema.ts:271` "resultType"
+    `spec:schema/2026-07-28/schema.ts:232` "the client MUST treat the absent field"
     """
     if not isinstance(result, dict):
         raise InvalidResult(f"the result is not an object: {json.dumps(result)[:80]}")
@@ -226,7 +226,7 @@ class ModernSession(Session):
         offered; any other error raises with a hint to try `--era 2025-11-25`. There is no
         fallback.
 
-        `spec:docs/specification/2026-07-28/basic/lifecycle.mdx:1` "server/discover"
+        `spec:docs/specification/2026-07-28/basic/versioning.mdx:167` "SHOULD** send `server/discover` first"
         """
         params = envelope({}, self.capabilities)
         try:
@@ -308,7 +308,7 @@ class ModernSession(Session):
         byte for byte when present (opaque: never parsed). Each retry is a fresh id with the full
         envelope. At most `max_rounds` requests are sent.
 
-        `spec:docs/specification/2026-07-28/client/index.mdx:1` "inputResponses"
+        `spec:docs/specification/2026-07-28/server/tools.mdx:178` "clients include `inputResponses` and"
         """
         base = copy.deepcopy(params) if params else {}
         current = dict(base)
@@ -340,7 +340,7 @@ class ModernSession(Session):
         `notifications/subscriptions/acknowledged` whose subscription id equals the listen
         request's id, type included.
 
-        `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:90` "subscriptions/listen"
+        `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:51` "io.modelcontextprotocol/subscriptionId"
         """
         pending = self.start_request("subscriptions/listen", {"notifications": notifications})
         try:
@@ -414,7 +414,7 @@ class ModernTour(Tour):
     def discovery(self) -> None:
         """`server/discover`: the first message; replaces `initialize`.
 
-        `spec:docs/specification/2026-07-28/basic/lifecycle.mdx:1` "server/discover"
+        `spec:docs/specification/2026-07-28/basic/versioning.mdx:167` "SHOULD** send `server/discover` first"
         """
         result = self.session.discover()
         info = (result.get("_meta") or {}).get(META + "serverInfo", {})
@@ -478,7 +478,7 @@ class ModernTour(Tour):
         """The log level is per request: absent means no `notifications/message` (replaces
         `logging/setLevel`).
 
-        `spec:docs/specification/2026-07-28/server/utilities/logging.mdx:1` "logLevel"
+        `spec:docs/specification/2026-07-28/server/utilities/logging.mdx:63` "io.modelcontextprotocol/logLevel"
         """
         self.drain()
         self.tool("trigger-log-messages")
@@ -511,7 +511,7 @@ class ModernTour(Tour):
     def input_required(self) -> None:
         """No server-to-client requests: the server answers `input_required`; the client retries.
 
-        `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:55` "server-to-client"
+        `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:55` "MUST NOT** write JSON-RPC _requests_"
         """
         bare = {"name": "get-roots-list", "arguments": {}}
         try:

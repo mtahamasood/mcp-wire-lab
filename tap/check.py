@@ -18,6 +18,12 @@ A frame no definition matches is reported as `unknown method`, never as valid. O
 line per failing frame: its seq, the JSON path that failed, the definition, the reason. Exit 0
 if none fails, 1 if any does, 2 if the check could not run. Tap events, stderr records and
 partial frames are skipped.
+
+Two additions for 2026-07-28 (phase 6): a response whose `result.resultType` is `input_required`
+is checked against `InputRequiredResult` when the schema defines it; and the tasks extension,
+which the pinned schema does not define, is checked against `tap/schemas/2026-07-28/
+sep-2663-tasks.json`, an authored transcription of SEP-2663 (definitions labelled `SEP-2663:`
+in every report). `--no-extensions` checks against the pinned schema alone.
 """
 
 from __future__ import annotations
@@ -30,12 +36,19 @@ from typing import Any
 from tap import show
 
 USAGE = (
-    "usage: python3 -m tap.check <trace> --revision <revision> [--spec-root <dir>]\n"
+    "usage: python3 -m tap.check <trace> --revision <revision> [--spec-root <dir>]"
+    " [--no-extensions]\n"
     "  Checks every frame of a trace against that revision's JSON Schema in the pinned spec\n"
     "  (vendor/spec/schema/<revision>/; the lessons use 2025-11-25). Prints `check: ok` and\n"
-    "  exits 0, or lists each frame that is not valid."
+    "  exits 0, or lists each frame that is not valid. For 2026-07-28 the tasks extension is\n"
+    "  checked against tap/schemas/2026-07-28/sep-2663-tasks.json (a transcription of SEP-2663,\n"
+    "  not the pinned schema) unless --no-extensions is given."
 )
 DEFAULT_SPEC_ROOT = Path(__file__).resolve().parent.parent / "vendor/spec"
+# Authored extension schemas, by revision (D14): never part of the pinned submodule.
+EXTENSION_DIR = Path(__file__).resolve().parent / "schemas"
+EXTENSION_FILES = {"2026-07-28": "sep-2663-tasks.json"}
+EXTENSION_LABEL = "SEP-2663"
 # Keywords that assert something; each has a branch in `validate`.
 ASSERTIONS = {
     "type", "$ref", "properties", "required", "const", "additionalProperties", "items",
@@ -176,16 +189,37 @@ def any_of(
     return best or []
 
 
+def methods_of(defs: dict[str, Any]) -> dict[str, str]:
+    """method -> definition name, for the definitions that fix a `method` constant."""
+    found: dict[str, str] = {}
+    for name, definition in defs.items():
+        method = definition.get("properties", {}).get("method", {}).get("const")
+        if isinstance(method, str):
+            found[method] = name
+    return found
+
+
+def refs_in(node: Any) -> list[str]:
+    """Every `$ref` value inside a schema fragment."""
+    if isinstance(node, dict):
+        found = [node["$ref"]] if isinstance(node.get("$ref"), str) else []
+        for key, value in node.items():
+            if key != "$ref":
+                found += refs_in(value)
+        return found
+    if isinstance(node, list):
+        return [r for item in node for r in refs_in(item)]
+    return []
+
+
 class Schema:
     """One revision's definitions, indexed by the `method` each request or notification fixes."""
 
     def __init__(self, document: dict[str, Any]) -> None:
         self.defs: dict[str, Any] = document.get("$defs", {})
-        self.by_method: dict[str, str] = {}
-        for name, definition in self.defs.items():
-            method = definition.get("properties", {}).get("method", {}).get("const")
-            if isinstance(method, str):
-                self.by_method[method] = name
+        self.by_method: dict[str, str] = methods_of(self.defs)
+        self.extension_defs: frozenset[str] = frozenset()  # definitions from the extension file
+        self.extension_file: str | None = None
 
     def result_of(self, request_def: str) -> str | None:
         """The result definition for a request definition, by the schema's naming."""
@@ -196,7 +230,44 @@ class Schema:
         return None
 
 
-def load_schema(spec_root: Path, revision: str) -> Schema:
+def load_extension(schema: Schema, revision: str) -> None:
+    """Merge the revision's authored extension schema into `schema` (D14), if it has one.
+
+    Stops (CheckError, exit 2) if a definition name or a `method` constant is in both the pinned
+    schema and the extension file, or if one of the extension's `$ref`s does not resolve: the
+    extension never shadows the pinned schema.
+    """
+    name = EXTENSION_FILES.get(revision)
+    if name is None:
+        return
+    path = EXTENSION_DIR / revision / name
+    try:
+        extension: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise CheckError(f"cannot read the extension schema {path}: {exc}") from exc
+    added: dict[str, Any] = extension.get("$defs", {})
+    for def_name in added:
+        if def_name in schema.defs:
+            raise CheckError(f"the extension schema {name} defines {def_name!r}, which the "
+                             "pinned schema already defines")
+    pinned_methods = dict(schema.by_method)
+    for method, def_name in methods_of(added).items():
+        if method in pinned_methods:
+            raise CheckError(f"the extension schema {name} defines the method {method!r} "
+                             f"({def_name}), which the pinned schema already defines")
+    merged = {**schema.defs, **added}
+    for def_name, definition in added.items():
+        for ref in refs_in(definition):
+            if not ref.startswith("#/$defs/") or ref[len("#/$defs/"):] not in merged:
+                raise CheckError(f"{def_name} in the extension schema {name} has the $ref "
+                                 f"{ref!r}, which does not resolve")
+    schema.defs = merged
+    schema.by_method = methods_of(merged)
+    schema.extension_defs = frozenset(added)
+    schema.extension_file = f"tap/schemas/{revision}/{name}"
+
+
+def load_schema(spec_root: Path, revision: str, extensions: bool = True) -> Schema:
     path = spec_root / "schema" / revision / "schema.json"
     try:
         schema = Schema(json.loads(path.read_text(encoding="utf-8")))
@@ -206,6 +277,8 @@ def load_schema(spec_root: Path, revision: str) -> Schema:
     if missing:
         raise CheckError(f"revision {revision} cannot be checked: its schema {path} has no "
                          f"definition named {', '.join(missing)}")
+    if extensions:
+        load_extension(schema, revision)
     return schema
 
 
@@ -234,7 +307,17 @@ def check_frame(
         envelope = validate(message, defs["JSONRPCResultResponse"], "$", defs)
         if envelope:
             return "JSONRPCResultResponse", envelope
-        return result_def, validate(message["result"], defs[result_def], "$.result", defs)
+        result = message["result"]
+        result_type = result.get("resultType") if isinstance(result, dict) else None
+        if result_type == "input_required" and "InputRequiredResult" in defs:
+            # 2026-07-28: an interim result of a multi-round request is not the method's result
+            result_def = "InputRequiredResult"
+        elif result_type == "task" and "CreateTaskResult" in schema.extension_defs:
+            if method != "tools/call":  # SEP-2663: the only method a task may augment
+                return "CreateTaskResult", [
+                    ("$.result.resultType", f'resultType "task" on {method}')]
+            result_def = "CreateTaskResult"
+        return result_def, validate(result, defs[result_def], "$.result", defs)
     reason = item.get("parse_error") or "not a JSON-RPC object"
     if message is None:
         return "JSONRPCMessage", [("$", reason)]
@@ -243,10 +326,22 @@ def check_frame(
 
 def check_trace(records: list[dict[str, Any]], schema: Schema) -> tuple[int, list[str]]:
     """(frames checked, one report line per failing frame)."""
+    count, lines, _ = check_trace_counted(records, schema)
+    return count, lines
+
+
+def check_trace_counted(
+    records: list[dict[str, Any]], schema: Schema
+) -> tuple[int, list[str], int]:
+    """(frames checked, one report line per failing frame, frames checked against the extension).
+
+    A frame checked against an extension definition names it `SEP-2663:<Name>` in its line.
+    """
     frames = [r for r in records if r["dir"] in show.OTHER and not r.get("partial")]
     items = show.annotate(frames)
     methods = {i["seq"]: i["json"]["method"] for i in items if i["kind"] == "request"}
     lines: list[str] = []
+    extension_frames = 0
     for item in items:
         outcome = check_frame(item, schema, methods)
         if outcome is None:
@@ -255,11 +350,14 @@ def check_trace(records: list[dict[str, Any]], schema: Schema) -> tuple[int, lis
             lines.append(f"seq {item['seq']}  $  -  {what}")
             continue
         definition, errors = outcome
+        if definition in schema.extension_defs:
+            extension_frames += 1
+            definition = f"{EXTENSION_LABEL}:{definition}"
         if errors:
             path, reason = errors[0]
             more = f" (+{len(errors) - 1} more)" if len(errors) > 1 else ""
             lines.append(f"seq {item['seq']}  {path}  {definition}  {reason}{more}")
-    return len(items), lines
+    return len(items), lines, extension_frames
 
 
 def run(argv: list[str]) -> int:
@@ -267,6 +365,8 @@ def run(argv: list[str]) -> int:
         print(USAGE)
         return 0
     args, spec_root = list(argv), DEFAULT_SPEC_ROOT
+    extensions = "--no-extensions" not in args
+    args = [a for a in args if a != "--no-extensions"]
     if "--spec-root" in args:
         at = args.index("--spec-root")
         spec_root = Path(args[at + 1]) if at + 1 < len(args) else spec_root
@@ -275,9 +375,14 @@ def run(argv: list[str]) -> int:
         print(USAGE, file=sys.stderr)
         return 2
     records = show.load(Path(args[0]))
-    count, lines = check_trace(records, load_schema(spec_root, args[2]))
+    schema = load_schema(spec_root, args[2], extensions)
+    count, lines, extension_frames = check_trace_counted(records, schema)
     for line in lines:
         print(line)
+    if extension_frames:
+        print(f"check: {extension_frames} of {count} frames checked against the "
+              f"{EXTENSION_LABEL} extension schema ({schema.extension_file}), not the pinned "
+              "schema.json")
     if lines:
         print(f"check: {len(lines)} of {count} frames failed", file=sys.stderr)
         return 1
