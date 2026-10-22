@@ -15,6 +15,8 @@ TOOLS: dict[str, list[str]] = {
     "tap": [sys.executable, "-m", "tap"],
     "tap.show": [sys.executable, "-m", "tap.show"],
     "tap.check": [sys.executable, "-m", "tap.check"],
+    "tap.diff": [sys.executable, "-m", "tap.diff"],
+    "sdk client": ["node", "clients/sdk/src/main.ts"],
     "client": [sys.executable, "-m", "client"],
     "record.sh": ["scripts/record.sh"],
     "bootstrap.sh": ["scripts/bootstrap.sh"],
@@ -58,7 +60,7 @@ class HelpTest(unittest.TestCase):
             self.assertEqual(done.stdout.strip(), "--help")
 
     def test_bad_options_still_fail(self) -> None:
-        for name in ("tap", "tap.show", "tap.check", "client"):
+        for name in ("tap", "tap.show", "tap.check", "tap.diff", "sdk client", "client"):
             with self.subTest(tool=name):
                 done = run(TOOLS[name], "--nonsense")
                 self.assertEqual(done.returncode, 2)

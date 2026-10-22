@@ -134,7 +134,8 @@ class CitationsTest(unittest.TestCase):
         if installed:
             dist = root / "clients/sdk/node_modules/@modelcontextprotocol/client/dist"
             dist.mkdir(parents=True)
-            (dist / "index.mjs").write_text("one\nasync callTool(params) {\nthree\n", encoding="utf-8")
+            body = "one\nasync callTool(params) {\nthree\n"
+            (dist / "index.mjs").write_text(body, encoding="utf-8")
 
     def test_sdk_root_resolves(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -178,7 +179,8 @@ class CitationsTest(unittest.TestCase):
             make_tree(root, "none")
             self.add_sdk(root)
             # a citation-shaped string inside an installed package is not ours to check
-            (root / "clients/sdk/node_modules/@modelcontextprotocol/client/dist/index.mjs").write_text(
+            installed = root / "clients/sdk/node_modules/@modelcontextprotocol/client/dist"
+            (installed / "index.mjs").write_text(
                 '`sdk:client/dist/index.mjs:1` "does not matter"', encoding="utf-8")
             (root / "clients/sdk/node_modules/pkg.md").write_text(
                 '`sdk:client/dist/index.mjs:1` "nope-nope"', encoding="utf-8")

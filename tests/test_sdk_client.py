@@ -11,7 +11,9 @@ ROOT = Path(__file__).resolve().parent.parent
 SDK = ROOT / "clients/sdk"
 SERVER_LOCK = ROOT / "vendor/servers/package-lock.json"
 PACKAGE = "node_modules/@modelcontextprotocol/client"
-IMPORT = re.compile(r"""(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+|require\s*\(\s*)["']([^"']+)["']""")
+IMPORT = re.compile(
+    r"""(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+|require\s*\(\s*)["']([^"']+)["']"""
+)
 ALLOWED = ("@modelcontextprotocol/client", "@modelcontextprotocol/client/stdio")
 
 
@@ -45,7 +47,8 @@ class InstallTest(unittest.TestCase):
     def test_sdk_pinned_to_the_servers_tarball(self) -> None:
         package = json.loads((SDK / "package.json").read_text())
         self.assertEqual(package["dependencies"], {"@modelcontextprotocol/client": "2.3.1"})
-        self.assertEqual(package["devDependencies"], {"@types/node": "24.19.2", "typescript": "5.9.3"})
+        self.assertEqual(package["devDependencies"],
+                         {"@types/node": "24.19.2", "typescript": "5.9.3"})
         self.assertIs(package["private"], True)
         self.assertEqual(package["type"], "module")
         ours = json.loads((SDK / "package-lock.json").read_text())["packages"]

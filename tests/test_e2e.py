@@ -445,6 +445,8 @@ class ServerTourTest(unittest.TestCase):
 class SdkClientTest(unittest.TestCase):
     """Phase 5: the SDK client against the real server, recorded through the tap."""
 
+    sdk_tour: Path
+
     @classmethod
     def setUpClass(cls) -> None:
         assert SERVER.is_file(), f"{SERVER} missing: run scripts/bootstrap.sh"
