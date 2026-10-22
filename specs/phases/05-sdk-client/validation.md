@@ -46,10 +46,25 @@ exist; or if run output is tracked.
 
 ## Result
 
-- Status: open
+- Status: built on the builder's branch, awaiting merge and the gate (builder run 2026-10-22).
 
-Specified 2026-10-22; awaiting owner approval in the batch with phases 6 and 7 (register row
-2026-10-22). No test or code exists yet.
+Built 2026-10-22 under LP7 (tests alongside code, no mutation run, no review round). Measured
+on this machine (Node 24.22.0) against the pinned, built server:
+
+- Fresh traces: SDK `tour` 41 frames, SDK `server-tour` 74 frames, both pass
+  `tap.check --revision 2025-11-25`; walkthroughs 02 and 03 explain them with no missing or extra
+  note.
+- `tap.diff` of fresh raw and SDK traces: tour 41 pairs, 20 equal, 14 equal as JSON but not as
+  bytes, 7 differ, none in one trace only; server tour 74 pairs, 45 equal, 24 bytes-only, 5
+  differ, none in one trace only. Both match the spec's prototype counts.
+- Tour wall time 3.5 s (SDK). The SDK tour's stderr holds one `sdk:` line (the late progress of
+  the cancelled call).
+- Checks run: `python3 -m unittest discover -s tests -t .` 315 tests OK (89 s, includes
+  `SdkClientTest` 8 tests, `tests/test_diff.py` 18, `tests/test_sdk_client.py` 5);
+  `node --test "clients/sdk/test/*.test.ts"` 13 pass; `tsc -p clients/sdk`, ruff, mypy clean;
+  G8, G9, G10, G11, G12 (`--phases 05`) tools ok. `scripts/gate.sh` itself not run by the
+  builder (shared machine).
+- Mutation testing of `tap/diff.py` (RP3) deferred to the final pass (LP7).
 
 ### Accepted limits
 

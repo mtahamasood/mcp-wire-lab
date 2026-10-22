@@ -6,6 +6,14 @@ each phase ends with a git tag named after its lesson (`lesson-NN`) instead of a
 
 ## [Unreleased]
 
+### Added
+
+- Phase 5, SDK client (`specs/phases/05-sdk-client/`): `clients/sdk/`, the raw client's tour and
+  server tour through `@modelcontextprotocol/client` 2.3.1 (TypeScript, run as source);
+  `scripts/record.sh --client sdk-tour|sdk-server-tour`; `tap.diff`, a message-by-message trace
+  diff with `--explain`; G3 `tsc`, G4 `node --test` and a G8 `sdk` citation root; lesson 05 and
+  walkthrough 05; `scripts/bootstrap.sh` installs the SDK client's packages.
+
 ### Changed
 
 - `-h` / `--help` on `tap`, `tap.show`, `tap.check`, `client`, `record.sh`, `bootstrap.sh` and

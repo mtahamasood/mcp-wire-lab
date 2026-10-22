@@ -40,7 +40,7 @@ scripts/bootstrap.sh
 ```
 
 The bootstrap checks both submodules are at their pinned commits (the reference server and the
-specification) and builds the server. The pins are why line numbers cited in the lessons stay true. `npm` may report high-severity
+specification) and builds the server, then installs the SDK client's npm packages (`clients/sdk/`, lesson 05). The pins are why line numbers cited in the lessons stay true. `npm` may report high-severity
 vulnerabilities while it installs; that is expected for a pinned reference server that only ever
 runs locally under the tap, and nothing here is exposed. Bootstrap may also warn that
 `core.hooksPath` is set, so git might not run the repo's pre-push hook; that matters only if you
@@ -94,20 +94,23 @@ prints the same text on stderr and exits non-zero.
 
 | Command | What it does |
 | --- | --- |
-| `scripts/bootstrap.sh` | Checks Node and the two pinned submodules, builds the reference server. Run once. |
+| `scripts/bootstrap.sh` | Checks Node and the two pinned submodules, builds the reference server, installs the SDK client's packages. Run once. |
 | `scripts/record.sh <fixture> [name]` | Plays a scripted conversation from `tests/fixtures/` through the tap against the real server; prints the trace path. |
-| `scripts/record.sh --client <tour\|manual\|server-tour> [name]` | The same, with the raw Python client as the conversation. `manual` reads your typed lines on stdin; in a terminal, end it with `:quit` or Ctrl-D. |
+| `scripts/record.sh --client <tour\|manual\|server-tour\|sdk-tour\|sdk-server-tour> [name]` | The same, with a client as the conversation: the raw Python client, or (`sdk-…`) the TypeScript SDK client. `manual` reads your typed lines on stdin; in a terminal, end it with `:quit` or Ctrl-D. |
 | `python3 -m tap.show <trace> [--full\|--mermaid\|--explain <file>]` | Reads a trace: one line per frame, with replies paired to their requests and latencies. |
 | `python3 -m tap.check <trace> --revision 2025-11-25` | Validates every frame against the spec's JSON Schema. |
+| `python3 -m tap.diff <trace-a> <trace-b> [--explain <file>]` | Compares two traces message by message (ids normalised) and lists what differs (lesson 05). |
 | `python3 -m tap --trace <file> [--delay\|--drop ...] -- <server command>` | The tap itself, for when you want to put it in front of your own command. `--drop` and `--delay` inject faults (lesson 04). |
 | `python3 -m client <tour\|manual\|server-tour\|matrix> -- <server command>` | The raw client without the tap. `--caps` chooses the capabilities it declares. |
+| `node clients/sdk/src/main.ts <tour\|server-tour> -- <server command>` | The SDK client without the tap. `--caps` chooses the capabilities it declares. |
 | `scripts/gate.sh` | Every automated check; needs `uv`. Contributors run it before a commit. |
 
 ## What is where
 
 - `docs/lessons/`, `docs/walkthrough/`: the lessons and the frame-by-frame notes. `docs/atlas.md` is a generated table of every protocol method.
-- `tap/`: the recorder (`python3 -m tap`), the viewer (`tap.show`) and the schema checker (`tap.check`).
+- `tap/`: the recorder (`python3 -m tap`), the viewer (`tap.show`), the schema checker (`tap.check`) and the trace diff (`tap.diff`).
 - `client/`: the raw client, in small files. The lessons say which to read.
+- `clients/sdk/`: the SDK client (TypeScript, run as source by Node), lesson 05.
 - `tests/`: unit and end-to-end tests, plus `tests/fixtures/` (the scripted conversations).
 - `vendor/`: the pinned reference server and the specification, as git submodules.
 - `runs/`: your recordings (created on first use; git ignores it).
@@ -126,7 +129,7 @@ prints the same text on stderr and exits non-zero.
 
 ## Status
 
-Lessons 01 to 04 are built and checked. Phases 5 to 7 (an SDK client, the 2026 protocol era,
+Lessons 01 to 05 are built and checked. Phases 6 and 7 (the 2026 protocol era,
 Streamable HTTP) are written up in `specs/` but not built. Your feedback on the lessons is
 welcome as a GitHub issue.
 
@@ -147,6 +150,11 @@ Do them in order.
 4. [The edge lab](docs/lessons/04-edge-lab.md): malformed and out-of-order messages, what the
    server answers against what the spec says, and losing a message at the tap.
    Walkthrough: [the edge experiments](docs/walkthrough/04-edge-lab.md).
+
+5. [What an SDK hides](docs/lessons/05-sdk-client.md): the same tour through the official
+   TypeScript SDK, a message-by-message diff of the two traces, and one request followed through
+   the SDK's source.
+   Walkthrough: [the SDK client](docs/walkthrough/05-sdk-client.md).
 
 More lessons arrive with later phases; [`specs/roadmap.md`](specs/roadmap.md) lists what each
 phase adds.
