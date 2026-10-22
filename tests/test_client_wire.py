@@ -280,9 +280,11 @@ class FramingTest(unittest.TestCase):
             target=sess.wire.start_request, args=("big", {"blob": "x" * 1_000_000}), daemon=True)
         started = time.monotonic()
         big.start()
-        big.join(8)
+        # A deadlock never ends; a drain under CPU load measured up to about 9.5 s (A45), so the
+        # bound is wide enough not to flake and still finite.
+        big.join(30)
         self.assertFalse(big.is_alive(), "the large write is stuck: the reader stopped draining")
-        self.assertLess(time.monotonic() - started, 9)
+        self.assertLess(time.monotonic() - started, 31)
 
 
 if __name__ == "__main__":
