@@ -66,6 +66,7 @@ on this machine (Node 24.22.0) against the pinned, built server:
 - Checks run: `python3 -m unittest discover -s tests -t .` 420 tests OK;
   `node --test "clients/sdk/test/*.test.ts"` 16 pass; `tsc -p clients/sdk` clean.
 - Mutation testing deferred to the final pass (LP7).
+- Mutation run (phase 8 final pass, 2026-11-14): 68 mutants of the claim code in `client/modern.py` and `tap/check.py`, 65 killed, 3 signed equivalent, after 15 survivors were disposed (12 killed by new tests); see `audits/mutation-final-pass.md` and `audits/mutants/phase-06.json`.
 
 ### Accepted limits
 
