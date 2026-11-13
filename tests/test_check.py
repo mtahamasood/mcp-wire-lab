@@ -11,6 +11,7 @@ import unittest
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 from tap import check
 
@@ -193,6 +194,21 @@ class CheckTest(unittest.TestCase):
         code, out, _ = run_check(trace_of(("c2s", call), ("s2c", plain)), revision=MODERN)
         self.assertEqual(code, 1)
         self.assertRegex(out, r"^seq 2  \$\.result  CallToolResult  .*content")
+
+    def test_input_required_rule_does_not_apply_where_the_schema_has_no_such_definition(
+        self,
+    ) -> None:
+        # 2025-11-25 defines no InputRequiredResult: a result carrying that resultType is checked
+        # against its method's own definition, as before, and never crashes the check
+        reply = {"jsonrpc": "2.0", "id": 1, "result": {
+            "tools": [{"name": "echo", "inputSchema": {"type": "object"}}],
+            "resultType": "input_required"}}
+        code, out, err = run_check(trace_of(("c2s", LIST), ("s2c", reply)))
+        self.assertEqual((code, out, err), (0, "check: ok (2 frames)\n", ""))
+        broken = {"jsonrpc": "2.0", "id": 1, "result": {"resultType": "input_required"}}
+        code, out, _ = run_check(trace_of(("c2s", LIST), ("s2c", broken)))
+        self.assertEqual(code, 1)
+        self.assertRegex(out, r"^seq 2  \$\.result  ListToolsResult  .*tools")
 
     def test_2026_request_without_envelope_fails(self) -> None:
         bare = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
@@ -436,6 +452,24 @@ class ExtensionCheckTest(unittest.TestCase):
                     trace_of(("c2s", modern_request(1, "tasks/get", taskId="t"))),
                     spec_root=Path(tmp), revision=MODERN, extra=("--no-extensions",))
                 self.assertNotEqual(no_ext, 2, f"{label}: --no-extensions never loads the file")
+
+    def test_an_unresolved_ref_in_the_extension_stops_at_load_whatever_the_trace(self) -> None:
+        # D14: every `$ref` of the extension must be `#/$defs/<a definition>`; a ref of another
+        # form is refused when the file is loaded, even if no frame of the trace reaches it
+        source = json.loads((check.EXTENSION_DIR / MODERN / "sep-2663-tasks.json").read_text())
+        for ref in ("#/other/Task", "#/definitions/Task", "Task", "#/$defs/NoSuchDefinition"):
+            document = json.loads(json.dumps(source))
+            document["$defs"]["CancelTaskResult"] = {"$ref": ref}
+            with tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp) / MODERN
+                target.mkdir()
+                (target / "sep-2663-tasks.json").write_text(json.dumps(document), encoding="utf-8")
+                with mock.patch.object(check, "EXTENSION_DIR", Path(tmp)):
+                    code, out, err = run_check(
+                        trace_of(("c2s", modern_request(1, "tools/list"))), revision=MODERN)
+            self.assertEqual((code, out), (2, ""), (ref, err))
+            self.assertIn("does not resolve", err)
+            self.assertNotIn("Traceback", err)
 
     def test_no_extensions_and_2025_ignore_the_file(self) -> None:
         code, out, _ = run_check(tasks_trace(), revision=MODERN, extra=("--no-extensions",))

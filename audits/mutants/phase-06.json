@@ -1,0 +1,555 @@
+{
+ "links": [
+  "vendor",
+  "clients/sdk/node_modules"
+ ],
+ "mutants": [
+  {
+   "id": "p6-modern-gate-off",
+   "file": "client/modern.py",
+   "old": "        if not self.ready:\n            raise NotDiscovered",
+   "new": "        if False:\n            raise NotDiscovered",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: requests are allowed before discover"
+  },
+  {
+   "id": "p6-modern-gate-not-called",
+   "file": "client/modern.py",
+   "old": "        self._require_ready()\n        caps = ",
+   "new": "        caps = ",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: start_request no longer checks that discover has been answered"
+  },
+  {
+   "id": "p6-modern-ready-early",
+   "file": "client/modern.py",
+   "old": "        params = envelope({}, self.capabilities)\n",
+   "new": "        params = envelope({}, self.capabilities)\n        self.ready = True\n",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: the session is ready before the discover reply"
+  },
+  {
+   "id": "p6-modern-ready-never",
+   "file": "client/modern.py",
+   "old": "        self.discovered = result\n        self.ready = True\n",
+   "new": "        self.discovered = result\n",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: the session is never ready after a good discover"
+  },
+  {
+   "id": "p6-modern-version-check",
+   "file": "client/modern.py",
+   "old": "if not isinstance(offered, list) or ERA not in offered:",
+   "new": "if not isinstance(offered, list):",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: any list of supported versions is accepted"
+  },
+  {
+   "id": "p6-modern-version-not-list",
+   "file": "client/modern.py",
+   "old": "if not isinstance(offered, list) or ERA not in offered:",
+   "new": "if ERA not in (offered or []):",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: a supportedVersions that is a string holding the era is accepted"
+  },
+  {
+   "id": "p6-modern-32022",
+   "file": "client/modern.py",
+   "old": "if error.get(\"code\") == UNSUPPORTED_VERSION:",
+   "new": "if error.get(\"code\") in (UNSUPPORTED_VERSION, -32601):",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: another error is reported as an unsupported version"
+  },
+  {
+   "id": "p6-modern-32022-ignored",
+   "file": "client/modern.py",
+   "old": "if error.get(\"code\") == UNSUPPORTED_VERSION:",
+   "new": "if False:",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: -32022 is reported like any other error (no offered versions, 2025 hint)"
+  },
+  {
+   "id": "p6-modern-other-error-hint",
+   "file": "client/modern.py",
+   "old": "this server may speak \"\n                \"only the 2025 era: try --era 2025-11-25",
+   "new": "this server may speak \"\n                \"only the 2025 era",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: another error no longer names --era 2025-11-25"
+  },
+  {
+   "id": "p6-modern-offered-shown",
+   "file": "client/modern.py",
+   "old": "                    f\"the server does not speak {ERA}; it offered {json.dumps(offered)}\") from exc",
+   "new": "                    f\"the server does not speak {ERA}\") from exc",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: the -32022 stop does not name the offered versions"
+  },
+  {
+   "id": "p6-modern-offered-shown-list",
+   "file": "client/modern.py",
+   "old": "            raise UnsupportedVersion(\n                f\"the server does not speak {ERA}; it offered {json.dumps(offered)}\")\n        self.discovered",
+   "new": "            raise UnsupportedVersion(\n                f\"the server does not speak {ERA}\")\n        self.discovered",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: the version-list stop does not name the offered versions"
+  },
+  {
+   "id": "p6-modern-discover-input-required",
+   "file": "client/modern.py",
+   "old": "        if isinstance(result, InputRequired):\n            raise InvalidResult(\"server/discover answered input_required\")\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C2: an input_required reply to discover is not refused"
+  },
+  {
+   "id": "p6-modern-task-gate",
+   "file": "client/modern.py",
+   "old": "if kind == \"task\" and tasks_declared:",
+   "new": "if kind == \"task\":",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C3: a task result is accepted without the extension"
+  },
+  {
+   "id": "p6-modern-task-gate-open",
+   "file": "client/modern.py",
+   "old": "    if kind == \"task\" and tasks_declared:\n        return result",
+   "new": "    if kind == \"task\" and not tasks_declared:\n        return result",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C3: task accepted only without the extension"
+  },
+  {
+   "id": "p6-modern-task-caps-from-request",
+   "file": "client/modern.py",
+   "old": "return classify_result(raw, declares_tasks(caps))",
+   "new": "return classify_result(raw, True)",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C3: request() always treats the tasks extension as declared"
+  },
+  {
+   "id": "p6-modern-declares-tasks",
+   "file": "client/modern.py",
+   "old": "return TASKS_EXTENSION in (capabilities.get(\"extensions\") or {})",
+   "new": "return bool(capabilities.get(\"extensions\"))",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C3: any extension counts as declaring tasks"
+  },
+  {
+   "id": "p6-modern-absent-is-complete",
+   "file": "client/modern.py",
+   "old": "kind = result.get(\"resultType\", \"complete\")",
+   "new": "kind = result.get(\"resultType\", \"input_required\")",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C3: an absent resultType is not a result"
+  },
+  {
+   "id": "p6-modern-unrecognized-accepted",
+   "file": "client/modern.py",
+   "old": "    raise InvalidResult(f\"unrecognized resultType {kind!r}\")",
+   "new": "    return result",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C3: an unrecognized resultType is returned as a result"
+  },
+  {
+   "id": "p6-modern-input-required-branch",
+   "file": "client/modern.py",
+   "old": "    if kind == \"input_required\":\n        return InputRequired(result)\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C3: an input_required result is invalid (falls to the unrecognized rule)"
+  },
+  {
+   "id": "p6-modern-non-object-result",
+   "file": "client/modern.py",
+   "old": "    if not isinstance(result, dict):\n        raise InvalidResult(f\"the result is not an object: {json.dumps(result)[:80]}\")\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C3: a result that is not an object is not refused"
+  },
+  {
+   "id": "p6-modern-state-dropped",
+   "file": "client/modern.py",
+   "old": "            if result.request_state is not None:\n                current[\"requestState\"] = result.request_state\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: requestState is not echoed"
+  },
+  {
+   "id": "p6-modern-state-truthy",
+   "file": "client/modern.py",
+   "old": "            if result.request_state is not None:\n                current[\"requestState\"]",
+   "new": "            if result.request_state:\n                current[\"requestState\"]",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: an empty requestState is not echoed"
+  },
+  {
+   "id": "p6-modern-state-reencoded",
+   "file": "client/modern.py",
+   "old": "current[\"requestState\"] = result.request_state",
+   "new": "current[\"requestState\"] = json.loads(json.dumps(result.request_state)) if not isinstance(result.request_state, str) else result.request_state.strip()",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: requestState is trimmed (not byte for byte)"
+  },
+  {
+   "id": "p6-modern-stale-retry",
+   "file": "client/modern.py",
+   "old": "            current = dict(base)\n            current[\"inputResponses\"]",
+   "new": "            current = dict(current)\n            current[\"inputResponses\"]",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: a retry inherits the previous round's fields (P8-R6-3a)"
+  },
+  {
+   "id": "p6-modern-responses-dropped",
+   "file": "client/modern.py",
+   "old": "            current[\"inputResponses\"] = responses\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: the retry carries no inputResponses"
+  },
+  {
+   "id": "p6-modern-response-per-key",
+   "file": "client/modern.py",
+   "old": "                responses[key] = answer(input_request)",
+   "new": "                responses[key] = input_request",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: an inputResponses entry is the request, not the answer"
+  },
+  {
+   "id": "p6-modern-responses-all-keys",
+   "file": "client/modern.py",
+   "old": "            for key, input_request in result.input_requests.items():",
+   "new": "            for key, input_request in list(result.input_requests.items())[:1]:",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: only the first input request is answered"
+  },
+  {
+   "id": "p6-modern-rounds",
+   "file": "client/modern.py",
+   "old": "for number in range(1, max_rounds + 1):",
+   "new": "for number in range(1, max_rounds):",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: one request fewer than max_rounds"
+  },
+  {
+   "id": "p6-modern-round-limit-break",
+   "file": "client/modern.py",
+   "old": "            if number == max_rounds:\n                break\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: an input request is answered after the last allowed request"
+  },
+  {
+   "id": "p6-modern-round-limit-error",
+   "file": "client/modern.py",
+   "old": "        raise TooManyRounds(f\"{method} was still input_required after {max_rounds} requests\")",
+   "new": "        return {}",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: the round limit returns an empty result"
+  },
+  {
+   "id": "p6-modern-unanswerable",
+   "file": "client/modern.py",
+   "old": "                if answer is None:\n                    raise CannotAnswer",
+   "new": "                if False:\n                    raise CannotAnswer",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: no answer function is not refused"
+  },
+  {
+   "id": "p6-modern-params-not-copied",
+   "file": "client/modern.py",
+   "old": "        base = copy.deepcopy(params) if params else {}",
+   "new": "        base = params if params else {}",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: the caller's params are the retry's base (aliased)",
+   "equivalent": "`base` is only read: each round copies it with dict(base) and `request` deep-copies the params into the envelope, so nothing the function does writes through the alias. It differs only for a caller that mutates its own params from inside `answer`, which no caller does and no row specifies."
+  },
+  {
+   "id": "p6-modern-first-request-bare",
+   "file": "client/modern.py",
+   "old": "            result = self.request(method, current, capabilities=capabilities, **options)",
+   "new": "            result = self.request(method, base, capabilities=capabilities, **options)",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C4: every round sends the bare params (no responses, no state)"
+  },
+  {
+   "id": "p6-modern-sub-key-type",
+   "file": "client/modern.py",
+   "old": "self._by_id.setdefault(key_of(meta[SUBSCRIPTION_ID]), []).append(message)",
+   "new": "self._by_id.setdefault(key_of(str(meta[SUBSCRIPTION_ID])), []).append(message)",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: a notification is filed under the stringified subscription id"
+  },
+  {
+   "id": "p6-modern-sub-wait-key-type",
+   "file": "client/modern.py",
+   "old": "        key = key_of(stream_id)\n        with self._cond:\n            while True:",
+   "new": "        key = key_of(str(stream_id))\n        with self._cond:\n            while True:",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: a wait looks up the stringified id (3 and \"3\" are one stream)"
+  },
+  {
+   "id": "p6-modern-sub-messages-key-type",
+   "file": "client/modern.py",
+   "old": "return list(self._by_id.get(key_of(stream_id), []))",
+   "new": "return list(self._by_id.get(key_of(str(stream_id)), []))",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: seen() looks up the stringified id"
+  },
+  {
+   "id": "p6-modern-sub-ack-id",
+   "file": "client/modern.py",
+   "old": "                return self.registry.wait(\n                    pending.id, method,",
+   "new": "                return self.registry.wait(\n                    str(pending.id), method,",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: the acknowledgment is matched on the stringified listen id"
+  },
+  {
+   "id": "p6-modern-sub-ack-any",
+   "file": "client/modern.py",
+   "old": "                return self.registry.wait(\n                    pending.id, method,",
+   "new": "                return self.registry.wait(\n                    next(iter(self.registry._by_id), pending.id), method,",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: the acknowledgment of any subscription satisfies listen"
+  },
+  {
+   "id": "p6-modern-wait-method",
+   "file": "client/modern.py",
+   "old": "if message.get(\"method\") == method and (match is None or match(params)):",
+   "new": "if match is None or match(params):",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: wait_for takes a notification of any method (P8-R6-3b)"
+  },
+  {
+   "id": "p6-modern-wait-match",
+   "file": "client/modern.py",
+   "old": "if message.get(\"method\") == method and (match is None or match(params)):",
+   "new": "if message.get(\"method\") == method:",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: wait_for ignores its match predicate"
+  },
+  {
+   "id": "p6-modern-wait-consume",
+   "file": "client/modern.py",
+   "old": "                        del self._by_id[key][i]\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: a matched notification is not consumed (read twice)"
+  },
+  {
+   "id": "p6-modern-feed-no-notify",
+   "file": "client/modern.py",
+   "old": "                self._by_id.setdefault(key_of(meta[SUBSCRIPTION_ID]), []).append(message)\n                self._cond.notify_all()",
+   "new": "                self._by_id.setdefault(key_of(meta[SUBSCRIPTION_ID]), []).append(message)",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: a filed notification does not wake a waiter"
+  },
+  {
+   "id": "p6-modern-close-no-cancel",
+   "file": "client/modern.py",
+   "old": "        return self.session.cancel(self.pending, \"the client closes the subscription\")",
+   "new": "        return True",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: close() sends no notifications/cancelled"
+  },
+  {
+   "id": "p6-modern-close-twice",
+   "file": "client/modern.py",
+   "old": "        if self.closed:\n            return False\n        self.closed = True\n",
+   "new": "        self.closed = True\n",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: close() cancels again when called twice",
+   "equivalent": "Session.cancel is itself idempotent: wire.abandon returns False for a request already abandoned, and cancel then sends nothing and returns False, so a second close() sends no second notifications/cancelled and returns False with or without the `closed` flag (test_close_sends_cancelled_with_listen_id already asserts both)."
+  },
+  {
+   "id": "p6-modern-sub-id",
+   "file": "client/modern.py",
+   "old": "        self.id = pending.id\n",
+   "new": "        self.id = str(pending.id)\n",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: the subscription's id is the stringified listen id"
+  },
+  {
+   "id": "p6-modern-listen-error-ignored",
+   "file": "client/modern.py",
+   "old": "                    pending.wait(0)  # an error reply raises its RpcError here\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: an error answering listen is reported as a plain RuntimeError"
+  },
+  {
+   "id": "p6-modern-listen-timeout-cancel",
+   "file": "client/modern.py",
+   "old": "        except TimeoutError:\n            self.cancel(pending, \"no acknowledgment\")\n            raise",
+   "new": "        except TimeoutError:\n            raise",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C5: a listen that times out is not cancelled"
+  },
+  {
+   "id": "p6-check-input-required",
+   "file": "tap/check.py",
+   "old": "if result_type == \"input_required\" and \"InputRequiredResult\" in defs:",
+   "new": "if result_type == \"input_required_\" and \"InputRequiredResult\" in defs:",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C9: an input_required result is checked against the method's own result"
+  },
+  {
+   "id": "p6-check-input-required-def",
+   "file": "tap/check.py",
+   "old": "            result_def = \"InputRequiredResult\"\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C9: the input_required rule picks no definition"
+  },
+  {
+   "id": "p6-check-input-required-any-type",
+   "file": "tap/check.py",
+   "old": "if result_type == \"input_required\" and \"InputRequiredResult\" in defs:",
+   "new": "if result_type is not None and \"InputRequiredResult\" in defs:",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C9: any resultType is checked as InputRequiredResult"
+  },
+  {
+   "id": "p6-check-input-required-2025",
+   "file": "tap/check.py",
+   "old": "if result_type == \"input_required\" and \"InputRequiredResult\" in defs:",
+   "new": "if result_type == \"input_required\":",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C9: the rule fires on a revision whose schema has no InputRequiredResult (KeyError)"
+  },
+  {
+   "id": "p6-check-name-collision",
+   "file": "tap/check.py",
+   "old": "        if def_name in schema.defs:\n",
+   "new": "        if False:\n",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: an extension definition may shadow a pinned one"
+  },
+  {
+   "id": "p6-check-method-collision",
+   "file": "tap/check.py",
+   "old": "        if method in pinned_methods:\n",
+   "new": "        if False:\n",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: an extension may redefine a pinned method"
+  },
+  {
+   "id": "p6-check-pinned-methods-alias",
+   "file": "tap/check.py",
+   "old": "    pinned_methods = dict(schema.by_method)\n",
+   "new": "    pinned_methods = schema.by_method\n",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: the pinned method index is aliased, not copied",
+   "equivalent": "`pinned_methods` is only read, by the collision loop, before `schema.by_method` is reassigned; the loop never writes to it, so the copy is defensive and an alias behaves the same."
+  },
+  {
+   "id": "p6-check-ref-resolve",
+   "file": "tap/check.py",
+   "old": "if not ref.startswith(\"#/$defs/\") or ref[len(\"#/$defs/\"):] not in merged:",
+   "new": "if not ref.startswith(\"#/$defs/\"):",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: an unresolved extension $ref is not caught at load"
+  },
+  {
+   "id": "p6-check-ref-prefix",
+   "file": "tap/check.py",
+   "old": "if not ref.startswith(\"#/$defs/\") or ref[len(\"#/$defs/\"):] not in merged:",
+   "new": "if ref[len(\"#/$defs/\"):] not in merged:",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: a $ref with another prefix is accepted at load"
+  },
+  {
+   "id": "p6-check-label",
+   "file": "tap/check.py",
+   "old": "        if definition in schema.extension_defs:\n",
+   "new": "        if False:\n",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: extension frames are not labelled SEP-2663 or counted"
+  },
+  {
+   "id": "p6-check-by-method",
+   "file": "tap/check.py",
+   "old": "    schema.by_method = methods_of(merged)\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: the merged method index is not rebuilt"
+  },
+  {
+   "id": "p6-check-defs-merge",
+   "file": "tap/check.py",
+   "old": "    schema.defs = merged\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: the merged definitions are not installed"
+  },
+  {
+   "id": "p6-check-extension-defs",
+   "file": "tap/check.py",
+   "old": "    schema.extension_defs = frozenset(added)\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: the extension's definition names are not recorded"
+  },
+  {
+   "id": "p6-check-no-extensions",
+   "file": "tap/check.py",
+   "old": "    if extensions:\n        load_extension(schema, revision)",
+   "new": "    if True:\n        load_extension(schema, revision)",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: --no-extensions still loads the extension"
+  },
+  {
+   "id": "p6-check-extension-2025",
+   "file": "tap/check.py",
+   "old": "    name = EXTENSION_FILES.get(revision)\n    if name is None:\n        return\n",
+   "new": "    name = EXTENSION_FILES.get(revision) or \"sep-2663-tasks.json\"\n",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: 2025-11-25 loads the 2026 extension file"
+  },
+  {
+   "id": "p6-check-task-other-method",
+   "file": "tap/check.py",
+   "old": "if method != \"tools/call\":",
+   "new": "if False:",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: a task result on another method than tools/call is accepted"
+  },
+  {
+   "id": "p6-check-task-other-method-narrow",
+   "file": "tap/check.py",
+   "old": "if method != \"tools/call\":",
+   "new": "if method == \"tasks/get\":",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: a task result is refused only on tasks/get"
+  },
+  {
+   "id": "p6-check-task-rule-off",
+   "file": "tap/check.py",
+   "old": "        elif result_type == \"task\" and \"CreateTaskResult\" in schema.extension_defs:",
+   "new": "        elif False:",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: a resultType \"task\" is not checked as CreateTaskResult"
+  },
+  {
+   "id": "p6-check-task-without-extension",
+   "file": "tap/check.py",
+   "old": "        elif result_type == \"task\" and \"CreateTaskResult\" in schema.extension_defs:",
+   "new": "        elif result_type == \"task\":",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: the task rule fires without the extension loaded (KeyError)"
+  },
+  {
+   "id": "p6-check-task-def",
+   "file": "tap/check.py",
+   "old": "            result_def = \"CreateTaskResult\"\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: a task result is checked against the method's result, not CreateTaskResult"
+  },
+  {
+   "id": "p6-check-extension-count",
+   "file": "tap/check.py",
+   "old": "            extension_frames += 1\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_check",
+   "note": "C16: extension frames are not counted for the SEP-2663 line"
+  }
+ ]
+}

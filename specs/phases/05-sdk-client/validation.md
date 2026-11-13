@@ -68,6 +68,7 @@ on this machine (Node 24.22.0) against the pinned, built server:
   G8, G9, G10, G11, G12 (`--phases 05`) tools ok. `scripts/gate.sh` itself not run by the
   builder (shared machine).
 - Mutation testing of `tap/diff.py` (RP3) deferred to the final pass (LP7).
+- Mutation run (phase 8 final pass, 2026-11-14): 31 mutants of `tap/diff.py`'s keys and comparison, 31 killed, 0 equivalent, after 4 survivors were killed by new tests; see `audits/mutation-final-pass.md` and `audits/mutants/phase-05.json`.
 
 ### Accepted limits
 

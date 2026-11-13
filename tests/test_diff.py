@@ -145,6 +145,18 @@ class KeysTest(DiffCase):
         stray = trace(("c2s", note("notifications/cancelled", requestId=99)))
         self.assertEqual(diff.make_frames(stray)[0].message["params"]["requestId"], 99)
 
+    def test_only_a_cancellation_has_its_request_id_mapped(self) -> None:
+        # D4: `params.requestId` of `notifications/cancelled` is replaced by the request's key;
+        # another notification's `requestId` is compared as written, even when it names a request
+        def run(i: int, method: str) -> list[dict[str, Any]]:
+            return trace(("c2s", request(i, "tools/call")),
+                         ("c2s", note(method, requestId=i)))
+        self.assertTrue(diff.compare(run(0, "notifications/cancelled"),
+                                     run(5, "notifications/cancelled")).clean)
+        result = diff.compare(run(0, "notifications/other"), run(5, "notifications/other"))
+        self.assertEqual(result.differ, 1)
+        self.assertIn("params.requestId: 0 | 5", "\n".join(result.entries[0].detail))
+
     def test_non_message_frames_keyed_apart(self) -> None:
         records = [
             rec(0, "c2s", request(0, "ping")),
@@ -195,6 +207,22 @@ class EqualityTest(DiffCase):
         self.assertEqual(result.differ, 1)
         self.assertEqual(result.entries[0].detail[1:],
                          ["    params.v[0]: 1 | 2", "    params.v[1]: 2 | 1"])
+
+    def test_an_extra_member_or_array_item_is_a_difference(self) -> None:
+        # equal means the same JSON value: one side having more is a difference, either way
+        def one(**params: Any) -> list[dict[str, Any]]:
+            return [rec(0, "c2s", note("m", **params))]
+        for left, right in ((one(v=1), one(v=1, w=2)), (one(v=[1]), one(v=[1, 2]))):
+            for a, b in ((left, right), (right, left)):
+                result = diff.compare(a, b)
+                self.assertEqual((result.differ, result.clean), (1, False))
+        # and the differing path is listed, with the missing side as (absent)
+        lines = diff.compare(one(v=[1]), one(v=[1, 2])).entries[0].detail
+        self.assertEqual(lines[1:], ["    params.v[1]: (absent) | 2"])
+        lines = diff.compare(one(v=[1, 2]), one(v=[1])).entries[0].detail
+        self.assertEqual(lines[1:], ["    params.v[1]: 2 | (absent)"])
+        lines = diff.compare(one(v=1), one(v=1, w=2)).entries[0].detail
+        self.assertEqual(lines[1:], ["    params.w: (absent) | 2"])
 
     def test_progress_token_is_not_normalised(self) -> None:
         a = trace(("c2s", request(15, "tools/call", _meta={"progressToken": "tour-done"})),
