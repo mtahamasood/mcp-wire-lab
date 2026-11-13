@@ -147,7 +147,12 @@ class Handlers:
 
     def _respond(self, message: Message) -> None:
         try:
-            reply = self.answer(message)
+            try:
+                reply = self.answer(message)
+            except (AttributeError, TypeError, ValueError) as exc:  # malformed params (P8-R3-1)
+                reply = {"jsonrpc": JSON_RPC, "id": message["id"],
+                         "error": {"code": INVALID_PARAMS,
+                                   "message": f"Invalid params for {message['method']}: {exc}"}}
             assert self.wire is not None, "Handlers.attach(wire) was not called"
             self.wire.send_message(reply)
         except OSError as exc:  # the server is gone; nobody is left to answer
@@ -160,7 +165,8 @@ class Handlers:
 
         The error is -32601 (method not found), except -32602 (invalid params) for an
         `elicitation/create` in a mode the client did not declare. Every reply carries the
-        request's `id` exactly as it came, so `1` and `"1"` stay different.
+        request's `id` exactly as it came, so `1` and `"1"` stay different. Params that are not
+        an object get -32602 too (and `_respond` turns any other malformed shape into it).
 
         `spec:docs/specification/2025-11-25/basic/index.mdx:69`
         "MUST** include the same ID"
@@ -171,6 +177,11 @@ class Handlers:
         """
         method = message["method"]
         params = message.get("params") or {}
+        if not isinstance(params, dict):
+            return {
+                "jsonrpc": JSON_RPC, "id": message["id"],
+                "error": {"code": INVALID_PARAMS, "message": "params must be an object"},
+            }
         mode = params.get("mode", "form")
         if method == "elicitation/create" and not self._declares_mode(mode):
             return {

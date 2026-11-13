@@ -149,8 +149,8 @@ Run the same command without the redirect and read every note against your predi
   for, or whose capability it did not declare, gets `-32601`, method not found; an
   `elicitation/create` in a mode it did not declare gets `-32602`, invalid params.
 - `Handlers.handle_request`: the reply is built and sent on a worker thread, so the reader can go
-  on reading. That is the answer to Predict 3: on one thread the client would wait for its own
-  reader to deliver the reply to a request that the reader is itself busy answering.
+  on reading. That is the answer to Predict 3: on one thread, a slow handler would stall
+  the reader, and everything else the reader delivers would wait behind it.
 - `Handlers.handle_notification` and `Handlers._react`: a list-changed notification marks the list,
   and a second thread waits 50 ms before it re-requests, so the five `tools/list_changed` the server
   sends right after `initialized` cost one `tools/list`.
@@ -247,8 +247,11 @@ The *Predict* answers:
 2. Four: the client's `initialize`, the server's reply to it, the server's first `roots/list`,
    and the client's answer to that. A request is told from a response by shape, and the two ids
    0 belong to two different counters.
-3. A deadlock: the reader would wait for the handler to finish, and the handler's own reply
-   path needs that reader to go on delivering the answer to the client's unanswered `tools/call`.
+3. No deadlock in this client: the reply is built and written locally, so nothing in the answer
+   path waits for the reader (the tour passes even if the reply is sent on the reader thread). What
+   the worker thread buys is a slow handler (a model, a person) that does not stall the reader, so
+   the client's own replies, progress and cancellations are not held up behind it, and a handler
+   that sends its own request and waits for the reply could not deadlock.
 4. An error response under the server's own id: `-32601` for an undeclared capability (see 4 above).
 
 </details>

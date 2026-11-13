@@ -118,6 +118,25 @@ class HandlersTest(unittest.TestCase):
             self.assertEqual(reply["error"]["code"], -32602, (caps, params))
             self.assertNotIn("result", reply)
 
+    def test_malformed_params_still_get_a_reply_under_the_id(self) -> None:
+        # P8-R3-1: params that are not an object, or a schema property that is not an object,
+        # used to raise on the worker thread and leave the server without any answer.
+        rig = self.rig()
+        form_bad: dict[str, Any] = {"requestedSchema": {"properties": {"a": "notadict"}}}
+        cases: list[tuple[Any, str, Any]] = [
+            (1, "ping", [1]), (2, "roots/list", "x"),
+            (3, "elicitation/create", form_bad), (4, "ping", None),
+            (5, "elicitation/create", {"requestedSchema": []}),
+        ]
+        for request_id, method, params in cases:
+            reply = rig.ask(request_id, method, params)
+            self.assertEqual(reply["id"], request_id, (method, params))
+            if request_id == 4:
+                self.assertEqual(reply["result"], {})
+            else:
+                self.assertEqual(reply["error"]["code"], -32602, (method, params))
+        self.assertEqual(rig.reports, [])
+
     def test_unknown_method_is_refused(self) -> None:
         rig = self.rig()
         reply = rig.ask("u-1", "tasks/get")

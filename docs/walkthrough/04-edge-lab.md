@@ -89,8 +89,8 @@ and then the validation failure, which says `jsonrpc` was expected to be `"2.0"`
 alternative the message was tried against (request, notification, result, error), plus a stack that
 starts in the SDK's message parsing. It is printed by the server's own error hook at
 `servers:src/everything/transports/stdio.ts:65` "console.error(\"Transport error:\", error);".
-The parsing and the validation are in the SDK (not cited). The message is dropped: the SDK never
-hands it to a request handler, so there is no `id` to put on an error reply.
+The parsing and the validation are in the SDK (not cited). The message is dropped at validation, before any handler. It has an `id` (1), so
+the server could have answered `-32600` with `id` 1; this server only logs.
 
 #### `c2s.ping.2`
 

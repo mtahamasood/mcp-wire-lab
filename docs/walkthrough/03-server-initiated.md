@@ -253,9 +253,11 @@ client has no user: it fills each property from its `default`, else the first op
 #### `c2s.response.3`
 
 `action: accept` with a value for every property, for example `firstLine` from its default and
-`number` as `3`. The server's default for that field is 3.14, but the schema's `ElicitResult`
-allows only strings, integers, booleans and lists of strings as values, so the client sends the
-integer part (the check against the schema, `tap.check`, would reject `3.14`). The spec's `accept`
+`number` as `3`. The server's default for that field is 3.14. The TypeScript schema, the source of truth,
+types `ElicitResult` values as `string | number | boolean | string[]`
+(`spec:schema/2025-11-25/schema.ts:2485` "content?: { [key: string]: string | number | boolean | string[] };"),
+but the generated JSON schema, which `tap.check` uses, says `integer` where `schema.ts` says `number`.
+So the client sends the integer part and the check passes. The spec's `accept`
 is at `spec:docs/specification/2025-11-25/client/elicitation.mdx:269` "\"action\": \"accept\",".
 
 #### `s2c.response.4`

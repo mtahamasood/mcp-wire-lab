@@ -190,8 +190,9 @@ lost message look the same to a client.
 <summary>Answers</summary>
 
 1. A well-formed request for an unknown method is a request: the server can attach an error to its
-   `id`. An array is not a valid message at all, so the parser throws before any id is read and
-   there is nothing to reply to; the failure goes to stderr and the exit status instead.
+   `id`. An array is not a valid message at all, so no id can be read. The server could answer
+   with an error that has no id (the schema allows one), but this one only logs to stderr, and the
+   failure shows in the exit status.
 2. It cannot tell the two replies with `id` 1 apart; only content and order do. The server answered
    both rather than refusing the reused id, so the client must not reuse ids.
 3. The `c2s` frame record for `tools/list` proves it arrived at the tap; the `fault` record with
