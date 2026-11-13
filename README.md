@@ -106,6 +106,7 @@ prints the same text on stderr and exits non-zero.
 | `python3 -m tap --trace <file> [--delay\|--drop ...] -- <server command>` | The tap itself, for when you want to put it in front of your own command. `--drop` and `--delay` inject faults (lesson 04). |
 | `python3 -m client <tour\|manual\|server-tour\|matrix> -- <server command>` | The raw client without the tap. `--caps` chooses the capabilities it declares. `--url <url>` instead of `-- <server command>` (tour, manual, server-tour) runs it over Streamable HTTP. |
 | `node clients/sdk/src/main.ts <tour\|server-tour> -- <server command>` | The SDK client without the tap. `--caps` chooses the capabilities it declares; `--era 2026-07-28` (tour only) runs the new era. `--url <url>` instead of `-- <server command>` uses the SDK's HTTP transport. |
+| `python3 tools/mutate.py [--only ID,ID] <spec.json>` | Mutation runner: applies each exact text replacement in the spec to a temp copy, runs its test command, reports killed or survived (`-h` shows the spec format). |
 | `scripts/gate.sh` | Every automated check; needs `uv`. Contributors run it before a commit. |
 
 ## What is where
