@@ -57,6 +57,7 @@ named in their own `validation.md`; D10 reviews phases 3–7.
 | C63 | Stage B (D10, P8-R7-8). A non-200, non-202 status whose body is a JSON-RPC reply to a different id fails the posted request at once with `HttpStatusError`; only a body with the posted request's own id is its reply (C12's reading, tightened) | `tests/test_client_http.py::HttpWireTest::test_error_status_with_another_id_fails_the_request_at_once`, `tests/test_client_http.py::HttpWireTest::test_error_status_fails_the_request_at_once` | yes |
 | C64 | Stage B (D10, P8-R7-10). After a server negotiates a version other than the one the client asked for, every later POST, the GET and the DELETE carry the negotiated `MCP-Protocol-Version`; kills mutant M07-09 | `tests/test_client_http.py::HttpWireTest::test_protocol_version_header_is_the_negotiated_one` | yes |
 | C65 | Stage B (D10, P8-R7-11). The GET stream is sent with `Accept: text/event-stream`; kills mutant M07-10 | `tests/test_client_http.py::HttpStreamTest::test_stream_opens_before_initialized` | yes |
+| C66 | Stage B (D10, P8-R7-15). The HTTP tour's docstring, `TourFailure`, `run_http_tour` and lesson 07 say the tour expects what the pinned server does (`200` `text/event-stream` for a request, `200` for DELETE) and that the transport also allows `application/json` for a request and `405` for DELETE: the claim is corrected, the tour's checks stay strict (the tour is written for the pinned server, phase 7 M3-M11) | `tools/check_lessons.py`, `tests/test_lessons.py` | not claim code (RP3) |
 
 ## E. Not-done conditions
 
