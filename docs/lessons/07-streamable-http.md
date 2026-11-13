@@ -15,6 +15,21 @@ Lessons 02 and 03 come first: this one assumes you know requests, replies, serve
 how the raw client matches replies to requests by id. Nothing here is new at the JSON-RPC level,
 and that is the point.
 
+Terms used below, each in one line:
+
+- **Streamable HTTP**: MCP's HTTP transport. The client sends every message as an HTTP `POST` to one
+  URL (the endpoint, here `/mcp`).
+- **Event stream** (SSE, Server-Sent Events): an HTTP response that stays open and delivers messages
+  as a series of events, `Content-Type: text/event-stream`. Each event carries one JSON-RPC message.
+- **Priming event**: an event with empty data that the server sends first on a stream, so the client
+  has an event id to resume from.
+- **Session id**: the `Mcp-Session-Id` header. The server makes one in its `initialize` response and
+  the client sends it on every later request; it is what turns separate POSTs into one session.
+  (The 2026-07-28 revision removes sessions; the walkthrough explains how.)
+- **GET stream**: a `GET` to the endpoint that the client leaves open, so the server has a channel
+  for messages nobody asked for.
+- **Exchange**: one HTTP request and its response. `tap.show` numbers them `#0`, `#1` and so on.
+
 One safety fact, because it shapes the setup: the pinned server, given a port, listens on **every**
 network interface. So a recording never gives it one. The tap starts the server on a Unix socket in
 a private directory and listens on `127.0.0.1` only; the client talks to the tap.
@@ -32,6 +47,8 @@ Before you run anything, write down:
    server anything. Which HTTP exchange can carry that request, and who has to open it?
 4. The client gives up on a long call. What must it do on the HTTP connection, besides sending
    `notifications/cancelled`?
+
+(Answers: *Predict answers* at the end.)
 
 ## Run
 
@@ -145,7 +162,7 @@ Run the same command without the redirect and read every note against your predi
   whose events each go to the same line handler as a pipe's lines; any other status fails the
   request at once (or, if the body is a JSON-RPC error with an id, is that request's error).
 - `HttpSession.initialize`: the GET stream opens between the `initialize` result and
-  `notifications/initialized`. Move it and the server's `roots/list` is lost (experiment 1).
+  `notifications/initialized`. Leave it out and the server's `roots/list` is lost (experiment 1).
 - `HttpWire.abandon`: cancelling closes the connection carrying the request's stream.
 - `tap/http.py`, `SseParser` and `ProxyHandler.pump_stream`: how an event stream becomes one frame per
   event, and why the tap forwards each piece as soon as it is read.
@@ -156,8 +173,8 @@ Run the same command without the redirect and read every note against your predi
 
 ## Experiments
 
-The outcomes below were **measured against the pinned server** when this lesson was written; they
-are what the server did, and the commands here fail if a future pin changes them.
+Each block below runs as written from the repo root, and the output shown is what it printed
+against the pinned server. The blocks fail if a future pin changes the behaviour.
 
 **1. Leave the GET stream out.** `--no-stream` skips it. The server's `roots/list` request, which
 only that stream can carry, never arrives, and the tour says so. The block starts the tap and the
@@ -182,66 +199,33 @@ $ rm -r "$dir"
 roots/list (server asked)                  never arrived: no GET stream was open
 ```
 
-Measured: with no stream open the server drops what it sends unprompted
-(`servers:node_modules/@modelcontextprotocol/server/dist/index.mjs:947` "if (standaloneSse === void 0) return;"), so the roots sync and the list-change
-notifications are lost, and the rest of the tour still passes. Now move the stream by hand: in
-`client/http_wire.py` make `HttpSession.initialize` open it after `notifications/initialized`
-instead of before. Predict what changes in the trace, run the tour, and undo with
-`git checkout client/http_wire.py`.
+With no stream open the server drops what it sends unprompted
+(`servers:node_modules/@modelcontextprotocol/server/dist/index.mjs:947` "if (standaloneSse === void 0) return;"),
+so the roots request and the list-change notifications are lost, and the rest of the tour still
+passes.
 
-**2. Compare two recordings.** The session id and every SSE event id are new on every run; the
-messages are not. Record the tour twice, count the distinct session ids across both runs, and
-compare the sorted message lines with the exchange numbers and timings stripped:
+**2. The same messages over a pipe and over HTTP.** The raw client's `tour` takes `--url` as well as
+a server command. Record it both ways and list the methods the client sent. The framing around the
+messages changes; the messages do not:
 
 <!-- run -->
 ```console
-$ scripts/record.sh --http --client http-tour lesson07a > /dev/null
-$ scripts/record.sh --http --client http-tour lesson07b > /dev/null
-$ a=$(ls -dt runs/*-lesson07a | head -1)
-$ b=$(ls -dt runs/*-lesson07b | head -1)
-$ cat "$a/trace.jsonl" "$b/trace.jsonl" | grep -o '"mcp-session-id": *"[0-9a-f-]*"' | sort -u | wc -l
-$ msgs() { python3 -m tap.show "$1" | grep -- '->  \|<-  ' | sed -E 's/^ *[0-9]+ +[0-9.]+ ms +//; s/ \(answers[^)]*\)//; s/ #[0-9]+$//' | sort; }
-$ diff <(msgs "$a/trace.jsonl") <(msgs "$b/trace.jsonl") && echo "same messages"
+$ scripts/record.sh --client tour lesson07t > /dev/null
+$ scripts/record.sh --http --client tour lesson07u > /dev/null
+$ sent() { python3 -c 'import json, sys; print(*[r["json"]["method"] for r in map(json.loads, open(sys.argv[1])) if r["dir"] == "c2s" and r["json"] and "method" in r["json"]], sep="\n")' "$(ls -dt runs/*-lesson07$1 | head -1)/trace.jsonl"; }
+$ diff <(sent t) <(sent u) && echo "same messages sent"
 ```
 
 <!-- expect -->
 ```text
-2
-same messages
+same messages sent
 ```
 
-**3. The same `initialize` result, other framing.** Lesson 01's handshake fixture over stdio and the
-HTTP tour ask different questions but get the same `initialize` result. Record the fixture, then
-compare the decoded result with the HTTP tour's, and the byte counts of the two frames. The stdio
-frame is one byte longer: it ends with the newline that frames it on a pipe; the HTTP body has none.
-
-<!-- run -->
-```console
-$ scripts/record.sh tests/fixtures/handshake-2025.ndjson lesson07h > /dev/null
-$ python3 - "$(ls -dt runs/*-lesson07h | head -1)" "$(ls -dt runs/*-lesson07 | head -1)" <<'PY'
-import json, sys
-def reply(run):
-    for line in open(f"{run}/trace.jsonl"):
-        rec = json.loads(line)
-        if rec["dir"] == "s2c" and isinstance(rec.get("json"), dict) and rec["json"].get("id") == 0:
-            return rec
-stdio, http = reply(sys.argv[1]), reply(sys.argv[2])
-print("same result:", stdio["json"]["result"] == http["json"]["result"])
-print("stdio frame is longer by", stdio["bytes"] - http["bytes"], "byte")
-PY
-```
-
-<!-- expect -->
-```text
-same result: True
-stdio frame is longer by 1 byte
-```
-
-**4. The SDK client over HTTP.** Part of phase 5's client is a transport away from the same wire:
-`scripts/record.sh --http --client sdk-tour` runs its tour through the SDK's
-`StreamableHTTPClientTransport`. Its GET stream opens after `notifications/initialized` (the raw
-client's before it), and it ends the session with a DELETE only because the tour calls
-`terminateSession()`. Record it and look at the order of the first three requests and the last:
+**3. The SDK client's GET opens late.** `scripts/record.sh --http --client sdk-tour` runs the SDK
+client's tour through the SDK's `StreamableHTTPClientTransport` instead of the raw client. The SDK
+opens its GET stream after `notifications/initialized`, where the raw client opens it before, and it
+sends the DELETE only because the tour calls `terminateSession()`. Look at the first three requests
+and the last:
 
 <!-- run -->
 ```console
@@ -257,29 +241,20 @@ GET
 DELETE
 ```
 
-The walkthrough lists the other differences measured on a fresh pair.
+A late GET has a cost. The server sends five `notifications/tools/list_changed` the moment it sees
+`initialized`. The SDK's transport opens its GET only once `initialized` has been answered `202`
+(`sdk:client/dist/index.mjs:5797` "if (isInitializedNotification(message)) this._startOrAuthSse({ resumptionToken: void 0 })"),
+and with no stream open the server drops what it sends unprompted (experiment 1). Those five
+notifications are lost, not late.
 
-**A race over HTTP, and what a robust client does about it: the SDK's server tour.** The raw
-client opens its GET stream before `initialized`, so it hears the five `tools/list_changed`
-notifications the server sends the moment it sees `initialized`. The SDK's transport opens its GET
-only after that `initialized` has been answered `202`
-(`sdk:client/dist/index.mjs:5797` "if (isInitializedNotification(message)) this._startOrAuthSse({ resumptionToken: void 0 })"), and with no stream open the server drops what it sends
-unprompted
-(`servers:node_modules/@modelcontextprotocol/server/dist/index.mjs:947` "if (standaloneSse === void 0) return;"). The notifications are lost, not late: nothing
-ever delivers them. Before the fix, the SDK client never re-listed the tools that its declared
-capabilities unlock, and its server tour failed at step 3 with `tools/list` "lacking" five tools.
-The roots sync still arrived, because the server sends it 350 ms later, after the GET is open.
-
-The lesson is that a list-change notification is only a hint that something changed *while you
-were listening*. On stdio a client is always listening; over Streamable HTTP it hears unprompted
-messages only once its GET stream exists, so it cannot know what it missed before then. The fix is
-in the client, not the server: once the GET is answered with `text/event-stream`, the stream is
-open (the server registers it before it answers; it must answer an event stream or `405`,
-`spec:docs/specification/2025-11-25/basic/transports.mdx:140` "The server **MUST** either return `Content-Type: text/event-stream` in response to"). From then on
-every change is announced, so one fresh `tools/list` (and `prompts/list`, `resources/list`) taken
-after that moment is a complete picture. The SDK client sees that moment through the transport's
-public `fetch` option (`clients/sdk/src/stream.ts`) and re-lists then; no sleep is involved. Record
-it and look at the order:
+A list-change notification is only a hint that something changed *while you were listening*. On
+stdio a client is always listening; over Streamable HTTP it hears unprompted messages only once its
+GET stream exists. So a client that opens the GET late must list again once the stream is open. The
+server registers the stream before it answers, and must answer an event stream or `405`
+(`spec:docs/specification/2025-11-25/basic/transports.mdx:140` "The server **MUST** either return `Content-Type: text/event-stream` in response to"),
+so from the moment the GET is answered every change is announced. The `sdk-server-tour` client does
+this: it sees that moment through the transport's `fetch` option (`clients/sdk/src/stream.ts`) and
+sends `tools/list` then. Record it and look at the order:
 
 <!-- run -->
 ```console
@@ -294,35 +269,15 @@ $ python3 -m tap.show "$(ls -dt runs/*-lesson07r | head -1)/trace.jsonl" | grep 
 <-  notification notifications/tools/list_changed #2
 ```
 
-The GET is exchange 2, right after the `initialized` `202`; the first `tools/list` follows it, with
-no `list_changed` heard before it (the burst was dropped); the next `list_changed`, sent when the
-tour later calls `trigger-list-changed`, arrives on the GET stream (`#2`) because by then it is
-open. The raw client's server tour over HTTP passes without this re-list only because it opens its
-GET early; a client that opens it late, or reconnects after losing it, must re-list each time the
-stream opens.
+The GET is exchange 2, right after the `202` for `initialized`. The first `tools/list` follows it,
+with no `list_changed` before it (the burst was dropped). The next `list_changed`, sent when the
+tour later calls `trigger-list-changed`, arrives on the GET stream (`#2`), because by then it is
+open.
 
-**5. A phase 2 tour over stdio and over HTTP.** The raw client's `tour` takes `--url` as well as a
-server command. Record it both ways and compare what the client sent: the messages are the same,
-only the framing around them changes (compare the two traces with `tap.show` side by side to see
-the framing):
-
-<!-- run -->
-```console
-$ scripts/record.sh --client tour lesson07t > /dev/null
-$ scripts/record.sh --http --client tour lesson07u > /dev/null
-$ sent() { python3 -c 'import json, sys; print(*[r["json"]["method"] for r in map(json.loads, open(sys.argv[1])) if r["dir"] == "c2s" and r["json"] and "method" in r["json"]], sep="\n")' "$(ls -dt runs/*-lesson07$1 | head -1)/trace.jsonl"; }
-$ diff <(sent t) <(sent u) && echo "same messages sent"
-```
-
-<!-- expect -->
-```text
-same messages sent
-```
-
-**6. A junk line over HTTP.** In `manual` mode every typed line is one POST, exactly as typed, so a
-line that is not valid JSON reaches the server and the server's refusal comes back as an HTTP
-status and body, not as a JSON-RPC reply to anything you sent (it has `"id":null`). The block types
-one broken line into `manual --url` and prints the status the client reported on stderr:
+**4. A junk line over HTTP.** In `manual` mode every typed line is one POST, exactly as typed. A
+line that is not valid JSON reaches the server, and its refusal comes back as an HTTP status and
+body, not as a JSON-RPC reply to anything you sent (the body has `"id":null`). The block types one
+broken line into `manual --url` and prints the status the client reported on stderr:
 
 <!-- run -->
 ```console
@@ -342,10 +297,10 @@ $ rm -r "$dir"
 POST failed: HTTP 400
 ```
 
-**7. The 2026-07-28 era over HTTP.** `scripts/record.sh --http --client tour-2026` runs phase 6's tour
-over HTTP: there is no `initialize`, no session id, no GET and no DELETE; every POST carries
-`MCP-Protocol-Version` and `Mcp-Method` (and `Mcp-Name` for `tools/call`, `resources/read` and
-`prompts/get`). Count the HTTP methods in the trace:
+**5. The 2026-07-28 era over HTTP.** `scripts/record.sh --http --client tour-2026` runs lesson 06's
+tour over HTTP. In that revision there is no `initialize`, no session id, no GET and no DELETE;
+every POST carries `MCP-Protocol-Version` and `Mcp-Method` headers (and `Mcp-Name` for
+`tools/call`, `resources/read` and `prompts/get`). Count the HTTP methods in the trace:
 
 <!-- run -->
 ```console
