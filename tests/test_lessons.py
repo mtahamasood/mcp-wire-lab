@@ -186,7 +186,10 @@ class LearnerTextTest(unittest.TestCase):
             self.assertTrue(sep, f"{path.name}: no Answers block")
             _, sep, predict_answers = answers.partition("The *Predict* answers:")
             self.assertTrue(sep, f"{path.name}: no 'The *Predict* answers:' in the answers")
-            given = re.findall(r"^\d+\.\s", predict_answers, re.MULTILINE)
+            # The list ends at the first unindented line that is not a numbered item, such as
+            # "Experiment answers:", whose own numbered items are not Predict answers.
+            items = re.match(r"\s*((?:^(?:\d+\.\s|[ \t]|$).*\n?)*)", predict_answers, re.MULTILINE)
+            given = re.findall(r"^\d+\.\s", items.group(1) if items else "", re.MULTILINE)
             self.assertEqual(
                 len(given), len(questions), f"{path.name}: Predict answers miss a question"
             )
@@ -201,8 +204,11 @@ class LearnerTextTest(unittest.TestCase):
 
     def test_readme_links_every_lesson_walkthrough_and_atlas(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        targets = [*self.lessons(), *sorted((ROOT / "docs/walkthrough").glob("*.md")),
-                   ROOT / "docs/atlas.md"]
+        targets = [
+            *self.lessons(),
+            *sorted((ROOT / "docs/walkthrough").glob("*.md")),
+            ROOT / "docs/atlas.md",
+        ]
         for path in targets:
             rel = path.relative_to(ROOT).as_posix()
             self.assertIn(f"]({rel})", readme, f"README does not link {rel}")
