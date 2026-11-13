@@ -97,12 +97,14 @@ class KeysTest(DiffCase):
             ("s2c", request(0, "roots/list")), ("c2s", reply(0)), ("s2c", reply(0)),
             ("s2c", {"jsonrpc": "2.0", "id": 9, "error": {"code": -1, "message": "x"}}),
             ("c2s", request(9, "tools/call")), ("s2c", error9),
+            ("s2c", reply(1)),  # P8-R5-2: a second response to an answered request
         )
         self.assertEqual(keys(records), [
             "c2s.initialize#0", "c2s.ping#0", "s2c.response:ping#0", "s2c.roots/list#0",
             "c2s.response:roots/list#0", "s2c.response:initialize#0",
             "s2c.non-message#0",  # an error that answers no request
             "c2s.tools/call#0", "s2c.response:tools/call#0",
+            "s2c.non-message#1",  # the duplicate is neither paired again nor dropped
         ])
 
     def test_response_pairing_keeps_the_id_type(self) -> None:
