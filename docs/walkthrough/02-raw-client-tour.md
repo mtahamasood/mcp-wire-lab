@@ -14,7 +14,7 @@ Each note is headed by an identity anchor, as in walkthrough 01:
 `<direction>.<method or response>.<id or occurrence>`. Requests and responses are keyed by `id`
 (the client allocates ids from 0, in send order, so the tour's requests are ids 0 to 16);
 notifications by how many of that method came before in that direction. `--explain` exits non-zero
-if a frame has no note here, or a note here names a frame the run never produced (G5 checks this
+if a frame has no note here, or a note here names a frame the run never produced (the test suite checks this
 on every gate run).
 
 Citations point into the two pinned submodules: `spec` is the 2025-11-25 revision of the

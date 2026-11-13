@@ -12,6 +12,10 @@ Do not edit it. Regenerate it with `python3 tools/atlas.py`; gate G10 runs
 - **Lessons** lists the lessons whose line `<!-- exercises: <method>, ... -->` declares the
   method. A declaration is checked against a fresh trace of the lesson's recording in
   `tests/test_e2e.py`. A method no lesson declares is marked `unexercised`.
+- **The tasks note.** The tasks methods are in the 2025-11-25 schema, and no 2025-era run uses
+  tasks, so their rows say `unexercised (see the tasks note)`. The lab's tasks run is
+  2026-07-28 (lesson 06). That revision's pinned schema has no tasks types, so the run is
+  checked against the SEP-2663 tasks extension instead of this schema.
 - The capability that gates each method is deliberately omitted: the schemas do not encode it
   (an accepted limit, phase 3 D6).
 
@@ -33,7 +37,7 @@ Counts: 2025-11-25: 31 methods, 2026-07-28: 21 methods.
 | `notifications/resources/updated` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md), [06](lessons/06-era-2026.md) |
 | `notifications/roots/list_changed` | notification | client to server | 2025-11-25 | [03](lessons/03-server-initiated.md) |
 | `notifications/subscriptions/acknowledged` | notification | server to client | 2026-07-28 | [06](lessons/06-era-2026.md) |
-| `notifications/tasks/status` | notification | client to server and server to client | 2025-11-25 | unexercised |
+| `notifications/tasks/status` | notification | client to server and server to client | 2025-11-25 | unexercised (see the tasks note) |
 | `notifications/tools/list_changed` | notification | server to client | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md), [06](lessons/06-era-2026.md) |
 | `ping` | request | client to server and server to client | 2025-11-25 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [04](lessons/04-edge-lab.md), [05](lessons/05-sdk-client.md) |
 | `prompts/get` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
@@ -47,9 +51,9 @@ Counts: 2025-11-25: 31 methods, 2026-07-28: 21 methods.
 | `sampling/createMessage` | request | 2025-11-25: server to client; 2026-07-28: server to client, inside an InputRequiredResult | 2025-11-25, 2026-07-28 | [03](lessons/03-server-initiated.md), [06](lessons/06-era-2026.md) |
 | `server/discover` | request | client to server | 2026-07-28 | [06](lessons/06-era-2026.md) |
 | `subscriptions/listen` | request | client to server | 2026-07-28 | [06](lessons/06-era-2026.md) |
-| `tasks/cancel` | request | client to server and server to client | 2025-11-25 | unexercised |
-| `tasks/get` | request | client to server and server to client | 2025-11-25 | unexercised |
-| `tasks/list` | request | client to server and server to client | 2025-11-25 | unexercised |
-| `tasks/result` | request | client to server and server to client | 2025-11-25 | unexercised |
+| `tasks/cancel` | request | client to server and server to client | 2025-11-25 | unexercised (see the tasks note) |
+| `tasks/get` | request | client to server and server to client | 2025-11-25 | unexercised (see the tasks note) |
+| `tasks/list` | request | client to server and server to client | 2025-11-25 | unexercised (see the tasks note) |
+| `tasks/result` | request | client to server and server to client | 2025-11-25 | unexercised (see the tasks note) |
 | `tools/call` | request | client to server | 2025-11-25, 2026-07-28 | [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |
 | `tools/list` | request | client to server | 2025-11-25, 2026-07-28 | [01](lessons/01-the-wire-and-the-handshake.md), [02](lessons/02-raw-client.md), [03](lessons/03-server-initiated.md), [04](lessons/04-edge-lab.md), [05](lessons/05-sdk-client.md), [06](lessons/06-era-2026.md) |

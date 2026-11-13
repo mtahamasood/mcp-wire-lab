@@ -48,6 +48,10 @@ Do not edit it. Regenerate it with `python3 tools/atlas.py`; gate G10 runs
 - **Lessons** lists the lessons whose line `<!-- exercises: <method>, ... -->` declares the
   method. A declaration is checked against a fresh trace of the lesson's recording in
   `tests/test_e2e.py`. A method no lesson declares is marked `unexercised`.
+- **The tasks note.** The tasks methods are in the 2025-11-25 schema, and no 2025-era run uses
+  tasks, so their rows say `unexercised (see the tasks note)`. The lab's tasks run is
+  2026-07-28 (lesson 06). That revision's pinned schema has no tasks types, so the run is
+  checked against the SEP-2663 tasks extension instead of this schema.
 - The capability that gates each method is deliberately omitted: the schemas do not encode it
   (an accepted limit, phase 3 D6).
 
@@ -126,10 +130,16 @@ def render(root: Path) -> str:
             for name, declares in declared.items()
             if method in declares
         ]
+        if lessons:
+            exercised = ", ".join(lessons)
+        elif "tasks/" in method:
+            exercised = "unexercised (see the tasks note)"
+        else:
+            exercised = "unexercised"
         rows.append(
             f"| `{method}` | {_cell(per, 0)} | {_cell(per, 1)} | "
             f"{', '.join(r for r in REVISIONS if r in per)} | "
-            f"{', '.join(lessons) if lessons else 'unexercised'} |"
+            f"{exercised} |"
         )
     head = INTRO.format(revisions=" and ".join(REVISIONS), counts=counts)
     return head + "\n".join(rows) + "\n"

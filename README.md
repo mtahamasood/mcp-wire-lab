@@ -16,7 +16,9 @@ client or a server you would ship.
    Each one has the same shape: *Goal*, *Predict* (write your answers down first), *Run*,
    *Read the trace*, *Read the source*, *Experiments*, *Check yourself*. Every command in a
    lesson is meant to be pasted at the repository root.
-3. If you only want to poke at it, jump to *Record and read a trace* below.
+3. When you have done the lessons, or want a map first, open [the atlas](docs/atlas.md): a
+   generated table of every protocol method, with the lessons that exercise it.
+4. If you only want to poke at it, jump to *Record and read a trace* below.
 
 The answers to a lesson's *Predict* and *Check yourself* questions sit at the end of the same
 file, inside a collapsed `<details>` block on GitHub. In a terminal or an editor they are plain
@@ -28,7 +30,7 @@ After setup nothing needs a network, and the lessons write only inside this fold
 ## What you need
 
 - Linux or WSL (tested); macOS untested. You need `bash`, `git` and `python3` (3.12 or newer)
-- Node `v24.22.0`, exactly (`scripts/bootstrap.sh` checks); `npm`
+- Node `v24.22.0`, exactly, and `npm`. `scripts/bootstrap.sh` refuses any other version, a newer one such as 26 included, and the SDK client's recordings (lessons 05 to 07) run under it. With `nvm`: `nvm install 24.22.0 && nvm use 24.22.0`, in the shell where you run bootstrap and the lessons
 - [`uv`](https://docs.astral.sh/uv/) for the lint and type gates (only needed to run `scripts/gate.sh`)
 
 ## Set up
@@ -48,9 +50,10 @@ push, and it is safe to ignore otherwise.
 
 If bootstrap stops, it says why in one line. The common causes are in *Troubleshooting* below.
 
-Citations in the docs look like `servers:path:line "fragment"` or `spec:path:line "fragment"`.
-`servers:` means under `vendor/servers/` and `spec:` means under `vendor/spec/`; the quoted
-fragment is the text you should find on that line.
+Citations in the docs look like `servers:path:line "fragment"`, `spec:path:line "fragment"` or
+`sdk:path:line "fragment"`. `servers:` means under `vendor/servers/`, `spec:` under `vendor/spec/`
+and `sdk:` under `clients/sdk/node_modules/@modelcontextprotocol/` (installed by bootstrap); the
+quoted fragment is the text you should find on that line.
 
 ## Record and read a trace
 
@@ -115,6 +118,7 @@ prints the same text on stderr and exits non-zero.
 - `tap/`: the recorder (`python3 -m tap`), the viewer (`tap.show`), the schema checker (`tap.check`) and the trace diff (`tap.diff`).
 - `client/`: the raw client, in small files. The lessons say which to read.
 - `clients/sdk/`: the SDK client (TypeScript, run as source by Node), lesson 05.
+- `tools/`: the checks behind `scripts/gate.sh`, and the generator of `docs/atlas.md`.
 - `tests/`: unit and end-to-end tests, plus `tests/fixtures/` (the scripted conversations).
 - `vendor/`: the pinned reference server and the specification, as git submodules.
 - `runs/`: your recordings (created on first use; git ignores it).
@@ -133,8 +137,9 @@ prints the same text on stderr and exits non-zero.
 
 ## Status
 
-Lessons 01 to 07 are built and checked. Your feedback on the lessons is
-welcome as a GitHub issue.
+Lessons 01 to 07 are built and checked. Your feedback on the lessons is welcome: open a GitHub
+issue with the [feedback template](.github/ISSUE_TEMPLATE/feedback.md) (the lesson, the step, what
+you expected, what happened).
 
 ## Lessons
 
@@ -153,7 +158,6 @@ Do them in order.
 4. [The edge lab](docs/lessons/04-edge-lab.md): malformed and out-of-order messages, what the
    server answers against what the spec says, and losing a message at the tap.
    Walkthrough: [the edge experiments](docs/walkthrough/04-edge-lab.md).
-
 5. [What an SDK hides](docs/lessons/05-sdk-client.md): the same tour through the official
    TypeScript SDK, a message-by-message diff of the two traces, and one request followed through
    the SDK's source.
@@ -161,14 +165,15 @@ Do them in order.
 6. [The same client, a new era](docs/lessons/06-era-2026.md): the raw client speaks the
    2026-07-28 revision (`--era 2026-07-28`): discovery, the `_meta` envelope, input requests in
    results, `subscriptions/listen` and tasks; you check it and diff it against the 2025 tour.
-   Walkthrough: [the 2026 era, frame by frame](docs/walkthrough/06-era-2026.md).
+   Walkthroughs: [the 2026 era, frame by frame](docs/walkthrough/06-era-2026.md) and
+   [the SDK client in the 2026 era (06b)](docs/walkthrough/06-sdk-2026.md).
 7. [The same messages over HTTP](docs/lessons/07-streamable-http.md): the raw client's HTTP tour
    recorded through the tap's HTTP mode, read as exchanges: POSTs, event streams, the session id,
    the GET stream, `202`s and a cancellation by closing the connection.
    Walkthrough: [Streamable HTTP, record by record](docs/walkthrough/07-streamable-http.md).
 
-More lessons arrive with later phases; [`specs/roadmap.md`](specs/roadmap.md) lists what each
-phase adds.
+Then [the atlas](docs/atlas.md): every protocol method of both revisions, and the lessons that
+exercise it (the tasks methods show as `unexercised`; the atlas says why).
 
 ## How it is checked
 
@@ -176,6 +181,7 @@ phase adds.
 and type checks (G2, G3), the unit and end-to-end tests (G4, G5), a check that every
 `servers:path:line "fragment"` citation in the docs resolves in the pinned source (G8), a check that
 every runnable block in a lesson runs and prints what the lesson says it prints (G9), a check
+that the atlas is current with the schemas and the lessons (G10), a check
 that no run output is tracked (G11), and a check that every test a validation row names exists (G12). Some things are not checked by any gate: see the Result in
 [`specs/phases/01-wire-tap/validation.md`](specs/phases/01-wire-tap/validation.md).
 

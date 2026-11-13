@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import contextlib
 import io
+import re
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from tools import check_lessons
+from tools import check_citations, check_lessons
+
+ROOT = Path(__file__).resolve().parent.parent
 
 SECTIONS = "\n".join(f"## {s}\n\ntext\n" for s in check_lessons.SECTIONS)
 
@@ -150,6 +153,62 @@ class LessonsTest(unittest.TestCase):
                 code, err = self.run_main(root)
         self.assertEqual(code, 1)
         self.assertIn("timed out", err)
+
+
+def _section(prose: str, name: str) -> str:
+    """The text of the `## <name>` section: up to the next `## ` heading."""
+    m = re.search(rf"^##\s+{name}\b.*?$(.*?)(?=^##\s|\Z)", prose, re.MULTILINE | re.DOTALL)
+    return m.group(1) if m else ""
+
+
+SPEC_ID = re.compile(r"\b(?:phase \d+ )?(?:LP|RP|[DCGJLAM])\d+\b")
+
+
+class LearnerTextTest(unittest.TestCase):
+    """D11/D12: what a learner reads on the real lessons, walkthroughs and README."""
+
+    def lessons(self) -> list[Path]:
+        found = sorted((ROOT / "docs/lessons").glob("*.md"))
+        self.assertGreaterEqual(len(found), 7)
+        return found
+
+    def test_every_lesson_has_predict_answers(self) -> None:
+        for path in self.lessons():
+            text = path.read_text(encoding="utf-8")
+            prose = check_lessons._strip_fences(text)
+            predict = _section(prose, "Predict")
+            questions = re.findall(r"^\d+\.\s", predict, re.MULTILINE)
+            self.assertTrue(questions, f"{path.name}: Predict has no numbered questions")
+            self.assertRegex(
+                predict, r"\*Predict answers\*", f"{path.name}: Predict has no pointer to answers"
+            )
+            _, sep, answers = text.partition("<summary>Answers</summary>")
+            self.assertTrue(sep, f"{path.name}: no Answers block")
+            _, sep, predict_answers = answers.partition("The *Predict* answers:")
+            self.assertTrue(sep, f"{path.name}: no 'The *Predict* answers:' in the answers")
+            given = re.findall(r"^\d+\.\s", predict_answers, re.MULTILINE)
+            self.assertEqual(
+                len(given), len(questions), f"{path.name}: Predict answers miss a question"
+            )
+
+    def test_no_spec_ids_in_learner_text(self) -> None:
+        files = self.lessons() + sorted((ROOT / "docs/walkthrough").glob("*.md"))
+        for path in files:
+            prose = check_lessons._strip_fences(path.read_text(encoding="utf-8"))
+            prose = check_citations.CITATION.sub("", prose)
+            hits = [m.group(0) for m in SPEC_ID.finditer(prose)]
+            self.assertEqual(hits, [], f"{path.name} names spec record ids")
+
+    def test_readme_links_every_lesson_walkthrough_and_atlas(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        targets = [*self.lessons(), *sorted((ROOT / "docs/walkthrough").glob("*.md")),
+                   ROOT / "docs/atlas.md"]
+        for path in targets:
+            rel = path.relative_to(ROOT).as_posix()
+            self.assertIn(f"]({rel})", readme, f"README does not link {rel}")
+        self.assertIn("G10", readme)
+        self.assertIn(".github/ISSUE_TEMPLATE/feedback", readme)
+        self.assertTrue((ROOT / ".github/ISSUE_TEMPLATE/feedback.md").is_file())
 
 
 if __name__ == "__main__":

@@ -27,6 +27,8 @@ Before you run anything, write down:
    happen if the client handled the server's request on the same thread that reads the pipe?
 4. A client that declared nothing is sent `sampling/createMessage` anyway. What should it answer?
 
+(Answers to 1 to 4: the *Predict answers* at the end.)
+
 ## Run
 
 The server tour declares every capability and then calls the tools that make the server speak:
