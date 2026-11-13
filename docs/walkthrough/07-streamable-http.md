@@ -99,8 +99,8 @@ answered `400` by the 2025 route, where the 2026 spec asks for `405` on GET and 
 
 ## The SDK client over HTTP: where its traffic differs from the raw client's
 
-`scripts/record.sh --http --client sdk-tour` records the phase 5 SDK client's tour (the raw
-client's phase 2 tour, so a different message list from the HTTP tour above) with
+`scripts/record.sh --http --client sdk-tour` records the SDK client's tour (the same steps as the raw
+client's `tour`, so a different message list from the HTTP tour above) with
 `StreamableHTTPClientTransport` in place of stdio; `node clients/sdk/src/main.ts tour --url <url>`
 runs it against any Streamable HTTP server. Measured on a fresh pair, one recording of each
 (the SDK's trace passes `tap.check --revision 2025-11-25`), the HTTP layer differs in these ways.
@@ -127,7 +127,7 @@ The messages themselves are the SDK's, as in [walkthrough 05](05-sdk-client.md).
 ## The earlier tours and the 2026-07-28 era over HTTP
 
 `python3 -m client <tour|server-tour|manual> --url <url>` (and `tour`/`manual` with `--era
-2026-07-28`) run phase 2, 3 and 6 modes over the same `HttpWire`; `scripts/record.sh --http --client
+2026-07-28`) run the lesson 02, 03 and 06 modes over the same `HttpWire`; `scripts/record.sh --http --client
 <mode>` records them. Measured on fresh recordings:
 
 - **The 2025 tours.** `tour` sends the same 19 messages as over stdio and ends with the DELETE.
@@ -304,7 +304,7 @@ with different answers; read the frames next to them to tell which is which.
 
 #### `c2s.tools/list.1`
 
-The re-list: the raw client reacts to a list-change notification by asking for the list again (phase 3's handlers). Its id is
+The re-list: the raw client reacts to a list-change notification by asking for the list again (the handlers lesson 03 covers). Its id is
 `1`, the client's second request. It is an ordinary POST, answered on its own event stream.
 
 #### `tap.http-response.3-4`
