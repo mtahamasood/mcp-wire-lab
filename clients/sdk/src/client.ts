@@ -10,6 +10,7 @@ import { capabilityObject } from "./args.ts";
 import type { Capability } from "./args.ts";
 import { DEFAULT_ROOTS, Traffic, elicitationResult, rootsResult, samplingResult } from "./handlers.ts";
 import type { ElicitParams, Root } from "./handlers.ts";
+import { inWireOrder } from "./order.ts";
 import { compact } from "./steps.ts";
 import { watchStream } from "./stream.ts";
 
@@ -123,12 +124,13 @@ export function buildLab(
     roots,
     errors,
     transport: (command) => {
-      if (url === undefined) return new StdioClientTransport({ command: command[0] as string, args: command.slice(1) });
+      // Both transports deliver messages in wire order (order.ts).
+      if (url === undefined) return inWireOrder(new StdioClientTransport({ command: command[0] as string, args: command.slice(1) }));
       // The transport's `fetch` option is the public place that sees the GET answered (stream.ts).
       const opened = () => {
         for (const listener of streamListeners) listener();
       };
-      http = new StreamableHTTPClientTransport(new URL(url), { fetch: watchStream(fetch, opened) });
+      http = inWireOrder(new StreamableHTTPClientTransport(new URL(url), { fetch: watchStream(fetch, opened) }));
       return http;
     },
     onStreamOpen: (listener) => {

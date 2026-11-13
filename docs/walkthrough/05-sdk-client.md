@@ -70,6 +70,15 @@ These things happen between your call and the bytes; the traces cannot show them
   tour's cancelled call shows it: after the abort the server's second progress notification
   arrives, finds no handler, and the client prints `sdk: Received a progress notification for an unknown token`
   on stderr (the raw client's wire drops and reports a late reply the same way).
+- **Dispatch order.** The SDK runs a notification's handler one microtask after the message is
+  read (`sdk:client/dist/src-WCy6ifGf.mjs:5903` "Promise.resolve().then") but settles a response
+  at once, and settling removes the request's progress handler
+  (`sdk:client/dist/src-WCy6ifGf.mjs:6055` "this._progressHandlers.delete(messageId);"). The
+  server writes the last progress notification and the result within a fraction of a millisecond;
+  when the client reads both in one chunk, which a loaded machine makes likely, the SDK settles
+  the call first and reports the progress as for an unknown token, though the trace shows it in
+  order. The lab client hands responses to the SDK one microtask late (`clients/sdk/src/order.ts`),
+  so its handlers see messages in wire order and the tour's long-running step always counts two.
 - **The timeout.** Every request has a 60 s default timeout
   (`sdk:client/dist/src-WCy6ifGf.mjs:5536` "DEFAULT_REQUEST_TIMEOUT_MSEC = 6e4"), applied here
   (`sdk:client/dist/src-WCy6ifGf.mjs:6242` "const timeout = options?.timeout ?? DEFAULT_REQUEST_TIMEOUT_MSEC;"). The raw client's is

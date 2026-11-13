@@ -10,6 +10,7 @@ import type { Capability } from "./args.ts";
 import { CLIENT_INFO, STATIC_DOC } from "./client.ts";
 import { DEFAULT_ROOTS, Traffic, elicitationResult, rootsResult, samplingResult } from "./handlers.ts";
 import type { ElicitParams } from "./handlers.ts";
+import { inWireOrder } from "./order.ts";
 import { Steps, compact, text0 } from "./steps.ts";
 
 export const MODERN_ERA = "2026-07-28";
@@ -112,9 +113,10 @@ class ModernTour {
    * and no DELETE.
    */
   async discovery(command: readonly string[], url?: string): Promise<void> {
-    await this.client.connect(url === undefined
+    // Both transports deliver messages in wire order (order.ts).
+    await this.client.connect(inWireOrder(url === undefined
       ? new InPlaceStdioTransport({ command: command[0] as string, args: command.slice(1) })
-      : new StreamableHTTPClientTransport(new URL(url)));
+      : new StreamableHTTPClientTransport(new URL(url))));
     const version = this.client.getNegotiatedProtocolVersion();
     this.steps.expect(version === MODERN_ERA, `the connection must run ${MODERN_ERA}, not ${version}`);
     this.steps.step("server/discover", `version ${version}, server ${this.client.getServerVersion()?.name}`);
