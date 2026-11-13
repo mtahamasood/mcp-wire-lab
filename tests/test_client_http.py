@@ -209,6 +209,31 @@ class HttpWireTest(Case):
             self.assertEqual(entry["headers"]["mcp-session-id"], SESSION, entry["method"])
             self.assertEqual(entry["headers"]["mcp-protocol-version"], "2025-11-25")
 
+    def test_protocol_version_header_is_the_negotiated_one(self) -> None:
+        """P8-R7-10: the server answers `initialize` with an older version the client supports."""
+        older = {**INIT_RESULT, "protocolVersion": "2025-06-18"}
+
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            message = json.loads(body) if body else {}
+            if message.get("method") == "initialize":
+                stream_head(h, {"Mcp-Session-Id": SESSION})
+                piece(h, event(result(message, older)))
+                end_stream(h)
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        session, _ = self.session(fake)
+        session.initialize({"roots": {}})
+        session.request("ping")
+        self.assertEqual(session.close(), 200)
+        with fake.lock:
+            later = fake.log[1:]  # everything after the initialize POST
+        self.assertEqual({e["method"] for e in later}, {"GET", "POST", "DELETE"})
+        for entry in later:
+            self.assertEqual(entry["headers"]["mcp-protocol-version"], "2025-06-18",
+                             entry["method"])
+
     def test_json_and_sse_bodies_reach_the_line_handler(self) -> None:
         asked: list[dict[str, Any]] = []
 
@@ -264,6 +289,21 @@ class HttpWireTest(Case):
         with self.assertRaises(RpcError) as rpc:
             wire.request("typed", timeout=5)
         self.assertEqual(rpc.exception.error["code"], -32600)
+        self.assertLess(time.monotonic() - started, 2.0)
+
+    def test_error_status_with_another_id_fails_the_request_at_once(self) -> None:
+        """P8-R7-8: a body whose id is not the posted request's is not that request's reply."""
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            reply_json(h, 400, json.dumps({"jsonrpc": "2.0", "id": 999, "error": {
+                "code": -32600, "message": "not yours"}}).encode())
+
+        fake = self.serve(script)
+        wire, _ = self.wire(fake)
+        started = time.monotonic()
+        with self.assertRaises(HttpStatusError) as caught:
+            wire.request("ping", timeout=5)
+        self.assertEqual(caught.exception.status, 400)
+        self.assertIn("not yours", str(caught.exception))
         self.assertLess(time.monotonic() - started, 2.0)
 
     def test_404_ends_the_session(self) -> None:
@@ -341,6 +381,9 @@ class HttpStreamTest(Case):
             order = [e["method"] + ":" + (json.loads(e["body"]).get("method", "") if e["body"]
                                           else "") for e in fake.log]
         self.assertEqual(order[:3], ["POST:initialize", "GET:", "POST:notifications/initialized"])
+        with fake.lock:
+            get = next(e for e in fake.log if e["method"] == "GET")
+        self.assertEqual(get["headers"]["accept"], "text/event-stream")  # P8-R7-11
 
     def test_get_stream_delivers_requests_and_notifications(self) -> None:
         def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
@@ -417,6 +460,32 @@ class HttpStreamTest(Case):
         with self.assertRaises(OSError):
             session.wire.request("ping")
         self.assertEqual(session.close(), 200)  # safe twice
+
+    def test_unanswered_delete_is_bounded(self) -> None:
+        """P8-R7-5: a DELETE the server never answers ends `close` after the grace, not never."""
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            if h.command == "DELETE":
+                fake.event("delete-seen").set()
+                fake.event("release").wait(10)  # never answers while the test is looking
+                h.close_connection = True
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        session, reports = self.session(fake)
+        self.addCleanup(fake.event("release").set)  # runs before `session.close`
+        session.grace = 0.5
+        session.initialize()
+        statuses: list[int | None] = []
+        closer = threading.Thread(target=lambda: statuses.append(session.close()), daemon=True)
+        started = time.monotonic()
+        closer.start()
+        closer.join(5)
+        self.assertFalse(closer.is_alive(), "close() is still waiting for the DELETE")
+        self.assertLess(time.monotonic() - started, 3.0)
+        self.assertTrue(fake.event("delete-seen").is_set())
+        self.assertEqual(statuses, [None])
+        self.assertTrue(any("no answer to DELETE" in r for r in reports), reports)
 
     def test_close_without_a_session_returns_none(self) -> None:
         def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
@@ -543,6 +612,23 @@ class Era2026Test(Case):
             session.call("tools/call", {"name": "écho", "arguments": {}})
         self.assertIn("plain ASCII", str(caught.exception))
         self.assertEqual(len(fake.log), before, "nothing was sent")
+        self.assertEqual(session.wire._pending, {}, "the refused request left no pending entry")
+
+    def test_name_with_edge_whitespace_is_refused(self) -> None:
+        """P8-R7-7: leading or trailing space or tab MUST be Base64 (out of scope), so refuse;
+        a space inside a name is plain."""
+        fake = self.serve(modern)
+        session = self.modern(fake)
+        before = len(fake.log)
+        for name in (" echo", "echo ", " echo ", "\techo", "echo\t"):
+            with self.assertRaises(ValueError, msg=repr(name)):
+                session.call("tools/call", {"name": name, "arguments": {}})
+        self.assertEqual(len(fake.log), before, "nothing was sent")
+        self.assertEqual(session.wire._pending, {}, "the refused requests left no pending entry")
+        session.call("tools/call", {"name": "my tool", "arguments": {}})
+        with fake.lock:
+            last = fake.log[-1]
+        self.assertEqual(last["headers"]["mcp-name"], "my tool")
 
     def test_cancel_closes_stream_without_notification(self) -> None:
         fake = self.serve(modern)

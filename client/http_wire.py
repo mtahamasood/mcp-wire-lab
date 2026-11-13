@@ -176,8 +176,9 @@ class HttpWire(Wire):
         """The 2026-07-28 request headers of one POST (D11): the version, the method, and for
         `tools/call`, `resources/read` and `prompts/get` the name or URI the call is about.
 
-        A name that is not plain ASCII is refused before anything is sent (the Base64 form is
-        D14).
+        A name that is not plain ASCII, or that starts or ends with a space or tab, is refused
+        before anything is sent: the spec has such a value sent in Base64, which is out of scope
+        (D14), and HTTP would strip the whitespace so the header no longer matched the body.
 
         `spec:docs/specification/2026-07-28/basic/transports/streamable-http.mdx:252`
         "Every POST request to the MCP endpoint **MUST** include an"
@@ -190,8 +191,10 @@ class HttpWire(Wire):
             params = message.get("params")
             if key is not None and isinstance(params, dict) and key in params:
                 name = str(params[key])
-                if not all(0x20 <= ord(c) < 0x7F for c in name):
-                    raise ValueError(f"Mcp-Name must be plain ASCII, refusing {name!r}")
+                if not all(0x20 <= ord(c) < 0x7F for c in name) or name != name.strip(" \t"):
+                    raise ValueError(
+                        "Mcp-Name must be plain ASCII with no leading or trailing space or "
+                        f"tab, refusing {name!r}")
                 headers["Mcp-Name"] = name
         return headers
 
@@ -338,7 +341,8 @@ class HttpWire(Wire):
                     del self._by_request[key_of(message["id"])]
 
     def _refused(self, resp: http.client.HTTPResponse, message: Any, kind: str) -> None:
-        """Any status but 200 and 202: a JSON-RPC body with an id is a reply; else the post fails.
+        """Any status but 200 and 202: a JSON-RPC body carrying the posted request's id is its
+        reply; else the post fails (a body with another id is not this request's reply).
 
         A 404 to a request that carried the session id ends the session.
 
@@ -351,7 +355,9 @@ class HttpWire(Wire):
             decoded = json.loads(text)
         except ValueError:
             decoded = None
-        if (classify(decoded) == "response" and decoded.get("id") is not None):
+        if (kind == "request" and classify(decoded) == "response"
+                and decoded.get("id") is not None
+                and key_of(decoded["id"]) == key_of(message["id"])):
             self._line(body)
         else:
             self._fail_post(message, kind, HttpStatusError(resp.status, text[:200]))
@@ -440,8 +446,9 @@ class HttpWire(Wire):
                 carrier.hang_up()
         return done
 
-    def terminate(self) -> int | None:
-        """DELETE the session; returns the status, or None if there is no session (or no answer).
+    def terminate(self, timeout: float = CONNECT_TIMEOUT) -> int | None:
+        """DELETE the session; returns the status, or None if there is no session (or no answer
+        within `timeout` seconds).
 
         `spec:docs/specification/2025-11-25/basic/transports.mdx:217`
         "send an HTTP DELETE to the MCP endpoint"
@@ -454,6 +461,8 @@ class HttpWire(Wire):
             self._report(str(exc))
             return None
         try:
+            if carrier.conn.sock is not None:
+                carrier.conn.sock.settimeout(timeout)  # `_send` cleared it for streams
             resp = carrier.conn.getresponse()
             self._note_head("delete", "", resp)
             resp.read()
@@ -544,7 +553,7 @@ class HttpSession(Session):
         with self._close_lock:
             if self._closed_with is not None:
                 return self._closed_with[0]
-            status = self.http.terminate()
+            status = self.http.terminate(self.grace)
             self.http.wait_stream_end(self.grace)  # the server ends it on DELETE (M11)
             self.wire.close_input()  # fails what is still pending
             self.http.close_connections()
