@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import http.client
 import json
 import os
@@ -24,6 +25,8 @@ from tap.http import SseParser
 ROOT = Path(__file__).resolve().parent.parent
 UPSTREAM = ROOT / "tests/fake_servers/http_upstream.py"
 TIMEOUT = 20
+# How long the cleanup waits for a tap to exit on SIGINT before it kills it.
+STOP_GRACE = 10
 Record = dict[str, Any]
 
 
@@ -48,6 +51,35 @@ def tcp_listeners() -> dict[int, str]:
                 address, port = fields[1].split(":")
                 found[int(port, 16)] = address
     return found
+
+
+def running(pid: int) -> bool:
+    """True while `pid` exists and is not a zombie (Linux /proc)."""
+    try:
+        state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+    except (OSError, IndexError):
+        return False
+    return state != "Z"
+
+
+def children(parent: int) -> list[int]:
+    """The pids whose parent is `parent` (Linux /proc)."""
+    found = []
+    for entry in Path("/proc").iterdir():
+        if entry.name.isdecimal():
+            try:
+                fields = (entry / "stat").read_text().rsplit(")", 1)[1].split()
+            except (OSError, IndexError):
+                continue
+            if int(fields[1]) == parent:
+                found.append(int(entry.name))
+    return found
+
+
+def stop_if_running(pid: int) -> None:
+    if running(pid):
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(pid, signal.SIGKILL)
 
 
 class Tap:
@@ -77,7 +109,8 @@ class Tap:
             env={**os.environ, "TRACE_PEEK": str(self.trace), **(env or {})},
             preexec_fn=limit if limit_trace else None,
         )
-        threading.Thread(target=self._read_stderr, daemon=True).start()
+        self._reader = threading.Thread(target=self._read_stderr, daemon=True)
+        self._reader.start()
         case.addCleanup(self._kill)
 
     def _read_stderr(self) -> None:
@@ -88,9 +121,26 @@ class Tap:
                 self.listening.set()
 
     def _kill(self) -> None:
+        """Every test's cleanup: stop the tap the way a user does, then close its stderr pipe.
+
+        SIGINT lets the tap stop its child and remove its private directory (D2). A tap killed
+        outright can do neither, and its child runs in its own process group, so nothing else
+        reaches it (phase 8 D6, review P8-R7-3). Only a tap that ignores SIGINT is killed, and
+        its children's process groups with it.
+        """
         if self.proc.poll() is None:
-            self.proc.kill()
-            self.proc.wait()
+            self.proc.send_signal(signal.SIGINT)
+            try:
+                self.proc.wait(STOP_GRACE)
+            except subprocess.TimeoutExpired:
+                for child in children(self.proc.pid):
+                    with contextlib.suppress(ProcessLookupError, PermissionError):
+                        os.killpg(child, signal.SIGKILL)
+                self.proc.kill()
+                self.proc.wait()
+        self._reader.join(TIMEOUT)
+        if self.proc.stderr is not None:
+            self.proc.stderr.close()
 
     def wait_listening(self) -> Tap:
         self.case.assertTrue(self.listening.wait(TIMEOUT), "\n".join(self.stderr_lines))
@@ -503,6 +553,22 @@ class HttpLifecycleTest(unittest.TestCase):
                 self.assertIn("usage:", done.stderr)
                 self.assertFalse(marker.exists())
                 self.assertFalse(trace.exists())
+
+
+    def test_cleanup_leaves_no_upstream_and_no_private_dir(self) -> None:
+        # Phase 8 D6, review P8-R7-3: a test that does not call tap.stop() ends with the Tap
+        # cleanup. The upstream runs in its own process group, so a tap killed outright can
+        # neither stop it nor remove its private directory; both outlived the test run.
+        tap = started(self)
+        upstream = json.loads(tap.request("GET", "/pid")[2])["pid"]
+        self.addCleanup(stop_if_running, upstream)  # so a failing run leaves nothing either
+        private = os.path.dirname(json.loads(tap.request("GET", "/env")[2])["PORT"])
+        tap._kill()
+        deadline = time.monotonic() + TIMEOUT
+        while running(upstream) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertFalse(running(upstream), "the upstream outlived the tap")
+        self.assertFalse(os.path.exists(private), "the tap's private directory is left")
 
 
 class HttpUpstreamTest(unittest.TestCase):

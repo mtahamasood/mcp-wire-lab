@@ -260,13 +260,14 @@ class RobustnessTest(TraceCase):
     def test_c9_closed_output_pipe_ends_quietly(self) -> None:
         records = [rec(n, "c2s", req(n)) for n in range(1, 20000)]
         path = self.trace(records)
-        proc = subprocess.Popen([sys.executable, "-m", "tap.show", str(path)], cwd=ROOT,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        assert proc.stdout is not None and proc.stderr is not None
-        proc.stdout.read(10)
-        proc.stdout.close()
-        err = proc.stderr.read().decode()
-        self.assertEqual(proc.wait(timeout=30), 0)
+        # `with` closes the stderr pipe too (phase 8 D6: it was left to the garbage collector).
+        with subprocess.Popen([sys.executable, "-m", "tap.show", str(path)], cwd=ROOT,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+            assert proc.stdout is not None and proc.stderr is not None
+            proc.stdout.read(10)
+            proc.stdout.close()
+            err = proc.stderr.read().decode()
+            self.assertEqual(proc.wait(timeout=30), 0)
         self.assertEqual(err, "")
 
 

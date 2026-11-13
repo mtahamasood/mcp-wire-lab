@@ -28,3 +28,16 @@ jobs:
           uv --version
       - run: scripts/bootstrap.sh
       - run: scripts/gate.sh
+      # A failed recording keeps the client's own error in runs/<time>-<name>/stderr.txt; keep each
+      # run's trace and stderr so a red gate can be read without re-running it (phase 8 D3). Not
+      # bin/ (links to the runner's node and python3) and not home/.
+      - name: Upload run traces and stderr
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runs
+          path: |
+            runs/*/trace.jsonl
+            runs/*/stderr.txt
+          if-no-files-found: ignore
+          retention-days: 7

@@ -19,6 +19,35 @@ SERVER = ROOT / "vendor/servers/src/everything/dist/index.js"
 TIMEOUT = 120
 # record.sh's environment allowlist (D14). Node adds no variable of its own (measured).
 ALLOWLIST = {"PATH", "HOME", "LANG", "MCP_WIRE_LAB"}
+# How much of a failed run's stderr.txt an assertion message shows (phase 8 D3).
+STDERR_TAIL = 200
+
+
+def failure_report(done: subprocess.CompletedProcess[str], root: Path = ROOT) -> str:
+    """record.sh's stderr, then the run folder's stderr.txt and the trace's exit record.
+
+    A client's own error goes to the run folder's stderr.txt, not to record.sh's stderr, so an
+    assertion that showed only the latter hid why a run failed (phase 8 D3). A stderr.txt longer
+    than STDERR_TAIL lines is cut to its last STDERR_TAIL.
+    """
+    parts = [done.stderr.rstrip()]
+    found = re.search(r"(runs/[^\s()]+?)/(?:trace\.jsonl|stderr\.txt)", done.stdout + done.stderr)
+    if found is None:
+        parts.append("--- no run folder was reported")
+        return "\n".join(parts)
+    run = root / found.group(1)
+    stderr = run / "stderr.txt"
+    if stderr.is_file():
+        lines = stderr.read_text(errors="replace").splitlines()
+        cut = f" (last {STDERR_TAIL} lines)" if len(lines) > STDERR_TAIL else ""
+        parts.append(f"--- {found.group(1)}/stderr.txt{cut}:")
+        parts.extend(lines[-STDERR_TAIL:])
+    trace = run / "trace.jsonl"
+    if trace.is_file():
+        exits = [ln for ln in trace.read_text(errors="replace").splitlines()
+                 if '"event": "exit"' in ln or '"event":"exit"' in ln]
+        parts.append(f"--- exit record: {exits[-1] if exits else 'none'}")
+    return "\n".join(parts)
 
 
 def record(fixture: str, name: str, env: dict[str, str] | None = None) -> Path:
@@ -27,7 +56,7 @@ def record(fixture: str, name: str, env: dict[str, str] | None = None) -> Path:
         ["scripts/record.sh", str(FIXTURES / fixture), name],
         cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT, env=env,
     )
-    assert done.returncode == 0, done.stderr
+    assert done.returncode == 0, failure_report(done)
     first = done.stdout.splitlines()[0]
     return ROOT / first.removeprefix("recorded: ").removesuffix("/trace.jsonl")
 
@@ -38,7 +67,7 @@ def record_client(name: str, env: dict[str, str] | None = None, mode: str = "tou
         ["scripts/record.sh", "--client", mode, name],
         cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT, env=env,
     )
-    assert done.returncode == 0, done.stderr
+    assert done.returncode == 0, failure_report(done)
     first = done.stdout.splitlines()[0]
     return ROOT / first.removeprefix("recorded: ").removesuffix("/trace.jsonl")
 
@@ -57,6 +86,49 @@ TOUR_METHODS = [
     "resources/unsubscribe", "prompts/list", "prompts/get", "prompts/get", "completion/complete",
     "logging/setLevel", "tools/call", "tools/call", "notifications/cancelled",
 ]
+
+class RecordFailureTest(unittest.TestCase):
+    """Phase 8: a failed client recording says why, not only that it failed."""
+
+    def test_failed_record_shows_run_stderr(self) -> None:
+        # A preload makes the SDK client exit 1 after a full tour, with its reason on stderr,
+        # which record.sh keeps in the run folder. The server runs under `env -i`, so it is
+        # untouched.
+        with tempfile.TemporaryDirectory() as tmp:
+            preload = Path(tmp) / "fail.cjs"
+            preload.write_text('process.on("exit", () => {\n'
+                               '  console.error("planted failure for RecordFailureTest");\n'
+                               '  process.exitCode = 1;\n'
+                               '});\n')
+            env = {**os.environ, "NODE_OPTIONS": f"--require {preload}"}
+            with self.assertRaises(AssertionError) as caught:
+                record_client("test-record-failure", env, mode="sdk-tour")
+        message = str(caught.exception)
+        found = re.search(r"runs/\S+-test-record-failure", message)
+        self.assertIsNotNone(found, message)
+        assert found is not None
+        try:
+            self.assertIn("record: the run ended with exit code 1", message)
+            self.assertIn("planted failure for RecordFailureTest", message)
+            self.assertIn("--- exit record: {", message)
+        finally:
+            shutil.rmtree(ROOT / found.group(0), ignore_errors=True)
+        # A long stderr.txt is cut to its last 200 lines; a failure with no run folder says so.
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp) / "runs/20261114T000000Z-long"
+            run.mkdir(parents=True)
+            (run / "stderr.txt").write_text("".join(f"line {n}\n" for n in range(1, 251)))
+            long = failure_report(subprocess.CompletedProcess(
+                [], 1, "", f"record: the run ended with exit code 1 (see {run.relative_to(tmp)}"
+                "/stderr.txt)\n"), root=Path(tmp)).splitlines()
+        self.assertIn("line 51", long)
+        self.assertIn("line 250", long)
+        self.assertNotIn("line 50", long)
+        self.assertIn("stderr.txt (last 200 lines)", "\n".join(long))
+        bare = failure_report(subprocess.CompletedProcess([], 1, "", "record: node not found\n"))
+        self.assertIn("record: node not found", bare)
+        self.assertIn("no run folder was reported", bare)
+
 
 class E2ETest(unittest.TestCase):
     @classmethod
@@ -262,7 +334,7 @@ class EdgeLabTest(unittest.TestCase):
                 self.assertGreaterEqual(big.stat().st_size, 1024 * 1024)
                 done = subprocess.run(["scripts/record.sh", str(big), "test-edge-oversized"],
                                       cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT)
-                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertEqual(done.returncode, 0, failure_report(done))
                 first = done.stdout.splitlines()[0]
                 runs.append(ROOT / first.removeprefix("recorded: ").removesuffix("/trace.jsonl"))
             self.check_explained(runs[-1], OVERSIZED)
@@ -685,7 +757,7 @@ class ModernTourTest(unittest.TestCase):
             shutil.rmtree(run, ignore_errors=True)
         default = subprocess.run(["scripts/record.sh", "--client", "tour-2026"], cwd=ROOT,
                                  capture_output=True, text=True, timeout=TIMEOUT)
-        self.assertEqual(default.returncode, 0, default.stderr)
+        self.assertEqual(default.returncode, 0, failure_report(default))
         folder = ROOT / default.stdout.splitlines()[0].removeprefix("recorded: ").removesuffix(
             "/trace.jsonl")
         try:
