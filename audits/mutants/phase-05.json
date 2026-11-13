@@ -1,0 +1,256 @@
+{
+ "links": [
+  "vendor",
+  "clients/sdk/node_modules"
+ ],
+ "mutants": [
+  {
+   "id": "p5-diff-pop-to-get",
+   "file": "tap/diff.py",
+   "old": "request_key = pending.pop(flight, \"\")",
+   "new": "request_key = pending.get(flight, \"\")",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: a second response with the same id pairs with the request again (P8-R5-2)"
+  },
+  {
+   "id": "p5-diff-response-direction",
+   "file": "tap/diff.py",
+   "old": "flight = (OTHER[direction], type(msg[\"id\"]).__name__, id_text(msg[\"id\"]))",
+   "new": "flight = (direction, type(msg[\"id\"]).__name__, id_text(msg[\"id\"]))",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: a response pairs with a request of its own direction"
+  },
+  {
+   "id": "p5-diff-response-id-type",
+   "file": "tap/diff.py",
+   "old": "flight = (OTHER[direction], type(msg[\"id\"]).__name__, id_text(msg[\"id\"]))",
+   "new": "flight = (OTHER[direction], \"\", id_text(msg[\"id\"]))",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: a response pairs by id text only: 1 and \"1\" are one id"
+  },
+  {
+   "id": "p5-diff-request-id-type",
+   "file": "tap/diff.py",
+   "old": "flight = (direction, type(msg[\"id\"]).__name__, id_text(msg[\"id\"]))\n                pending[flight] = key",
+   "new": "flight = (direction, \"\", id_text(msg[\"id\"]))\n                pending[flight] = key",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: a request is filed by id text only (pending side)"
+  },
+  {
+   "id": "p5-diff-error-not-a-response",
+   "file": "tap/diff.py",
+   "old": "elif kind in (\"response\", \"error\"):",
+   "new": "elif kind == \"response\":",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: an error reply is a non-message frame, not paired with its request"
+  },
+  {
+   "id": "p5-diff-response-key-prefix",
+   "file": "tap/diff.py",
+   "old": "key = f\"{direction}.response:{request_key.split('.', 1)[1]}\"",
+   "new": "key = f\"{direction}.response:{request_key}\"",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: a response key keeps the request's direction prefix"
+  },
+  {
+   "id": "p5-diff-occurrence-not-counted",
+   "file": "tap/diff.py",
+   "old": "            key = f\"{slot}#{occurrences[slot]}\"\n            occurrences[slot] += 1\n            if kind == \"request\":",
+   "new": "            key = f\"{slot}#{occurrences[slot]}\"\n            if kind == \"request\":",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: a request or notification is keyed without counting its occurrence"
+  },
+  {
+   "id": "p5-diff-nonmessage-occurrence",
+   "file": "tap/diff.py",
+   "old": "            key = f\"{slot}#{occurrences[slot]}\"\n            occurrences[slot] += 1\n            text = frame_text(rec)",
+   "new": "            key = f\"{slot}#{occurrences[slot]}\"\n            text = frame_text(rec)",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: non-message frames of one direction share a key"
+  },
+  {
+   "id": "p5-diff-nonmessage-slot",
+   "file": "tap/diff.py",
+   "old": "slot = f\"{direction}.non-message\"",
+   "new": "slot = \"non-message\"",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: non-message frames are keyed without their direction"
+  },
+  {
+   "id": "p5-diff-request-slot-direction",
+   "file": "tap/diff.py",
+   "old": "slot = f\"{direction}.{msg['method']}\"",
+   "new": "slot = f\"{msg['method']}\"",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: requests and notifications are keyed without their direction"
+  },
+  {
+   "id": "p5-diff-cancel-direction",
+   "file": "tap/diff.py",
+   "old": "target = asked.get((direction, type(params[\"requestId\"]).__name__,",
+   "new": "target = asked.get((OTHER[direction], type(params[\"requestId\"]).__name__,",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: a cancelled requestId is looked up in the other direction"
+  },
+  {
+   "id": "p5-diff-cancel-id-type",
+   "file": "tap/diff.py",
+   "old": "target = asked.get((direction, type(params[\"requestId\"]).__name__,",
+   "new": "target = asked.get((direction, \"\",",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: a cancelled requestId is looked up by id text only"
+  },
+  {
+   "id": "p5-diff-asked-dropped",
+   "file": "tap/diff.py",
+   "old": "                asked[flight] = key\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: a request is never recorded for requestId mapping"
+  },
+  {
+   "id": "p5-diff-id-not-normalised",
+   "file": "tap/diff.py",
+   "old": "        if \"id\" in norm:\n            norm[\"id\"] = request_key\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: ids are compared as written"
+  },
+  {
+   "id": "p5-diff-cancel-not-normalised",
+   "file": "tap/diff.py",
+   "old": "                    norm[\"params\"] = {**params, \"requestId\": target}",
+   "new": "                    norm[\"params\"] = params",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: the requestId of a cancellation is compared as written"
+  },
+  {
+   "id": "p5-diff-cancel-method-gate",
+   "file": "tap/diff.py",
+   "old": "if norm.get(\"method\") == \"notifications/cancelled\" and isinstance(params, dict):",
+   "new": "if isinstance(params, dict):",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: the requestId of any notification is mapped to a request key (the review's near-equivalent survivor)"
+  },
+  {
+   "id": "p5-diff-nonmessage-text",
+   "file": "tap/diff.py",
+   "old": "out.append(Frame(key, seq, text, text, True))",
+   "new": "out.append(Frame(key, seq, \"\", text, True))",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C1: non-message frames always compare equal"
+  },
+  {
+   "id": "p5-diff-same-type",
+   "file": "tap/diff.py",
+   "old": "    if type(a) is not type(b):\n        return False\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: 1, 1.0 and true compare equal"
+  },
+  {
+   "id": "p5-diff-same-keys",
+   "file": "tap/diff.py",
+   "old": "return a.keys() == b.keys() and all(same(a[k], b[k]) for k in a)",
+   "new": "return all(same(a[k], b.get(k)) for k in a)",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: a member only in b is not a difference"
+  },
+  {
+   "id": "p5-diff-same-list-length",
+   "file": "tap/diff.py",
+   "old": "return len(a) == len(b) and all(same(x, y) for x, y in zip(a, b, strict=True))",
+   "new": "return all(same(x, y) for x, y in zip(a, b))",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: a longer array equals its prefix"
+  },
+  {
+   "id": "p5-diff-same-list-order",
+   "file": "tap/diff.py",
+   "old": "return len(a) == len(b) and all(same(x, y) for x, y in zip(a, b, strict=True))",
+   "new": "return len(a) == len(b) and sorted(map(dump, a)) == sorted(map(dump, b))",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: array order is ignored"
+  },
+  {
+   "id": "p5-diff-order-ignored",
+   "file": "tap/diff.py",
+   "old": "if fa.ordered == fb.ordered and fa.plain == fb.plain:",
+   "new": "if fa.plain == fb.plain:",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: member order is no longer a bytes-only difference"
+  },
+  {
+   "id": "p5-diff-plain-ignored",
+   "file": "tap/diff.py",
+   "old": "if fa.ordered == fb.ordered and fa.plain == fb.plain:",
+   "new": "if fa.ordered == fb.ordered:",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: spacing and escapes are no longer a bytes-only difference"
+  },
+  {
+   "id": "p5-diff-plain-always",
+   "file": "tap/diff.py",
+   "old": "out.append(Frame(key, seq, norm, dump(norm), raw == dump(msg)))",
+   "new": "out.append(Frame(key, seq, norm, dump(norm), True))",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: the compact-form flag is always true"
+  },
+  {
+   "id": "p5-diff-bytes-only-counted-as-equal",
+   "file": "tap/diff.py",
+   "old": "            else:\n                bytes_only += 1\n            continue",
+   "new": "            else:\n                equal += 1\n            continue",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: a bytes-only pair is counted as equal"
+  },
+  {
+   "id": "p5-diff-absent-member",
+   "file": "tap/diff.py",
+   "old": "            if k not in a or k not in b:\n                found.append((sub, a.get(k, _MISSING), b.get(k, _MISSING)))",
+   "new": "            if k not in a or k not in b:\n                found.append((sub, a.get(k), b.get(k)))",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: a missing member is shown as null, not (absent)"
+  },
+  {
+   "id": "p5-diff-member-only-in-b",
+   "file": "tap/diff.py",
+   "old": "        for k in [*a, *(k for k in b if k not in a)]:",
+   "new": "        for k in list(a):",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: a member only in b is not listed"
+  },
+  {
+   "id": "p5-diff-list-extra-item",
+   "file": "tap/diff.py",
+   "old": "for i in range(max(len(a), len(b))):",
+   "new": "for i in range(min(len(a), len(b))):",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: an extra array item is not listed"
+  },
+  {
+   "id": "p5-diff-only-a-dropped",
+   "file": "tap/diff.py",
+   "old": "only_a = [f for f in a if f.key not in b_by_key]",
+   "new": "only_a = []",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: keys only in a are not reported"
+  },
+  {
+   "id": "p5-diff-only-b-dropped",
+   "file": "tap/diff.py",
+   "old": "only_b = [f for f in b if f.key not in a_keys]",
+   "new": "only_b = []",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: keys only in b are not reported"
+  },
+  {
+   "id": "p5-diff-seq-compared",
+   "file": "tap/diff.py",
+   "old": "if same(fa.message, fb.message):",
+   "new": "if same(fa.message, fb.message) and fa.seq == fb.seq:",
+   "command": "python3 -m unittest tests.test_diff",
+   "note": "C2: the frame's seq is compared (timings and seq must not be)"
+  }
+ ]
+}
