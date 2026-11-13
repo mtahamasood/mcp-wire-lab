@@ -29,7 +29,7 @@ from tests.test_e2e import (
     TOUR_METHODS,
     failure_report,
 )
-from tests.test_tap_http import free_port
+from tests.test_tap_http import free_port, running
 
 ROOT = Path(__file__).resolve().parent.parent
 SERVER = ROOT / "vendor/servers/src/everything/dist/index.js"
@@ -126,6 +126,8 @@ class RecordHttpTest(unittest.TestCase):
     tcp_overlap: set[int]
     unix_listeners: list[str]
     done: subprocess.CompletedProcess[str]
+    name: str
+    started: dict[str, int]
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -135,6 +137,10 @@ class RecordHttpTest(unittest.TestCase):
                                 cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         pid = find_server(name, time.monotonic() + 30)
         assert pid is not None, "the server never started"
+        cls.name = name
+        # The processes the recording started, for the check that none outlives it (D6).
+        tap = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1])
+        cls.started = {"server": pid, "tap": tap}
         cls.server_env = {}
         for item in Path(f"/proc/{pid}/environ").read_bytes().split(b"\0"):
             if item:
@@ -182,6 +188,24 @@ class RecordHttpTest(unittest.TestCase):
     def test_server_has_no_tcp_listener(self) -> None:
         self.assertEqual(self.tcp_overlap, set(), "the server listens on a TCP port")
         self.assertEqual(self.unix_listeners, [self.server_env["PORT"]])
+
+    def test_no_tap_process_left_after_record(self) -> None:
+        # Phase 8 D6: once record.sh has exited, the tap and the server it started are gone,
+        # no process still names the run, and the tap's private socket directory is removed.
+        # The server runs in its own process group, so a tap that is killed rather than
+        # stopped leaves it serving.
+        self.assertEqual(self.done.returncode, 0, failure_report(self.done))
+        deadline = time.monotonic() + 10
+        while any(map(running, self.started.values())) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        left = {role: pid for role, pid in self.started.items() if running(pid)}
+        self.assertEqual(left, {}, "a process the recording started is still running")
+        naming = [pid for pid in (int(e.name) for e in Path("/proc").iterdir()
+                                  if e.name.isdecimal())
+                  if running(pid) and any(self.name in arg for arg in proc_cmdline(pid))]
+        self.assertEqual(naming, [], "a process still names the run")
+        self.assertFalse(os.path.exists(os.path.dirname(self.server_env["PORT"])),
+                         "the tap's private directory is left")
 
     def test_http_with_a_fixture_is_a_usage_error(self) -> None:
         before = set((ROOT / "runs").glob("*"))
@@ -336,7 +360,7 @@ class HttpTourTest(unittest.TestCase):
                 self.assertIn("never arrived", done.stdout)
             finally:
                 tap.send_signal(signal.SIGINT)
-                tap.wait(30)
+                tap.communicate(timeout=30)  # waits and closes the stderr pipe (D6)
             trace_records = [json.loads(line) for line in trace.read_text().splitlines()]
         methods = [r["json"].get("method") for r in trace_records
                    if r["dir"] == "s2c" and isinstance(r.get("json"), dict)]
