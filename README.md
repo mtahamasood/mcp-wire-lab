@@ -176,7 +176,7 @@ exercise it (the tasks methods show as `unexercised`; the atlas says why).
 
 ## How it is checked
 
-`scripts/gate.sh` (about two minutes; it is not hung) runs every automated check: the provenance of each recorded decision (G1), lint
+`scripts/gate.sh` (about 5 minutes; it is not hung) runs every automated check: the provenance of each recorded decision (G1), lint
 and type checks (G2, G3), the unit and end-to-end tests (G4, G5), a check that every
 `servers:path:line "fragment"` citation in the docs resolves in the pinned source (G8), a check that
 every runnable block in a lesson runs and prints what the lesson says it prints (G9), a check
