@@ -11,6 +11,9 @@ receives to LOG so a test can check exactly what the client sent. Methods:
   mrtr             `input_required` (inputRequests a, b; a requestState of awkward bytes) until a
                    request carries `inputResponses`, then `complete` echoing the params
   forever          always `input_required`
+  mrtr3            three rounds: `input_required` asking `a` with requestState "s1"; once the
+                   request carries inputResponses `a`, `input_required` asking `b` with NO
+                   requestState; once it carries `b`, `complete` echoing the params
   unanswerable     `input_required` with an input request no client can answer
   subscriptions/listen
                    acknowledges with `_meta` subscriptionId = the request's id; with the filter
@@ -19,6 +22,10 @@ receives to LOG so a test can check exactly what the client sent. Methods:
   release          sends the held acknowledgments, replies `complete`
   emit             params {"sub": <any>}: sends `notifications/tools/list_changed` tagged with that
                    subscription id, and an untagged `notifications/message`, replies `complete`
+
+--discover-data replaces the `data` of the --discover-error reply (a JSON text; default
+{"supported": ["2025-11-25"]}); --listen-error answers every subscriptions/listen with that
+JSON-RPC error code instead of an acknowledgment.
 
 On notifications/cancelled, --late replies to the cancelled request (a late listen response).
 Any other method gets -32601.
@@ -56,6 +63,8 @@ def main() -> int:
     parser.add_argument("--versions", default="2026-07-28")
     parser.add_argument("--discover-error", type=int, default=None)
     parser.add_argument("--late", action="store_true")
+    parser.add_argument("--discover-data", default='{"supported": ["2025-11-25"]}')
+    parser.add_argument("--listen-error", type=int, default=None)
     args = parser.parse_args()
     held: list[tuple[Any, Any]] = []
     listening: set[Any] = set()
@@ -73,7 +82,7 @@ def main() -> int:
                 if args.discover_error is not None:
                     send({"jsonrpc": "2.0", "id": msg_id, "error": {
                         "code": args.discover_error, "message": "no",
-                        "data": {"supported": ["2025-11-25"]}}})
+                        "data": json.loads(args.discover_data)}})
                 else:
                     result(msg_id, {"supportedVersions": args.versions.split(","),
                                     "capabilities": {}})
@@ -96,12 +105,25 @@ def main() -> int:
                         },
                         "requestState": "sté \"quoted\"  {not json} \\ end",
                     }, "input_required")
+            elif method == "mrtr3":
+                answered = set(params.get("inputResponses") or {})
+                if answered == {"b"}:
+                    result(msg_id, {"params": params})
+                elif answered == {"a"}:
+                    result(msg_id, {"inputRequests": {"b": {"method": "roots/list"}}},
+                           "input_required")  # no requestState on purpose
+                else:
+                    result(msg_id, {"inputRequests": {"a": {"method": "roots/list"}},
+                                    "requestState": "s1"}, "input_required")
             elif method == "forever":
                 result(msg_id, {"inputRequests": {"a": {"method": "roots/list"}}},
                        "input_required")
             elif method == "unanswerable":
                 result(msg_id, {"inputRequests": {"a": {"method": "nonsense/x"}}},
                        "input_required")
+            elif method == "subscriptions/listen" and args.listen_error is not None:
+                send({"jsonrpc": "2.0", "id": msg_id, "error": {
+                    "code": args.listen_error, "message": "listen refused"}})
             elif method == "subscriptions/listen":
                 listening.add(msg_id)
                 notes = params.get("notifications", {})
