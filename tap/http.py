@@ -49,6 +49,8 @@ READY_TIMEOUT = 15.0
 READY_POLL = 0.05
 DRAIN_SECONDS = 2.0
 CHUNK = 65536
+WATCH_PERIOD = 0.2  # seconds between checks that a finished exchange's watch can stop
+HANG_UP = getattr(select, "POLLRDHUP", 0)  # the peer's hang-up, even behind unread bytes
 LINE_END = re.compile(rb"[\r\n]")
 HOP_BY_HOP = frozenset(
     {"connection", "keep-alive", "te", "trailer", "transfer-encoding", "upgrade"}
@@ -138,13 +140,19 @@ class SseParser:
         return events
 
     def finish(self) -> SseEvent | None:
-        """The stream's end: an unterminated last line counts; a missing blank line does not."""
+        """The stream's end: an unterminated last line counts; a missing blank line does not.
+
+        A last CR, which `feed` held back as a possible half of CRLF, ends its line: no LF can
+        follow it now, so `data: x` CR CR dispatches its event whole (P8-R7-9).
+        """
         line = bytes(self._buf)
         self._buf.clear()
         self._scanned = 0
         if line.endswith(b"\r"):
-            line = line[:-1]
-        if line:
+            event = self._line(line[:-1])
+            if event is not None:
+                return event
+        elif line:
             self._line(line)
         if not self._touched:
             return None
@@ -217,6 +225,70 @@ def socket_accepts(path: str) -> bool:
         sock.close()
 
 
+class ClientWatch:
+    """Passes a client's hang-up on to the server for one exchange (D3; P8-R7-2, P8-R7-13).
+
+    It runs from the moment the request has been sent upstream until the exchange ends, for
+    every kind of response: when the client hangs up it shuts the upstream socket down, which
+    wakes a `getresponse()` or `read1()` waiting on it, and the server sees the disconnect as
+    it would without the tap. Where the platform has `POLLRDHUP` (Linux) it waits for the
+    client's hang-up only, so a request the client has queued behind the open exchange (HTTP/1.1
+    pipelining) does not end the watch; elsewhere the first queued byte ends it.
+    """
+
+    def __init__(self, client: socket.socket) -> None:
+        self.client = client
+        self.gone = threading.Event()
+        self._upstream: socket.socket | None = None
+        self._lock = threading.Lock()
+        self._done = False
+
+    def start(self, upstream: socket.socket) -> None:
+        self._upstream = upstream
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def stop(self) -> None:
+        """The exchange is over: the watch touches the upstream no more."""
+        with self._lock:
+            self._done = True
+
+    def client_left(self) -> None:
+        """The client has gone (seen by the watch, or by a failed write): close the upstream."""
+        self.gone.set()
+        with self._lock:
+            if self._done or self._upstream is None:
+                return
+            try:
+                self._upstream.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+    def _run(self) -> None:
+        if HANG_UP:
+            poller = select.poll()
+            poller.register(self.client, HANG_UP)
+            while not self._done:
+                try:
+                    if not poller.poll(WATCH_PERIOD * 1000):
+                        continue
+                except OSError:
+                    pass
+                break
+        else:
+            while not self._done:
+                try:
+                    ready, _, _ = select.select([self.client], [], [], WATCH_PERIOD)
+                    if not ready:
+                        continue
+                    if self.client.recv(1, socket.MSG_PEEK) != b"":
+                        return  # the client's next request is queued; no hang-up can be seen
+                except (OSError, ValueError):
+                    pass
+                break
+        if not self._done:
+            self.client_left()
+
+
 # -- the proxy ------------------------------------------------------------------------------
 
 
@@ -238,6 +310,9 @@ class Proxy(http.server.ThreadingHTTPServer):
 
     daemon_threads = True
     allow_reuse_address = True
+    # socketserver's default backlog of 5 reset bursts of 40 or more connections that the
+    # pinned server (backlog 511) would accept (D3; P8-R7-12).
+    request_queue_size = 128
 
     def __init__(self, port: int, socket_path: str, trace: Trace) -> None:
         super().__init__((HOST, port), ProxyHandler)
@@ -337,9 +412,12 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             self.server.end()
 
     def open_upstream(
-        self, body: bytes, pairs: list[tuple[str, str]]
+        self, body: bytes, pairs: list[tuple[str, str]], watch: ClientWatch
     ) -> tuple[UnixHTTPConnection, http.client.HTTPResponse] | None:
-        """Send the request to the socket; the connection and the response head, or None."""
+        """Send the request to the socket, start the watch, and wait for the response head.
+
+        The connection and the head, or None if the upstream failed or the client left first.
+        """
         conn = UnixHTTPConnection(self.server.socket_path)
         try:
             conn.putrequest(self.command, self.path, skip_host=True, skip_accept_encoding=True)
@@ -351,8 +429,11 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             if body or self.command in ("POST", "PUT", "PATCH"):
                 conn.putheader("Content-Length", str(len(body)))
             conn.endheaders(body)
+            if conn.sock is not None:
+                watch.start(conn.sock)
             response = conn.getresponse()
         except (OSError, http.client.HTTPException):
+            watch.stop()
             conn.close()
             return None
         return conn, response
@@ -366,11 +447,28 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def exchange(self, number: int, body: bytes, pairs: list[tuple[str, str]]) -> None:
+        """Relay one exchange. A client that leaves it, at any point, is passed on to the server
+        (the watch) and ends it with `http-end` by `client` (D1, D3; P8-R7-2)."""
+        watch = ClientWatch(self.connection)
+        try:
+            ended = self.relay(number, body, pairs, watch)
+        finally:
+            watch.stop()
+        if watch.gone.is_set():
+            self.close_connection = True
+            if not ended:
+                self.server.trace.event(
+                    "http-end", http={"exchange": number, "by": "client", "comments": 0})
+
+    def relay(self, number: int, body: bytes, pairs: list[tuple[str, str]],
+              watch: ClientWatch) -> bool:
+        """Send the request, relay the response; True if an event stream's `http-end` is written."""
         trace = self.server.trace
-        opened = self.open_upstream(body, pairs)
+        opened = self.open_upstream(body, pairs, watch)
         if opened is None:
-            self.answer_502(number)
-            return
+            if not watch.gone.is_set():
+                self.answer_502(number)
+            return False
         conn, resp = opened
         try:
             kind = (resp.getheader("Content-Type") or "").split(";")[0].strip().lower()
@@ -382,87 +480,87 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             has_body = self.command != "HEAD" and resp.status not in NO_BODY_STATUS
             length = resp.getheader("Content-Length")
             chunked = has_body and length is None
-            self.send_response_only(resp.status, resp.reason)
-            for name, value in resp.getheaders():
-                if not is_hop_by_hop(name):
-                    self.send_header(name, value)
-            if chunked:
-                self.send_header("Transfer-Encoding", "chunked")
-            self.end_headers()
+            try:
+                self.send_response_only(resp.status, resp.reason)
+                for name, value in resp.getheaders():
+                    if not is_hop_by_hop(name):
+                        self.send_header(name, value)
+                if chunked:
+                    self.send_header("Transfer-Encoding", "chunked")
+                self.end_headers()
+            except OSError:
+                watch.client_left()
+                return False
             if not has_body:
-                return
+                return False
             if kind == "text/event-stream":
-                self.pump_stream(number, conn, resp, chunked)
-            else:
-                self.pump_body(number, resp, chunked, int(length) if length else None)
+                self.pump_stream(number, resp, chunked, watch)
+                return True
+            self.pump_body(number, resp, chunked, int(length) if length else None, watch)
+            return False
         finally:
+            watch.stop()
             conn.close()
 
     def send_piece(self, data: bytes, chunked: bool) -> None:
         self.wfile.write(b"%x\r\n%b\r\n" % (len(data), data) if chunked else data)
 
     def pump_body(self, number: int, resp: http.client.HTTPResponse, chunked: bool,
-                  length: int | None) -> None:
+                  length: int | None, watch: ClientWatch) -> None:
         """A body that is not an event stream: forwarded piece by piece, recorded as one frame.
 
-        The frame is written before the piece that completes the body is forwarded.
+        The frame is written before the piece that completes the body is forwarded. A body cut
+        off (the upstream failed, or the client left) is recorded as far as it was read, with
+        `partial` set.
         """
         trace = self.server.trace
         got: list[bytes] = []
         total = 0
         recorded = False
+        ended = False  # the upstream ended the body (read1 gave b""), not an error or the client
+
+        def whole() -> bool:
+            return total >= length if length is not None else ended
 
         def record() -> None:
             nonlocal recorded
             recorded = True
             if total:
-                body_frame(trace, "s2c", b"".join(got), {"exchange": number})
+                body_frame(trace, "s2c", b"".join(got), {"exchange": number},
+                           partial=not whole())
 
         try:
             while True:
                 piece = resp.read1(CHUNK)
                 if not piece:
+                    ended = True
                     break
                 got.append(piece)
                 total += len(piece)
                 if length is not None and total >= length and not recorded:
                     record()
-                self.send_piece(piece, chunked)
+                try:
+                    self.send_piece(piece, chunked)
+                except OSError:
+                    watch.client_left()
+                    break
         except (OSError, http.client.HTTPException):
-            self.close_connection = True
+            pass
         if not recorded:
             record()
-        if chunked and not self.close_connection:
-            self.send_piece(b"", True)
+        if not (ended and whole()):
+            self.close_connection = True
+        elif chunked:
+            try:
+                self.send_piece(b"", True)
+            except OSError:
+                watch.client_left()
 
-    def pump_stream(self, number: int, conn: UnixHTTPConnection, resp: http.client.HTTPResponse,
-                    chunked: bool) -> None:
+    def pump_stream(self, number: int, resp: http.client.HTTPResponse, chunked: bool,
+                    watch: ClientWatch) -> None:
         """An event stream: each event recorded, then its bytes forwarded at once (D3, D4)."""
         trace = self.server.trace
         parser = SseParser()
-        client_gone = threading.Event()
-        done = threading.Event()
-
-        def watch() -> None:
-            """A client that hangs up closes the upstream connection (D3)."""
-            sock = self.connection
-            while not done.is_set():
-                try:
-                    ready, _, _ = select.select([sock], [], [], 0.2)
-                    if not ready:
-                        continue
-                    gone = sock.recv(1, socket.MSG_PEEK) == b""
-                except OSError:
-                    gone = True
-                if not gone:
-                    return  # the client's next request is already queued; stop watching
-                client_gone.set()
-                if conn.sock is not None:
-                    try:
-                        conn.sock.shutdown(socket.SHUT_RDWR)
-                    except OSError:
-                        pass
-                return
 
         def record_event(event: SseEvent) -> None:
             if event.data:
@@ -479,30 +577,26 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
                     http["retry"] = event.retry
                 trace.event("sse-event", http=http)
 
-        threading.Thread(target=watch, daemon=True).start()
         clean = False
-        try:
-            while True:
-                try:
-                    piece = resp.read1(CHUNK)
-                except (OSError, http.client.HTTPException):
-                    break
-                if not piece:
-                    clean = True
-                    break
-                for event in parser.feed(piece):
-                    record_event(event)
-                try:
-                    self.send_piece(piece, chunked)
-                except OSError:
-                    client_gone.set()
-                    break
-            tail = parser.finish()
-            if tail is not None:
-                record_event(tail)
-        finally:
-            done.set()
-        by = "client" if client_gone.is_set() else "server"
+        while True:
+            try:
+                piece = resp.read1(CHUNK)
+            except (OSError, http.client.HTTPException):
+                break
+            if not piece:
+                clean = True
+                break
+            for event in parser.feed(piece):
+                record_event(event)
+            try:
+                self.send_piece(piece, chunked)
+            except OSError:
+                watch.client_left()
+                break
+        tail = parser.finish()
+        if tail is not None:
+            record_event(tail)
+        by = "client" if watch.gone.is_set() else "server"
         trace.event("http-end", http={"exchange": number, "by": by, "comments": parser.comments})
         if by == "client" or not clean:
             self.close_connection = True
@@ -510,7 +604,7 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             try:
                 self.send_piece(b"", True)
             except OSError:
-                self.close_connection = True
+                watch.client_left()
 
 
 # -- the mode's lifecycle (D2) ---------------------------------------------------------------

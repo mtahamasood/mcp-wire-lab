@@ -14,6 +14,10 @@ pinned server does under the tap) and answers by path:
   /roundtrip an event (a server request), then waits for a POST to /reply, then the final event
   /reply     202, and releases /roundtrip
   /hold      an event, then silence until a DELETE of any path, then the end
+  /slowhead  holds the response head for up to 3 s while it watches for the peer's hang-up;
+             if the peer hangs up it logs a disconnect and answers nothing, else 200 JSON
+  /slowbody  200 JSON whose head goes with half its Content-Length of body; then, like
+             /slowhead, it watches for the peer's hang-up for up to 3 s before the rest
   /status    the status in ?code=, empty body
   /log       200 JSON; writes one line to stdout and one to stderr first
   /pid       200 JSON: this process's number
@@ -89,6 +93,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(b"0\r\n\r\n")
         self.wfile.flush()
 
+    def peer_gone_within(self, seconds: float) -> bool:
+        """Watch the peer for `seconds`; True, with a logged disconnect, if it hangs up."""
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            ready, _, _ = select.select([self.connection], [], [], 0.05)
+            if ready and self.connection.recv(1, socket.MSG_PEEK) == b"":
+                note({"event": "disconnect", "path": self.path, "t": time.monotonic()})
+                self.close_connection = True
+                return True
+        return False
+
     def reply(self, status: int, body: bytes = b"", ctype: str = "application/json",
               extra: tuple[tuple[str, str], ...] = ()) -> None:
         self.send_response(status)
@@ -162,12 +177,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.piece(b": hello\n\n" + EVENT)
             deadline = time.monotonic() + 10
             while not DELETED.is_set() and time.monotonic() < deadline:
-                ready, _, _ = select.select([self.connection], [], [], 0.05)
-                if ready and self.connection.recv(1, socket.MSG_PEEK) == b"":
-                    note({"event": "disconnect", "path": self.path})
-                    self.close_connection = True
+                if self.peer_gone_within(0.05):
                     return
             self.end_stream()
+        elif route == "/slowhead":
+            if not self.peer_gone_within(3.0):
+                self.reply(200, b'{"jsonrpc":"2.0","id":1,"result":{}}')
+        elif route == "/slowbody":
+            body = b'{"jsonrpc":"2.0","id":1,"result":{"pad":"' + b"x" * 64 + b'"}}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body[: len(body) // 2])
+            self.wfile.flush()
+            if not self.peer_gone_within(3.0):
+                self.wfile.write(body[len(body) // 2 :])
         elif route == "/status":
             self.reply(int(query.get("code", ["200"])[0]))
         elif route == "/log":

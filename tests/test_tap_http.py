@@ -187,6 +187,36 @@ def frames(records: list[Record], direction: str) -> list[Record]:
     return [r for r in records if r["dir"] == direction and "http" in r]
 
 
+def wait_until(check: Any, seconds: float = 5.0) -> bool:
+    """Poll `check()` every 50 ms for up to `seconds`; its last answer."""
+    deadline = time.monotonic() + seconds
+    while not check() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    return bool(check())
+
+
+def raw_client(case: unittest.TestCase, tap: Tap, request: bytes) -> socket.socket:
+    """A plain socket to the tap that has sent `request`; closed at the latest by the cleanup."""
+    client = socket.create_connection(("127.0.0.1", tap.port), TIMEOUT)
+    case.addCleanup(client.close)
+    client.sendall(request)
+    return client
+
+
+def upstream_disconnects(tap: Tap, path: str) -> list[Record]:
+    """The hang-ups the upstream saw on `path` (none before its first request is logged)."""
+    try:
+        log = tap.upstream_log()
+    except FileNotFoundError:
+        return []
+    return [e for e in log if e.get("event") == "disconnect" and e["path"] == path]
+
+
+def of_exchange(records: list[Record], number: int) -> list[Record]:
+    return [r for r in records if isinstance(r.get("http"), dict)
+            and r["http"].get("exchange") == number]
+
+
 def sse_get(case: unittest.TestCase, payload: bytes, route: str = "raw") -> list[Record]:
     """Serve `payload` as an event stream through the tap; return the trace."""
     tap = started(case)
@@ -343,6 +373,14 @@ class SseTest(unittest.TestCase):
         self.assertIsNone(frame["json"])
         self.assertIn("UTF-8", frame["parse_error"])
 
+    def test_stream_ended_by_a_lone_cr_is_a_whole_event(self) -> None:
+        # Review P8-R7-9: `data: x` CR CR is a field line and a blank line, so a client
+        # dispatches the event; the tap took the last CR for half a CRLF and recorded it partial.
+        records = sse_get(self, b'data: {"a":1}\r\r')
+        (frame,) = frames(records, "s2c")
+        self.assertEqual(frame["raw"], '{"a":1}')
+        self.assertNotIn("partial", frame)
+
     def test_parser_alone(self) -> None:
         parser = SseParser()
         self.assertEqual(parser.feed(b"data: a\r"), [])  # a CR may start a CRLF
@@ -478,6 +516,101 @@ class HttpForwardTest(unittest.TestCase):
         tap.proc.send_signal(signal.SIGINT)
         self.assertEqual(tap.proc.wait(TIMEOUT), 0)
         self.assertTrue(any("recording stopped" in line for line in tap.stderr_lines))
+
+    def test_many_simultaneous_connections_are_all_answered(self) -> None:
+        # Review P8-R7-12: with socketserver's default listen backlog of 5, a burst of
+        # connections was reset by the tap (about a quarter of 200), where the pinned server,
+        # whose backlog is 511, would have taken them all (D3: the server sees what it would
+        # see without the tap). Every connection here is opened at the same moment.
+        count = 200
+        tap = started(self)
+        gate = threading.Barrier(count)
+        failures: list[str] = []
+
+        def one() -> None:
+            try:
+                gate.wait(TIMEOUT)
+                status = tap.request("POST", "/json", b"{}")[0]
+                if status != 200:
+                    failures.append(f"status {status}")
+            except (OSError, threading.BrokenBarrierError, http.client.HTTPException) as exc:
+                failures.append(repr(exc))
+
+        threads = [threading.Thread(target=one) for _ in range(count)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(TIMEOUT * 2)
+        self.assertEqual(failures, [], f"{len(failures)} of {count} connections failed")
+        records = tap.stop()
+        self.assertEqual(len(tap_records(records, "http-response")), count)
+
+
+class ClientHangUpTest(unittest.TestCase):
+    """D3: a client that hangs up is passed on to the server, whatever the exchange's state."""
+
+    def test_client_gone_before_response_head_closes_upstream(self) -> None:
+        # Review P8-R7-2: only an open event stream was watched. A client that hung up while
+        # the server was still working (in the 2026-07-28 era that close is the cancellation,
+        # and most answers are JSON, whose head comes with the result) was never passed on;
+        # the server answered, and the trace showed a response the client never got.
+        tap = started(self)
+        raw_client(self, tap, b"POST /slowhead HTTP/1.1\r\nHost: x\r\nContent-Type: "
+                              b"application/json\r\nContent-Length: 2\r\n\r\n{}").close()
+        self.assertTrue(wait_until(lambda: upstream_disconnects(tap, "/slowhead"), 2.0),
+                        "the server never saw the client hang up")
+        records = tap.stop()
+        mine = of_exchange(records, 0)
+        self.assertEqual([r.get("event") or r["dir"] for r in mine],
+                         ["http-request", "c2s", "http-end"])
+        self.assertEqual(mine[-1]["http"], {"exchange": 0, "by": "client", "comments": 0})
+
+    def test_client_gone_during_a_json_body_closes_upstream(self) -> None:
+        # Review P8-R7-2: the watch covers every response kind, not only event streams; the
+        # body's frame holds what was forwarded and says it was cut off.
+        tap = started(self)
+        client = raw_client(self, tap, b"POST /slowbody HTTP/1.1\r\nHost: x\r\n"
+                                       b"Content-Length: 2\r\n\r\n{}")
+        got = b""
+        while b'"pad"' not in got:
+            piece = client.recv(4096)
+            self.assertTrue(piece, "the tap closed before the first half of the body")
+            got += piece
+        client.close()
+        self.assertTrue(wait_until(lambda: upstream_disconnects(tap, "/slowbody"), 2.0),
+                        "the server never saw the client hang up")
+        records = tap.stop()
+        mine = of_exchange(records, 0)
+        self.assertEqual([r.get("event") or r["dir"] for r in mine],
+                         ["http-request", "c2s", "http-response", "s2c", "http-end"])
+        delivered = got.split(b"\r\n\r\n", 1)[1].decode()
+        whole = '{"jsonrpc":"2.0","id":1,"result":{"pad":"' + "x" * 64 + '"}}'
+        recorded = mine[3]["raw"]
+        self.assertTrue(recorded.startswith(delivered) and whole.startswith(recorded), recorded)
+        self.assertLess(len(recorded), len(whole))
+        self.assertTrue(mine[3]["partial"])
+        self.assertEqual(mine[-1]["http"], {"exchange": 0, "by": "client", "comments": 0})
+
+    def test_hang_up_behind_a_pipelined_request_is_passed_on(self) -> None:
+        # Review P8-R7-13: the watch stopped for good once the client sent its next request
+        # while the stream was open (HTTP/1.1 pipelining), so a later hang-up was never passed
+        # on: no `http-end`, and the server's stream stayed open.
+        tap = started(self)
+        client = raw_client(self, tap, b"POST /hold HTTP/1.1\r\nHost: x\r\n"
+                                       b"Content-Length: 2\r\n\r\n{}")
+        got = b""
+        while b"data:" not in got:
+            piece = client.recv(4096)
+            self.assertTrue(piece, "the tap closed the stream")
+            got += piece
+        client.sendall(b"POST /json HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}")
+        time.sleep(0.5)  # the pipelined request waits at the tap behind the open stream
+        client.close()
+        self.assertTrue(wait_until(lambda: upstream_disconnects(tap, "/hold"), 3.0),
+                        "the server never saw the client hang up")
+        records = tap.stop()
+        (end,) = tap_records(records, "http-end")
+        self.assertEqual(end["http"], {"exchange": 0, "by": "client", "comments": 1})
 
 
 class HttpLifecycleTest(unittest.TestCase):
