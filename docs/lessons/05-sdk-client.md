@@ -7,7 +7,9 @@
 Run the raw client's tour through the official TypeScript SDK, `@modelcontextprotocol/client`
 2.3.1, and find out which bytes the SDK chose for you. The SDK client in `clients/sdk/` makes the
 same calls as the raw client of lesson 02, through the SDK's methods, and never writes a
-message itself. You will record both clients, diff the two traces message by message with
+message itself. (An *SDK*, software development kit, is the library that does the protocol's
+bookkeeping for you: ids, framing, validation, timeouts. The *tap* is the lab's recorder between
+client and server; a *trace* is what it wrote.) You will record both clients, diff the two traces message by message with
 `tap.diff`, explain every difference, and then follow one `client.callTool` from the API call to
 the bytes on the server's stdin and back, in the SDK's own source.
 
@@ -23,11 +25,13 @@ Before you run anything, write down:
    client's? The same messages in the same order?
 2. Which fields of the traces will differ? Think about what the client chooses (its name, the
    token it asks progress with) and what the SDK chooses for it.
-3. The raw client chose the progress tokens `"tour-done"` and `"tour-cancel"`. The SDK client
+3. A *progress token* is a value the client puts in a request's `_meta` member (the spec's slot
+   for side information about a request) to ask the server for `notifications/progress` about
+   it; the server echoes it in each notification. The raw client chose the progress tokens `"tour-done"` and `"tour-cancel"`. The SDK client
    asks for progress with an `onprogress` callback and does not name a token. What will the
    token be?
 4. The raw client cancelled a call by sending `notifications/cancelled`. The SDK client aborts an
-   `AbortSignal`. Will the two `notifications/cancelled` frames be equal?
+   `AbortSignal` (JavaScript's standard handle for cancelling an operation in progress). Will the two `notifications/cancelled` frames be equal?
 
 (Answers to 1 to 4: the *Predict answers* at the end.)
 
@@ -123,6 +127,69 @@ The tour's stderr is in the run folder: `cat runs/*-lesson05-sdk/stderr.txt`. Th
 starting `sdk:` is the SDK telling you, through `client.onerror`, that the server's second progress
 notification of the cancelled call arrived after the call was abandoned.
 
+### The server tour: when the server asks the client
+
+The first tour has the client ask and the server answer. The *server tour* (lesson 03) also has the
+server ask the client: it sends `roots/list`, `sampling/createMessage` (a request for the client
+to produce a model reply) and `elicitation/create` (a request for the client to ask its user for
+input). A client that sits on an SDK does not write those answers itself; it registers handlers
+and the SDK sends the replies. Record both clients' server tours, then check the SDK trace and
+diff the two:
+
+<!-- run -->
+```console
+$ scripts/record.sh --client server-tour lesson05-raw-server
+```
+
+<!-- expect -->
+```text
+recorded: runs/
+```
+
+<!-- run -->
+```console
+$ scripts/record.sh --client sdk-server-tour lesson05-sdk-server
+```
+
+<!-- expect -->
+```text
+recorded: runs/
+```
+
+<!-- run -->
+```console
+$ raw=$(ls -dt runs/*-lesson05-raw-server | head -1)
+$ sdk=$(ls -dt runs/*-lesson05-sdk-server | head -1)
+$ python3 -m tap.check "$sdk/trace.jsonl" --revision 2025-11-25
+$ python3 -m tap.diff "$raw/trace.jsonl" "$sdk/trace.jsonl" > "$sdk/diff.txt" || true
+$ grep '^summary' "$sdk/diff.txt"
+```
+
+<!-- expect -->
+```text
+check: ok (74 frames)
+summary: 74 pairs, 45 equal, 24 equal as JSON but not as bytes, 5 differ; 0 only in a, 0 only in b
+```
+
+Five differ (`tap.diff` exits 1 when anything differs, which is why the command above ends
+the diff with `|| true`), and none is in one trace only. As with the first tour, read the diff, guess the five,
+then ask for the notes in the walkthrough's `#server-tour` section (the same exit rule applies):
+
+<!-- run -->
+```console
+$ raw=$(ls -dt runs/*-lesson05-raw-server | head -1)
+$ sdk=$(ls -dt runs/*-lesson05-sdk-server | head -1)
+$ python3 -m tap.diff "$raw/trace.jsonl" "$sdk/trace.jsonl" --explain docs/walkthrough/05-sdk-client.md#server-tour > /dev/null && echo "every difference has a note"
+```
+
+<!-- expect -->
+```text
+every difference has a note
+```
+
+Two of the five are not about the SDK at all: each run's elicitation id is a fresh random value,
+so a diff of two raw runs shows it too.
+
 ## Read the source
 
 - `clients/sdk/src/tour.ts`: the tour. Notice what is not in it: no message object, no id, no
@@ -138,16 +205,76 @@ notification of the cancelled call arrived after the call was abandoned.
 
 ## Experiments
 
-**1. Ask for progress the raw client's way.** In `clients/sdk/src/tour.ts`, in `longRunning`,
+**1. See the member order.** The 14 pairs that differ only in member order are bytes, not
+meaning. Print the first request of each tour trace, cut to 60 characters (the raw client first,
+then the SDK client):
+
+<!-- run -->
+```console
+$ for who in raw sdk; do run=$(ls -dt runs/*-lesson05-$who | head -1); python3 -c 'import json,sys; print(json.loads(open(sys.argv[1]).readlines()[1])["raw"][:60].rstrip())' "$run/trace.jsonl"; done
+```
+
+<!-- expect -->
+```text
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"pro
+{"method":"initialize","params":{"protocolVersion":"2025-11-
+```
+
+Same message, two byte orders. A receiver that parses JSON cannot tell them apart.
+
+**2. Read the progress tokens.** List the distinct `progressToken` values on the wire in each tour
+trace:
+
+<!-- run -->
+```console
+$ for who in raw sdk; do run=$(ls -dt runs/*-lesson05-$who | head -1); echo "$who: $(grep -o '"progressToken": [^,}]*' "$run/trace.jsonl" | sort -u | tr '\n' ' ')"; done
+```
+
+<!-- expect -->
+```text
+raw: "progressToken": "tour-cancel" "progressToken": "tour-done" 
+sdk: "progressToken": 15 "progressToken": 16 
+```
+
+The SDK's tokens are request ids. Compare them with your answer to Predict 3.
+
+**3. See what the SDK answers for you.** In the SDK server tour the server sent requests to the
+client. List them (the lines starting `<-` that are requests):
+
+<!-- run -->
+```console
+$ sdk=$(ls -dt runs/*-lesson05-sdk-server | head -1)
+$ python3 -m tap.show "$sdk/trace.jsonl" | grep '<-  request' | sed 's/^ *[0-9]* *[0-9.]* ms *<-  //'
+```
+
+<!-- expect -->
+```text
+request roots/list id=0
+request roots/list id=1
+request sampling/createMessage id=2
+request elicitation/create id=3
+request elicitation/create id=4
+request elicitation/create id=5
+request elicitation/create id=6
+request roots/list id=7
+```
+
+These ids belong to the server, not to the client: the server numbers its own requests from 0,
+so id 2 here is a different message from the client's request 2. Find each one's reply in
+`tap.show` (the `->  response id=N (answers seq M)` lines) and open `clients/sdk/src/handlers.ts`
+to see the few lines of code that produced them.
+
+**4. Ask for progress the raw client's way.** In `clients/sdk/src/tour.ts`, in `longRunning`,
 change the `callTool` params to include `_meta: { progressToken: "tour-done" }` and drop the
 `onprogress` option (the tour then fails its progress check; that is part of the answer). Before
 you run `scripts/record.sh --client sdk-tour` again, predict the new diff against the raw
 trace, and what the SDK does with the two progress notifications (hint: `client.onerror`). Then
 undo the edit with `git checkout clients/sdk/src/tour.ts`, so the gate still sees the original.
+The measured outcome is under *Check yourself*, after the answers.
 
-**2. Read the order.** Run `python3 -m tap.show` on both traces and compare the order of the
+**5. Read the order.** Run `python3 -m tap.show` on both traces and compare the order of the
 frames. `tap.diff` compares messages, not their order; what does the order tell you that the
-diff does not?
+diff does not? (Answer after the answers below.)
 
 ## Check yourself
 
@@ -157,6 +284,8 @@ Answer from your own traces, then open the answers.
 2. Why are the SDK's progress tokens 15 and 16?
 3. Why are the `notifications/cancelled` frames equal although the progress tokens are not?
 4. What does the SDK do that your traces cannot show?
+5. In the server tour, which of the five differences come from the SDK client, and which would
+   appear between any two runs?
 
 <details>
 <summary>Answers</summary>
@@ -172,6 +301,10 @@ Answer from your own traces, then open the answers.
 4. It validates every result against its schema, caches the tool list for `callTool`'s output
    check, follows `nextCursor` through every page, drops a progress notification whose handler
    is gone and reports it through `onerror`, and times every request out after 60 s.
+5. The client's name and version (`initialize`), and the canned sampling text that names the
+   client, with the tool result that quotes it, differ because of the client. The two
+   elicitation differences (the random id in the server's request, and the result that quotes
+   it) appear between any two runs.
 
 The *Predict* answers:
 
@@ -183,5 +316,18 @@ The *Predict* answers:
 3. The request's id: 15 for the first long-running call and 16 for the second.
 4. Yes: the frame names the request by id (16), and both clients used the same id and the
    same reason text.
+
+Experiment answers:
+
+4. The first call's frame now equals the raw client's, token `"tour-done"` included, and its two
+   progress notifications arrive. But the SDK stored no handler under that token, so it drops
+   both and reports them on stderr (`sdk: Received a progress notification for an unknown
+   token`), the tour fails its check at step 16 and the client exits 1, so the cancelled call is
+   never made. Measured against the raw tour: 37 pairs compared, 1 differs (`initialize`), 4 only
+   in the raw trace (the second `tools/call`, its two notifications and the `notifications/cancelled`).
+5. The order shows what the diff hides: when a message lands relative to the others. In the SDK
+   server tour the client sends `tools/call` id 2, the server asks `roots/list` while that call is
+   still open, the client answers, and only then does the reply to id 2 arrive. A reply can come
+   after a request the server made to you, so a client must keep reading while it waits.
 
 </details>
