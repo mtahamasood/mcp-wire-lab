@@ -15,6 +15,7 @@ from __future__ import annotations
 import http.client
 import http.server
 import os
+import re
 import select
 import shutil
 import signal
@@ -48,6 +49,7 @@ READY_TIMEOUT = 15.0
 READY_POLL = 0.05
 DRAIN_SECONDS = 2.0
 CHUNK = 65536
+LINE_END = re.compile(rb"[\r\n]")
 HOP_BY_HOP = frozenset(
     {"connection", "keep-alive", "te", "trailer", "transfer-encoding", "upgrade"}
 )
@@ -93,7 +95,8 @@ class SseParser:
     """
 
     def __init__(self) -> None:
-        self._buf = b""
+        self._buf = bytearray()
+        self._scanned = 0  # the bytes of `_buf` known to hold no line end
         self.comments = 0
         self._reset()
 
@@ -105,27 +108,40 @@ class SseParser:
         self._touched = False
 
     def feed(self, chunk: bytes) -> list[SseEvent]:
-        self._buf += chunk
+        """Parse a chunk in time linear in its size (P8-R7-1): a scan resumes where the last
+        one stopped, a line end is found at C speed, and the buffer is trimmed once per call."""
+        buf = self._buf
+        buf += chunk
         events: list[SseEvent] = []
+        pos = 0  # the start of the first unconsumed line
+        scan = self._scanned
         while True:
-            end = next((i for i, b in enumerate(self._buf) if b in b"\r\n"), None)
-            if end is None:
+            found = LINE_END.search(buf, scan)
+            if found is None:
+                scan = len(buf)
                 break
-            if self._buf[end : end + 1] == b"\r":
-                if end + 1 == len(self._buf):
-                    break  # a CR may be the first half of CRLF; wait for the next byte
-                stop = end + 2 if self._buf[end + 1 : end + 2] == b"\n" else end + 1
+            end = found.start()
+            if buf[end] == 13:  # CR
+                if end + 1 == len(buf):
+                    scan = end  # a CR may be the first half of CRLF; wait for the next byte
+                    break
+                stop = end + 2 if buf[end + 1] == 10 else end + 1
             else:
                 stop = end + 1
-            line, self._buf = self._buf[:end], self._buf[stop:]
+            line = bytes(buf[pos:end])
+            pos = scan = stop
             event = self._line(line)
             if event is not None:
                 events.append(event)
+        del buf[:pos]
+        self._scanned = scan - pos
         return events
 
     def finish(self) -> SseEvent | None:
         """The stream's end: an unterminated last line counts; a missing blank line does not."""
-        line, self._buf = self._buf, b""
+        line = bytes(self._buf)
+        self._buf.clear()
+        self._scanned = 0
         if line.endswith(b"\r"):
             line = line[:-1]
         if line:
