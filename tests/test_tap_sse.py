@@ -1,4 +1,4 @@
-"""The tap's SSE parser, called directly (phase 8 C22, review finding P8-R7-1).
+"""The tap's SSE parser, called directly (phase 8 C28, review finding P8-R7-1).
 
 No subprocess and no network. The scaling tests feed one large event in small pieces and
 compare the time for 4x the input with the time for 1x: a linear parser takes about 4x, the old
