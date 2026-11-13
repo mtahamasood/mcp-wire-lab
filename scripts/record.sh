@@ -168,8 +168,9 @@ case "$run_as" in
       2> >(tee "$dir/stderr.txt" >&2) || status=$?
     ;;
 esac
-[ -s "$dir/trace.jsonl" ] || { echo "record: no trace was written (exit $status)" >&2; exit 1; }
-[ "$status" -eq 0 ] || echo "record: the run ended with exit code $status (see the exit record)" >&2
+[ -s "$dir/trace.jsonl" ] || { echo "record: no trace was written (exit $status; see $dir/stderr.txt)" >&2; exit 1; }
+[ "$status" -eq 0 ] \
+  || echo "record: the run ended with exit code $status (see the exit record and $dir/stderr.txt)" >&2
 
 echo "recorded: $dir/trace.jsonl"
 echo "read it:  python3 -m tap.show $dir/trace.jsonl"

@@ -27,6 +27,7 @@ from tests.test_e2e import (
     SERVER_NOTES,
     SERVER_REQUESTS,
     TOUR_METHODS,
+    failure_report,
 )
 from tests.test_tap_http import free_port
 
@@ -154,7 +155,7 @@ class RecordHttpTest(unittest.TestCase):
             cls.recording = run_dir(out)
 
     def test_record_http_tour_writes_a_run_folder(self) -> None:
-        self.assertEqual(self.done.returncode, 0, self.done.stderr)
+        self.assertEqual(self.done.returncode, 0, failure_report(self.done))
         lines = self.done.stdout.splitlines()
         self.assertRegex(
             lines[0], r"^recorded: runs/\d{8}T\d{6}Z-test-http-record-\d+/trace\.jsonl$")
@@ -207,7 +208,7 @@ class HttpTourTest(unittest.TestCase):
         done = subprocess.run(
             ["scripts/record.sh", "--http", "--client", "http-tour", "test-http-tour"],
             cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT)
-        assert done.returncode == 0, done.stderr
+        assert done.returncode == 0, failure_report(done)
         cls.recording = run_dir(done.stdout)
         cls.trace = records(cls.recording)
 
@@ -353,7 +354,7 @@ class SdkHttpTest(unittest.TestCase):
         done = subprocess.run(
             ["scripts/record.sh", "--http", "--client", "sdk-tour", "test-sdk-http"],
             cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT)
-        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.returncode, 0, failure_report(done))
         recording = run_dir(done.stdout)
         trace = records(recording)
         checked = subprocess.run(
@@ -378,7 +379,7 @@ def record_http(name: str, mode: str) -> Path:
     """`record.sh --http --client <mode>`; the run folder, after asserting the client's exit 0."""
     done = subprocess.run(["scripts/record.sh", "--http", "--client", mode, name], cwd=ROOT,
                           capture_output=True, text=True, timeout=TIMEOUT)
-    assert done.returncode == 0, done.stderr
+    assert done.returncode == 0, failure_report(done)
     return run_dir(done.stdout)
 
 
