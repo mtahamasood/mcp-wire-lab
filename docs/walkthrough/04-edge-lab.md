@@ -13,7 +13,7 @@ python3 -m tap.show runs/<your-run>/trace.jsonl --explain docs/walkthrough/04-ed
 | Experiment (`#name`) | Fixture |
 | --- | --- |
 | `missing-jsonrpc` | `tests/fixtures/edge-missing-jsonrpc.ndjson` |
-| `before-initialize` | `tests/fixtures/exp-list-first.ndjson` (phase 1's, reused) |
+| `before-initialize` | `tests/fixtures/exp-list-first.ndjson` (lesson 01's experiment 3, reused) |
 | `unknown-method` | `tests/fixtures/edge-unknown-method.ndjson` |
 | `duplicate-id` | `tests/fixtures/edge-duplicate-id.ndjson` |
 | `string-id` | `tests/fixtures/edge-string-id.ndjson` |
@@ -34,7 +34,7 @@ Reading the verdicts. Each experiment ends with one line: *follows the spec*, *s
 server refuses something the spec allows), *looser* (the server accepts something the spec
 forbids or discourages) or *spec silent* (the spec has no rule to compare against).
 
-Two things the driver does for these fixtures (phase 4 D2). A line carrying
+Two things the fixture driver (`tests/drive.py`) does for these fixtures. A line carrying
 `"_drive":{"expect":"none","wait_ms":N}` is sent without that member, and the driver then waits
 `N` ms instead of waiting for a reply with the same id, because the server may never send one. And
 `scripts/record.sh` reports a non-zero server exit (the everything server exits 1 after a transport
@@ -114,7 +114,7 @@ defined but this server does not use it here.
 
 ## before-initialize
 
-Phase 1's `exp-list-first.ndjson`: `tools/list` is the first message, `initialize` comes after.
+Lesson 01's `exp-list-first.ndjson`: `tools/list` is the first message, `initialize` comes after.
 Predict first: does the server refuse a request before the handshake?
 
 #### `c2s.tools/list.1`
