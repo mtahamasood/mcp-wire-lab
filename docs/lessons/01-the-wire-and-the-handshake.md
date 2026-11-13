@@ -21,6 +21,8 @@ Before you run anything, write down on paper or in a scratch file:
 3. What does the server say in answer to `initialize` that the client did not say in the question?
 4. Does anything appear on stderr? Where would it show up if you only watched stdout?
 
+(Answers: the *Predict answers* at the end.)
+
 ## Run
 
 `scripts/record.sh` feeds a fixture, one line at a time, through the tap into the pinned
@@ -198,5 +200,19 @@ Answer from your own trace, then open the answers.
    requests first) bind the client. The spec gives the server no duty to refuse, so this server is
    lenient, and the spec allows that. The lesson is that a client cannot count on the server to
    catch its mistakes.
+
+The *Predict* answers:
+
+1. The client sends four lines (`initialize`, `notifications/initialized`, `tools/list`, `ping`);
+   the server sends three back on stdout, one reply per request. The notification gets none.
+2. The three requests have an `id` (0, 1, 2) and each reply carries the same `id` as its request,
+   which is how the client matches them. `notifications/initialized` has no `id`: it is a
+   notification, a message that expects no reply.
+3. Which protocol version it chose (here the same `2025-11-25` the client offered), the
+   server's own `capabilities`, its name and version (`serverInfo`) and an `instructions` text.
+   The client offered none of these.
+4. Yes: one line, `Starting default (STDIO) server...`, on stderr. Watching only stdout you
+   would never see it; the tap records stderr as its own stream, so it shows up in the trace as
+   a `stderr` row.
 
 </details>

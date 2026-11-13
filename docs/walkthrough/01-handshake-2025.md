@@ -10,8 +10,8 @@ python3 -m tap.show runs/<your-run>/trace.jsonl --explain docs/walkthrough/01-ha
 
 Each note is headed by an identity anchor: `<direction>.<method or response>.<id or occurrence>`
 (`stderr.<n>` and `tap.<event>.<n>` for the non-protocol records). `--explain` exits non-zero if a
-frame has no note here, or a note here names a frame the run never produced (G5 checks this on
-every gate run).
+frame has no note here, or a note here names a frame the run never produced, so a note that no
+longer fits a fresh trace is caught.
 
 Citations point into the two pinned submodules: `spec` is the 2025-11-25 revision of the
 specification, `servers` is the everything reference server. The server's protocol plumbing
@@ -21,8 +21,7 @@ checked here; its compiled code is under `vendor/servers/node_modules/@modelcont
 Those notes cite the spec for the rule and the server for what it configures, and say so.
 
 The examples below are hand-written and trimmed; your trace has the full bytes. They are not
-machine-checked (the Result in `specs/phases/01-wire-tap/validation.md` lists them as unchecked), so
-where one differs from your trace, trust the trace.
+machine-checked, so where one differs from your trace, trust the trace.
 
 #### `tap.spawn.0`
 

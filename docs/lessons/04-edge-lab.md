@@ -24,6 +24,8 @@ Write down answers before you run anything:
 4. You drop a request at the tap so the server never sees it. What does the client see, and
    how long does it wait?
 
+(Answers: the *Predict answers* at the end.)
+
 ## Run
 
 Two edge fixtures, recorded with the same script as lesson 01. Each one does the normal handshake
@@ -100,9 +102,35 @@ section name to read it with (the name after the `#` in `--explain`; they are no
 | `edge-notification-with-id` | `notification-with-id` |
 
 Pick one, predict, record, then read it against its section in
-[the walkthrough](../walkthrough/04-edge-lab.md). (The walkthrough also has notes for an
-oversized frame, a 1 MiB `tools/call`; `tests/test_e2e.py` generates that one, so it is not an
-experiment you can pick.) A wrong section name prints the names the file does have.
+[the walkthrough](../walkthrough/04-edge-lab.md). For example, for the first row:
+
+```console
+scripts/record.sh tests/fixtures/edge-missing-jsonrpc.ndjson
+python3 -m tap.show runs/<your-run>/trace.jsonl --explain docs/walkthrough/04-edge-lab.md#missing-jsonrpc
+```
+
+The answer to each one is in its walkthrough section: the notes say what each frame shows, and
+the section ends with a bold **Verdict** line (*follows the spec*, *stricter*, *looser* or *spec
+silent*). The box below gives the short outcome of each; open it after you have read your own
+trace. (The walkthrough also has notes for an oversized frame, a 1 MiB `tools/call`;
+`tests/test_e2e.py` generates that one, so it is not an experiment you can pick.) A wrong section
+name prints the names the file does have.
+
+<details>
+<summary>The five outcomes, measured against the pinned server</summary>
+
+- `missing-jsonrpc`: no reply on stdout, only a `Transport error` on stderr; the next `ping` is
+  answered, and the server exits 1 at the end. Verdict: *spec silent*.
+- `before-initialize`: `tools/list` sent first is answered with the full list, before the reply
+  to `initialize`. Verdict: *looser*.
+- `duplicate-id`: both requests with `id` 1 are answered, the quick `tools/list` first and the
+  slow `tools/call` about a second later; nothing is refused. Verdict: *looser*.
+- `string-id`: `1` and `"1"` are two different ids; each reply carries its id with the type it
+  was sent with. Verdict: *follows the spec*.
+- `notification-with-id`: with an `id` the message is a request, so it gets an error reply,
+  `-32601`, under that id. Verdict: *follows the spec*.
+
+</details>
 
 **The fault run: lose a message.** The tap can misbehave on request. `--drop c2s:tools/list`
 stops the first `tools/list` request at the tap: it is recorded as a frame, so you can see it
@@ -174,5 +202,17 @@ lost message look the same to a client.
    `tap fault` row after each reply. The server's part is the latency printed beside each reply,
    which stays small, because the tap records a reply before it holds it. A client waiting on
    the wire cannot tell the two apart from a slow server.
+
+The *Predict* answers:
+
+1. An error, under the request's `id`: code `-32601`, `Method not found`.
+2. Silence for the array: neither request inside it gets a reply, and the server prints a
+   `Transport error` on stderr instead. The connection survives (the `ping` after it is
+   answered), and the server's exit code at the end is 1, its record of the transport error.
+3. Silence again: no reply on stdout, a `Transport error` on stderr, and the connection survives
+   (the walkthrough's `missing-jsonrpc` section).
+4. Nothing at all: no reply and no error, because the server never saw the request. The client
+   waits as long as its own timeout lets it (three seconds in the fault run); a client without a
+   timeout would wait for ever.
 
 </details>
