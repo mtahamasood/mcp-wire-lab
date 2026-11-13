@@ -6,7 +6,7 @@ import type { Client } from "@modelcontextprotocol/client";
 import type { Capability } from "./args.ts";
 import { STATIC_DOC, buildLab } from "./client.ts";
 import type { Lab } from "./client.ts";
-import { Steps, compact, text0 } from "./steps.ts";
+import { Steps, closeStep, compact, text0 } from "./steps.ts";
 
 const COMPLETABLE_PROMPT = "completable-prompt";
 const NOTE_WAIT = 5000; // ms to wait for a notification the tour needs to see
@@ -156,6 +156,7 @@ export async function runTour(
   report: (line: string) => void,
   caps: readonly Capability[],
   url?: string,
+  closeWait?: number,
 ): Promise<number> {
   const steps = new Steps(out);
   const lab = buildLab(caps, (line) => steps.say(`      ${line}`), report, url);
@@ -169,7 +170,6 @@ export async function runTour(
     report(`sdk: tour failed at step ${failure.trim()}`);
     status = 1;
   }
-  await lab.close();
-  steps.step("close", "closed");
+  if (await closeStep(steps, report, () => lab.close(closeWait))) status = 1;
   return status;
 }

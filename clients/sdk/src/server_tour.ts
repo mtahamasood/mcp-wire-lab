@@ -8,7 +8,7 @@ import type { Capability } from "./args.ts";
 import { STATIC_DOC, buildLab } from "./client.ts";
 import type { Lab, ListKind } from "./client.ts";
 import { OTHER_ROOT } from "./handlers.ts";
-import { Steps, text0 } from "./steps.ts";
+import { Steps, closeStep, text0 } from "./steps.ts";
 
 const SETTLE = 5000; // ms to wait for server traffic a step needs to see
 const QUIET = 450; // ms without server traffic that ends a settle: longer than the SDK's 300 ms debounce
@@ -188,6 +188,7 @@ export async function runServerTour(
   report: (line: string) => void,
   caps: readonly Capability[],
   url?: string,
+  closeWait?: number,
 ): Promise<number> {
   const steps = new Steps(out);
   const lab = buildLab(caps, (line) => steps.say(`      ${line}`), report, url);
@@ -201,7 +202,6 @@ export async function runServerTour(
     report(`sdk: server tour failed at step ${failure.trim()}`);
     status = 1;
   }
-  await lab.close();
-  steps.step("close", "closed");
+  if (await closeStep(steps, report, () => lab.close(closeWait))) status = 1;
   return status;
 }

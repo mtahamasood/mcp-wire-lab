@@ -11,11 +11,14 @@ import type { Capability } from "./args.ts";
 import { DEFAULT_ROOTS, Traffic, elicitationResult, rootsResult, samplingResult } from "./handlers.ts";
 import type { ElicitParams, Root } from "./handlers.ts";
 import { inWireOrder } from "./order.ts";
-import { compact } from "./steps.ts";
+import { TourFailure, compact } from "./steps.ts";
 import { watchStream } from "./stream.ts";
 
 export const CLIENT_INFO = { name: "wire-lab-sdk", version: "0.5.0" };
 export const STATIC_DOC = "demo://resource/static/document/architecture.md";
+
+/** ms the DELETE that ends an HTTP session may take before the close step fails (P8-R7-14). */
+export const CLOSE_WAIT = 5000;
 
 export type ListKind = "tools" | "prompts" | "resources";
 
@@ -31,8 +34,12 @@ export type Lab = {
   onStreamOpen(listener: () => void): void;
   /** Request one list the client follows and record it as a re-list, without any notification. */
   relist(kind: ListKind): Promise<void>;
-  /** End the session: over HTTP the SDK sends DELETE only on `terminateSession()` (M15), then close. */
-  close(): Promise<void>;
+  /**
+   * End the session: over HTTP the SDK sends DELETE only on `terminateSession()` (M15), then close.
+   * The DELETE gets `wait` ms (`CLOSE_WAIT`); the client is closed whatever happens, and a DELETE
+   * that failed or was not answered is thrown after that, so the caller can report it.
+   */
+  close(wait?: number): Promise<void>;
 };
 
 /**
@@ -146,9 +153,33 @@ export function buildLab(
         report(`sdk: could not re-list ${kind}: ${(error as Error).message}`);
       }
     }),
-    close: async () => {
-      if (http?.sessionId !== undefined) await http.terminateSession();
-      await client.close();
+    close: async (wait = CLOSE_WAIT) => {
+      let problem: unknown;
+      try {
+        if (http?.sessionId !== undefined) await within(http.terminateSession(), wait, "no answer to DELETE");
+      } catch (error) {
+        problem = error;
+      }
+      try {
+        await client.close(); // also aborts a DELETE that is still waiting
+      } catch (error) {
+        problem ??= error;
+      }
+      if (problem !== undefined) throw problem;
     },
   };
+}
+
+/** `work`, or a `TourFailure` once `wait` ms pass; the timer never outlives the call. */
+async function within(work: Promise<void>, wait: number, what: string): Promise<void> {
+  work.catch(() => {}); // a late failure after the timeout is not an unhandled rejection
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new TourFailure(`${what} within ${wait / 1000} s`)), wait);
+  });
+  try {
+    await Promise.race([work, late]);
+  } finally {
+    clearTimeout(timer);
+  }
 }

@@ -26,15 +26,15 @@ Branch `phase-08-fix-r56`. The C rows are in `specs/phases/08-final-pass/validat
 | P8-R6-2 | minor | reproduced (`AttributeError` on `data: ["2025-11-25"]`), fixed: `data.supported` only when `data` is an object, else `data` as sent | `5982316`; `tests/test_client_modern.py::DiscoverTest::test_unsupported_version_error_with_malformed_data_still_says_what_was_sent` (C24) |
 | P8-R6-3a | minor | fixed: test gap closed (mutant `p6-modern-stale-retry` killed); the code was already right | `5982316`; `tests/test_client_modern.py::InputRequiredTest::test_retry_does_not_inherit_a_previous_rounds_state` (C25) |
 | P8-R6-3b | minor | fixed: test gap closed (mutant `p6-modern-wait-method` killed); the code was already right | `5982316`; `tests/test_client_modern.py::ListenTest::test_wait_for_takes_only_the_method_asked_for` (C26) |
-| P8-R6-4 | minor | not fixed on this branch: the fix is in `clients/sdk/src/era.ts`, which this branch does not touch (owned by another agent). Open; see the note below | none yet; a C row is added with the fix |
+| P8-R6-4 | minor | reproduced by reading (the old tour passed a `list_changed` tagged with any id or none: the new test's fake server shows it), fixed: the tour reads the id of its `subscriptions/listen` request from the transport (`clients/sdk/src/listen.ts`) and `expect`s each list change and the resource update to carry it | branch `phase-08-fix-sdk`; `clients/sdk/test/listen.test.ts` (C141) |
 | P8-R6-5 | minor | reproduced by reading the pinned lines (`stdio.mdx:82`, `subscriptions.mdx:122`), fixed in `docs/walkthrough/06-era-2026.md` | `cb0f335`; `tests/test_walkthrough_06.py::EraDocTest::test_cancelled_listen_is_not_a_departure`, `::test_notification_is_never_given_an_error_code` (C27) |
 
 Note on P8-R6-4: the SDK's `listen()` result holds only `honoredFilter`, `close` and `closed`; the
-listen id the SDK sends (a string, `sdk:client/dist/index.mjs:4056`) is not exposed. The fix has
-to read it from the traffic the tour already marks (the `subscriptions/listen` request's `id` on
-the transport), then `expect` each list change and the resource update to carry it. That is a
-small change to the SDK tour with a node test, not a one-liner, so it is handed to whoever owns
-`clients/sdk/`. It does not change scope.
+listen id the SDK sends (a string, `sdk:client/dist/index.mjs:3987`, `listen:<n>`) is not exposed.
+The fix reads it from the `subscriptions/listen` request as the transport is handed it (the
+transport's own `send` slot is observed, nothing is built or sent by the tour; phase 5's source
+test still passes), then fails any list change or resource update that carries another id or none.
+No scope change.
 
 The mutants named above are in `mutants-05-06.json` (the review's file); the survivors were re-run
 against the new tests and all three are killed.
@@ -595,7 +595,7 @@ orchestrator finalizes the pending ones.
 | P8-R7-11 | minor, test gap | fixing on `phase-08-fix-r7-client` | pending that branch |
 | P8-R7-12 | minor | pending (after Stage A) | pending |
 | P8-R7-13 | minor | pending (after Stage A) | pending |
-| P8-R7-14 | minor | pending (after Stage A) | pending |
+| P8-R7-14 | minor | reproduced (`fake_mcp_http.py`, DELETE `500` and never answered), fixed: `Lab.close` gives the DELETE `CLOSE_WAIT` (5 s), always closes the SDK client, and throws; `tour`, `server-tour` and the 2026 tour print that as a `FAILED` close step and exit 1 | branch `phase-08-fix-sdk`; `clients/sdk/test/close.test.ts` (C140) |
 | P8-R7-15 | minor, false claim | fixing on `phase-08-fix-r7-client` | pending that branch |
 
 ### The report as written
