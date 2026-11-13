@@ -166,6 +166,26 @@ class DiscoverTest(unittest.TestCase):
                 self.assertFalse(sess.ready)
 
 
+    def test_a_malformed_discover_reply_stops_the_session(self) -> None:
+        # D3: `supportedVersions` must be a list holding the era (a string that contains the era
+        # as text is not one), and discover's own reply is never `input_required`
+        with server(discover=False) as (sess, log, _):
+            for bad in ("2026-07-28", {"2026-07-28": True}, None):
+                reply = {"resultType": "complete", "supportedVersions": bad}
+                with mock.patch.object(sess.wire, "request", return_value=reply):
+                    with self.assertRaises(UnsupportedVersion):
+                        sess.discover()
+                self.assertFalse(sess.ready, bad)
+            interim = {"resultType": "input_required", "inputRequests": {}}
+            with mock.patch.object(sess.wire, "request", return_value=interim):
+                with self.assertRaises(modern.InvalidResult):
+                    sess.discover()
+            self.assertFalse(sess.ready)
+            with self.assertRaises(modern.NotDiscovered):
+                sess.request("echo")
+            self.assertEqual(received(log) if log.exists() else [], [], "nothing was sent")
+
+
 class ResultTypeTest(unittest.TestCase):
     def test_complete_and_absent_are_results(self) -> None:
         with server() as (sess, _log, _):
@@ -189,6 +209,17 @@ class ResultTypeTest(unittest.TestCase):
             handle = sess.request("task", capabilities=declared)
             self.assertEqual(handle["taskId"], "t1")
             self.assertNotIn("extensions", CAPS, "with_tasks copies")
+
+    def test_task_needs_the_tasks_extension_not_just_any_extension(self) -> None:
+        other = {**CAPS, "extensions": {"io.example/other": {}}}
+        with server() as (sess, _log, _):
+            with self.assertRaises(modern.InvalidResult):
+                sess.request("task", capabilities=other)
+            self.assertEqual(
+                sess.request("task", capabilities=modern.with_tasks(other))["taskId"], "t1")
+        self.assertFalse(modern.declares_tasks(other))
+        self.assertFalse(modern.declares_tasks({"extensions": {}}))
+        self.assertTrue(modern.declares_tasks(modern.with_tasks({})))
 
     def test_unrecognized_result_type_is_invalid(self) -> None:
         with server() as (sess, _log, _):
@@ -249,6 +280,61 @@ class InputRequiredTest(unittest.TestCase):
         self.assertNotIn("requestState", sent[2], "a state the server did not repeat is dropped")
         self.assertEqual(sent[2]["y"], 2)
         self.assertEqual(set(result["params"]["inputResponses"]), {"b"})
+
+    def scripted(self, sess: modern.ModernSession, *results: dict[str, Any]) -> list[Any]:
+        """Replace the session's `request` with one that returns `results` in turn; the params
+        of each call are collected in the returned list."""
+        queue = [modern.InputRequired(r) if r.get("resultType") == "input_required" else r
+                 for r in results]
+        calls: list[Any] = []
+
+        def fake(method: str, params: Any = None, **options: Any) -> Any:
+            calls.append(params)
+            return queue.pop(0)
+
+        patcher = mock.patch.object(sess, "request", side_effect=fake)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return calls
+
+    def test_request_state_is_echoed_byte_for_byte_whatever_it_holds(self) -> None:
+        # D4: opaque, never parsed, trimmed or skipped: an empty string and padding come back
+        for state in ("", "  ", " padded\n", "a\r\nb"):
+            with server() as (sess, _log, _):
+                asked = {"resultType": "input_required", "requestState": state,
+                         "inputRequests": {"a": {"method": "roots/list"}}}
+                calls = self.scripted(sess, asked, {"resultType": "complete"})
+                sess.request_with_input("m", {}, self.answer())
+            self.assertEqual(calls[1]["requestState"], state, repr(state))
+            self.assertIs(type(calls[1]["requestState"]), str)
+
+    def test_no_answer_is_computed_for_a_round_that_is_not_sent(self) -> None:
+        # D4: it raises after `max_rounds` rounds; the last round's requests are not answered
+        asked = {"resultType": "input_required", "inputRequests": {"a": {"method": "roots/list"}}}
+        given: list[Any] = []
+
+        def answer(input_request: dict[str, Any]) -> dict[str, Any]:
+            given.append(input_request)
+            return {"roots": []}
+
+        with server() as (sess, _log, _):
+            calls = self.scripted(sess, asked, asked, asked)
+            with self.assertRaises(modern.TooManyRounds):
+                sess.request_with_input("m", {}, answer, max_rounds=3)
+        self.assertEqual((len(calls), len(given)), (3, 2))
+        # a last round nobody could answer is still the round limit, not CannotAnswer
+        unanswerable = {"resultType": "input_required",
+                        "inputRequests": {"a": {"method": "nonsense/x"}}}
+        with server() as (sess, _log, _):
+            self.scripted(sess, unanswerable)
+            with self.assertRaises(modern.TooManyRounds):
+                sess.request_with_input("m", {}, self.answer(), max_rounds=1)
+
+    def test_input_requests_without_an_answer_function_cannot_be_answered(self) -> None:
+        with server() as (sess, log, _):
+            with self.assertRaises(modern.CannotAnswer):
+                sess.request_with_input("mrtr", {}, None)
+            self.assertEqual(len([m for m in received(log) if m.get("method") == "mrtr"]), 1)
 
     def test_round_limit(self) -> None:
         with server() as (sess, log, _):
@@ -314,6 +400,45 @@ class ListenTest(unittest.TestCase):
                 [m["method"] for m in sub.seen()], ["notifications/tools/list_changed"],
                 "the tools change was not consumed by the wrong wait")
             sub.wait_for("notifications/tools/list_changed", 3)
+
+    def test_wait_for_takes_the_notification_its_match_accepts(self) -> None:
+        reg = modern.Registry()
+
+        def update(uri: str) -> dict[str, Any]:
+            return {"jsonrpc": "2.0", "method": "notifications/resources/updated",
+                    "params": {"uri": uri, "_meta": {modern.SUBSCRIPTION_ID: 7}}}
+
+        reg.feed(update("file:///a"))
+        reg.feed(update("file:///b"))
+        wanted = reg.wait(7, "notifications/resources/updated", 1.0,
+                          lambda params: bool(params["uri"] == "file:///b"))
+        self.assertEqual(wanted["uri"], "file:///b")
+        self.assertEqual([m["params"]["uri"] for m in reg.messages(7)], ["file:///a"])
+        with self.assertRaises(TimeoutError):
+            reg.wait(7, "notifications/resources/updated", 0.1, lambda params: False)
+
+    def test_a_waiter_is_woken_when_its_notification_arrives(self) -> None:
+        reg = modern.Registry()
+        message = {"jsonrpc": "2.0", "method": "notifications/tools/list_changed",
+                   "params": {"_meta": {modern.SUBSCRIPTION_ID: 3}}}
+        timer = threading.Timer(0.1, reg.feed, args=(message,))
+        timer.start()
+        self.addCleanup(timer.join)
+        started = time.monotonic()
+        reg.wait(3, "notifications/tools/list_changed", 5.0)
+        self.assertLess(time.monotonic() - started, 2.0, "woken at once, not at the timeout")
+
+    def test_a_listen_with_no_acknowledgment_times_out_and_is_cancelled(self) -> None:
+        # the hold filter makes the fake send only a wrong-type acknowledgment
+        with server() as (sess, log, _):
+            with self.assertRaises(TimeoutError):
+                sess.listen({"hold": True}, timeout=0.3)
+            self.assertTrue(wait_for(lambda: any(
+                m.get("method") == "notifications/cancelled" for m in received(log))))
+            sent = received(log)
+        listens = [m for m in sent if m.get("method") == "subscriptions/listen"]
+        cancelled = [m for m in sent if m.get("method") == "notifications/cancelled"]
+        self.assertEqual([m["params"]["requestId"] for m in cancelled], [listens[0]["id"]])
 
     def test_listen_error_is_raised_not_timed_out(self) -> None:
         # P8-R6-1: an error that answers subscriptions/listen before its ack is the outcome
