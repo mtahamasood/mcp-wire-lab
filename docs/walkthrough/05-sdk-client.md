@@ -180,7 +180,7 @@ declares the same objects the raw client sends, `roots` with `listChanged`, `sam
 `elicitation` with `form` and `url`.
 
 #### `c2s.response:sampling/createMessage#0`
-The client's answer to the server's sampling request. The values are phase 3 D1's, with one
+The client's answer to the server's sampling request. The values are the raw client's, with one
 difference: the canned text names the client, `canned reply from wire-lab-raw` against
 `canned reply from wire-lab-sdk` (`clients/sdk/src/handlers.ts`, `CANNED_TEXT`).
 
