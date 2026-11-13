@@ -42,8 +42,7 @@ scripts/bootstrap.sh
 ```
 
 The bootstrap checks both submodules are at their pinned commits (the reference server and the
-specification) and builds the server, then installs the SDK client's npm packages (`clients/sdk/`, lesson 05). The pins are why line numbers cited in the lessons stay true. `npm` may report high-severity
-vulnerabilities while it installs; that is expected for a pinned reference server that only ever
+specification) and builds the server, then installs the SDK client's npm packages (`clients/sdk/`, lesson 05). The pins are why line numbers cited in the lessons stay true. `npm` should report "found 0 vulnerabilities" for the SDK client's install; the pinned reference server's install may report some, which is expected for a server that only ever
 runs locally under the tap, and nothing here is exposed. Bootstrap may also warn that
 `core.hooksPath` is set, so git might not run the repo's pre-push hook; that matters only if you
 push, and it is safe to ignore otherwise.
