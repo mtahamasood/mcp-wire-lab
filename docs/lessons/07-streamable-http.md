@@ -68,8 +68,10 @@ $ scripts/record.sh --http --client http-tour lesson07
 recorded: runs/
 ```
 
-The run exits 0 only if every step saw what the transport predicts: `200` `text/event-stream` for a
-request, `202` for a notification or a reply, `200` for the DELETE.
+The run exits 0 only if every step saw what the pinned server does: `200` `text/event-stream` for a
+request, `202` for a notification or a reply, `200` for the DELETE. (The transport allows more: a
+server may answer a request with `application/json`, and may answer the DELETE with `405`. The tour
+is written for the pinned server, so a server that chose those would fail it.)
 
 ## Read the trace
 

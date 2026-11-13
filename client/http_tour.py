@@ -11,8 +11,10 @@ own stream and is answered by its own POST), starts `trigger-long-running-operat
 `progressToken` and cancels it after its first progress, and closes with a DELETE, after which
 the GET stream ends. `--no-stream` leaves the GET stream out (the server's `roots/list` then never
 arrives). Each step prints the HTTP status and content type it saw, and the tour exits 0 only if
-every step saw what the 2025-11-25 transport predicts: `200` `text/event-stream` for a request,
-`202` for a notification or a reply, `200` for DELETE.
+every step saw what the pinned server does (phase 7 M3-M11): `200` `text/event-stream` for a
+request, `202` for a notification or a reply, `200` for DELETE. The 2025-11-25 transport allows
+more (`application/json` for a request, `405` for DELETE), so a conforming server that chose
+those fails this tour.
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ PROGRESS_WAIT = 10.0
 
 
 class TourFailure(Exception):
-    """A step did not see the message, status or content type the transport predicts."""
+    """A step did not see the message, status or content type the pinned server is known to give."""
 
 
 class HttpTour:
@@ -202,7 +204,8 @@ def run_http_tour(
     url: str, out: TextIO, *, stream: bool = True, slice_only: bool = False,
     report: Callable[[str], None] | None = None,
 ) -> int:
-    """Run the tour against `url`; 0 if every step saw what the transport predicts."""
+    """Run the tour against `url`; 0 if every step saw what the pinned server gives (the
+    transport also allows `application/json` for a request and `405` for DELETE)."""
     say_lock = threading.Lock()
 
     def say(text: str) -> None:

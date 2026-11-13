@@ -218,7 +218,7 @@ class Wire:
                 message["params"] = params
             try:
                 self._write(json.dumps(message, separators=(",", ":"), ensure_ascii=True))
-            except OSError:
+            except Exception:  # OSError, or a refusal raised before anything was sent
                 with self._table_lock:
                     self._pending.pop(key_of(request_id), None)
                 raise
