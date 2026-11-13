@@ -69,6 +69,19 @@ class AtlasTest(unittest.TestCase):
                     self.assertIn(direction, rows[0])
                 self.assertIn(revision, rows[0])
 
+    def test_tasks_rows_carry_their_reason(self) -> None:
+        text = atlas.render(ROOT)
+        rows = [
+            ln for ln in text.splitlines()
+            if ln.startswith("| `") and "tasks/" in ln.split("|")[1]
+        ]
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertTrue(row.rstrip().endswith("unexercised (see the tasks note) |"), row)
+        flat = " ".join(text.split())
+        self.assertIn("no 2025-era run uses tasks", flat)
+        self.assertIn("SEP-2663", text)
+
     def test_2026_server_requests_travel_inside_results(self) -> None:
         self.assertNotIn("ServerRequest", schema_defs("2026-07-28"))
         row = next(ln for ln in atlas.render(ROOT).splitlines()
