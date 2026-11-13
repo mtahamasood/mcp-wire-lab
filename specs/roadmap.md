@@ -15,7 +15,10 @@ short spec files per phase, one review round at phase 2's close only, and learne
 J rows and the atlas (L8, G10) deferred to a final pass. In this run phases 2, 3 and 4 are
 built; phases 5, 6 and 7 were first specified as stubs, then specified in full, approved
 (register row 2026-10-22, phases 5-7 specs approved) and built under LP7 (register rows
-2026-10-22 and 2026-10-23, phase 5, 6 and 7 builds).
+2026-10-22 and 2026-10-23, phase 5, 6 and 7 builds). Phase 8, the final pass, adds no lesson:
+it does the deferred work (LP5, LP7), fixes CI and ends in one owner review (register rows
+2026-11-14). From phase 8 on a stage or phase closes only on a passed GitHub CI run whose ID
+its Result cites.
 
 | # | Phase | Learning features | Exit criteria (all must hold) |
 | --- | --- | --- | --- |
@@ -26,6 +29,7 @@ built; phases 5, 6 and 7 were first specified as stubs, then specified in full, 
 | 5 | **SDK client, 2025 era** (TypeScript, stdio) | L12, L13 (SDK side) | The SDK client runs the tour of phases 2–3; `tap.diff` between fresh traces of both clients is explained, difference by difference, in the walkthrough, and CI checks that explanation against fresh traces. |
 | 6 | **2026-07-28 era, both clients** (stdio) | — | Both clients speak 2026-07-28 (`server/discover`, `_meta` envelope, `subscriptions/listen`, tasks, multi-round); a walkthrough diffs it against the 2025 era message by message; atlas coverage measured (L8). |
 | 7 | **Streamable HTTP** | — | The tap observes HTTP traffic (requests, responses, SSE streams, session headers); both clients run both eras over HTTP; the lesson covers what HTTP adds; final atlas coverage measured. |
+| 8 | **Final pass** (deferred verification, polish, owner review) | L1, L8, L14, L15 | Three consecutive passed CI runs on `main` after Stage A, and 20 consecutive SDK-tour recordings under CPU load with 0 failures; every mutant of the phase 5–7 claim code killed or signed equivalent; every blocker and major of the phases 3–7 review fixed; G8, G9 and every `--explain` check pass on fresh traces after the polish; both learner walks (lessons 05–07, and the full path 01–07 as the G6 walk) end with no unresolved stall; the owner has filled the rubric for lessons 01–07, answered the combined learning check, marked the J rows of phases 2–7 and ruled on A23 onward; the owner has approved the disposition of every comment; every stage's Result cites its passed CI run IDs; phase 08 is listed in G12 and `scripts/gate.sh` passes locally and in CI; tags `lesson-08` and `v1.0.0` exist. |
 
 ## Learning features (A4)
 
