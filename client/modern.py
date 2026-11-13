@@ -29,6 +29,7 @@ META = "io.modelcontextprotocol/"
 TASKS_EXTENSION = "io.modelcontextprotocol/tasks"
 SUBSCRIPTION_ID = META + "subscriptionId"
 LISTEN_WAIT = 5.0  # seconds to wait for the acknowledgment of a subscriptions/listen
+LISTEN_POLL = 0.05  # seconds between looks at whether the listen request was answered
 UNSUPPORTED_VERSION = -32022
 MISSING_CAPABILITY = -32021
 
@@ -236,7 +237,9 @@ class ModernSession(Session):
         except RpcError as exc:
             error = exc.error if isinstance(exc.error, dict) else {}
             if error.get("code") == UNSUPPORTED_VERSION:
-                offered = (error.get("data") or {}).get("supported")
+                data = error.get("data")
+                # `data.supported` when `data` is an object; any other `data` is shown as sent
+                offered = data.get("supported") if isinstance(data, dict) else data
                 raise UnsupportedVersion(
                     f"the server does not speak {ERA}; it offered {json.dumps(offered)}") from exc
             raise RuntimeError(
@@ -342,19 +345,42 @@ class ModernSession(Session):
 
         Does not wait for the response (it only marks a graceful end). The acknowledgment is the
         `notifications/subscriptions/acknowledged` whose subscription id equals the listen
-        request's id, type included.
+        request's id, type included. An error reply to the listen request that comes first (a
+        rejected filter, no capacity) is raised as its `RpcError`.
 
         `spec:docs/specification/2026-07-28/basic/transports/stdio.mdx:51`
         "io.modelcontextprotocol/subscriptionId"
         """
         pending = self.start_request("subscriptions/listen", {"notifications": notifications})
         try:
-            ack = self.registry.wait(pending.id, "notifications/subscriptions/acknowledged",
-                                     timeout)
+            ack = self._await_acknowledgment(pending, timeout)
         except TimeoutError:
             self.cancel(pending, "no acknowledgment")
             raise
         return Subscription(self, pending, ack.get("notifications", ack))
+
+    def _await_acknowledgment(self, pending: Pending, timeout: float) -> Message:
+        """The acknowledgment, or the error that answered the listen request before it.
+
+        Waits on both: a JSON-RPC error reply to `subscriptions/listen` (a rejected filter, no
+        capacity) is raised as the RpcError it is, not reported as a missing acknowledgment.
+        """
+        method = "notifications/subscriptions/acknowledged"
+        deadline = time.monotonic() + timeout
+        while True:
+            answered = pending.done  # read first: an acknowledgment is filed before its reply
+            left = deadline - time.monotonic()
+            try:
+                return self.registry.wait(
+                    pending.id, method, 0 if answered else max(0.0, min(left, LISTEN_POLL)))
+            except TimeoutError:
+                if answered:
+                    pending.wait(0)  # an error reply raises its RpcError here
+                    raise RuntimeError(
+                        "subscriptions/listen was answered before its acknowledgment") from None
+                if left <= 0:
+                    raise TimeoutError(f"no {method} on subscription {pending.id!r} within "
+                                       f"{timeout} s") from None
 
 
 # -- answering input requests (D4) ---------------------------------------------------------

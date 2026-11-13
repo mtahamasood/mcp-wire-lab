@@ -155,6 +155,16 @@ class DiscoverTest(unittest.TestCase):
             self.assertIn("--era 2025-11-25", str(caught.exception))
             self.assertFalse(sess.ready)
 
+    def test_unsupported_version_error_with_malformed_data_still_says_what_was_sent(self) -> None:
+        # P8-R6-2: `data` that is not an object (a list, a string) must not raise AttributeError
+        for data, shown in (('["2025-11-25"]', "2025-11-25"), ('"nope"', "nope")):
+            with server("--discover-error", "-32022", "--discover-data", data,
+                        discover=False) as (sess, _log, _):
+                with self.assertRaises(UnsupportedVersion) as caught:
+                    sess.discover()
+                self.assertIn(shown, str(caught.exception))
+                self.assertFalse(sess.ready)
+
 
 class ResultTypeTest(unittest.TestCase):
     def test_complete_and_absent_are_results(self) -> None:
@@ -225,6 +235,21 @@ class InputRequiredTest(unittest.TestCase):
         self.assertEqual(sent[1]["params"]["_meta"][META + "clientCapabilities"], CAPS)
         self.assertEqual(lines, ["round 1: a, b"])
 
+    def test_retry_does_not_inherit_a_previous_rounds_state(self) -> None:
+        # P8-R6-3a: round 2's result has no requestState, so round 3 must carry none (the state
+        # from round 1 is stale), and must carry only round 2's answers
+        with server() as (sess, log, _):
+            result = sess.request_with_input("mrtr3", {"y": 2}, self.answer())
+            sent = [m["params"] for m in received(log) if m.get("method") == "mrtr3"]
+        self.assertEqual(len(sent), 3)
+        self.assertNotIn("inputResponses", sent[0])
+        self.assertEqual(set(sent[1]["inputResponses"]), {"a"})
+        self.assertEqual(sent[1]["requestState"], "s1")
+        self.assertEqual(set(sent[2]["inputResponses"]), {"b"}, "only the last round's answers")
+        self.assertNotIn("requestState", sent[2], "a state the server did not repeat is dropped")
+        self.assertEqual(sent[2]["y"], 2)
+        self.assertEqual(set(result["params"]["inputResponses"]), {"b"})
+
     def test_round_limit(self) -> None:
         with server() as (sess, log, _):
             with self.assertRaises(modern.TooManyRounds):
@@ -277,6 +302,30 @@ class ListenTest(unittest.TestCase):
                 methods.append(sess.wire.notifications.get_nowait()["method"])
             self.assertIn("notifications/message", methods)
             self.assertEqual([m["method"] for m in first.seen() + second.seen()], [])
+
+    def test_wait_for_takes_only_the_method_asked_for(self) -> None:
+        # P8-R6-3b: a tools change on the stream is not a prompts change
+        with server() as (sess, _log, _):
+            sub = sess.listen({"toolsListChanged": True, "promptsListChanged": True})
+            sess.call("emit", {"sub": sub.id})  # notifications/tools/list_changed only
+            with self.assertRaises(TimeoutError):
+                sub.wait_for("notifications/prompts/list_changed", 0.3)
+            self.assertEqual(
+                [m["method"] for m in sub.seen()], ["notifications/tools/list_changed"],
+                "the tools change was not consumed by the wrong wait")
+            sub.wait_for("notifications/tools/list_changed", 3)
+
+    def test_listen_error_is_raised_not_timed_out(self) -> None:
+        # P8-R6-1: an error that answers subscriptions/listen before its ack is the outcome
+        with server("--listen-error", "-32602") as (sess, log, _):
+            started = time.monotonic()
+            with self.assertRaises(RpcError) as caught:
+                sess.listen({"toolsListChanged": True}, timeout=5.0)
+            self.assertLess(time.monotonic() - started, 2.0, "not the 5 s wait for an ack")
+            self.assertEqual(caught.exception.error["code"], -32602)
+            self.assertEqual(
+                [m for m in received(log) if m.get("method") == "notifications/cancelled"], [],
+                "the request is already answered: nothing to cancel")
 
     def test_close_sends_cancelled_with_listen_id(self) -> None:
         with server("--late") as (sess, log, reports):
