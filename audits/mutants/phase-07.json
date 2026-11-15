@@ -1,0 +1,1647 @@
+{
+ "links": [
+  "vendor",
+  "clients/sdk/node_modules"
+ ],
+ "mutants": [
+  {
+   "id": "p7-sse-lf-only",
+   "file": "tap/http.py",
+   "old": "LINE_END = re.compile(rb\"[\\r\\n]\")",
+   "new": "LINE_END = re.compile(rb\"\\n\")",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: a CR does not end a line"
+  },
+  {
+   "id": "p7-sse-cr-only",
+   "file": "tap/http.py",
+   "old": "LINE_END = re.compile(rb\"[\\r\\n]\")",
+   "new": "LINE_END = re.compile(rb\"\\r\")",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: an LF does not end a line"
+  },
+  {
+   "id": "p7-sse-crlf-two-ends",
+   "file": "tap/http.py",
+   "old": "stop = end + 2 if buf[end + 1] == 10 else end + 1",
+   "new": "stop = end + 1",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: CRLF is two line ends (a blank line dispatches after every line)"
+  },
+  {
+   "id": "p7-sse-lone-cr-eats-next",
+   "file": "tap/http.py",
+   "old": "stop = end + 2 if buf[end + 1] == 10 else end + 1",
+   "new": "stop = end + 2",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: a lone CR swallows the byte after it"
+  },
+  {
+   "id": "p7-sse-cr-at-chunk-end",
+   "file": "tap/http.py",
+   "old": "                if end + 1 == len(buf):\n                    scan = end  # a CR may be the first half of CRLF; wait for the next byte\n                    break\n                stop = end + 2 if buf[end + 1] == 10 else end + 1\n",
+   "new": "                stop = (end + 1 if end + 1 == len(buf)\n                        else end + 2 if buf[end + 1] == 10 else end + 1)\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: a CR at a chunk's end is a whole line end (a CRLF split between chunks gives two)"
+  },
+  {
+   "id": "p7-sse-cr-wait-rescan",
+   "file": "tap/http.py",
+   "old": "scan = end  # a CR may be the first half",
+   "new": "scan = end + 1  # a CR may be the first half",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: the held-back CR is not looked at again when the next chunk arrives"
+  },
+  {
+   "id": "p7-sse-scan-restart",
+   "file": "tap/http.py",
+   "old": "self._scanned = scan - pos",
+   "new": "self._scanned = 0",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: every chunk rescans the buffer from its start (quadratic; P8-R7-1)"
+  },
+  {
+   "id": "p7-sse-no-trim",
+   "file": "tap/http.py",
+   "old": "        del buf[:pos]\n",
+   "new": "        pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: consumed bytes stay in the buffer"
+  },
+  {
+   "id": "p7-sse-data-join-empty",
+   "file": "tap/http.py",
+   "old": "b\"\\n\".join(self._data)",
+   "new": "b\"\".join(self._data)",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: data lines are joined with nothing"
+  },
+  {
+   "id": "p7-sse-strip-no-space",
+   "file": "tap/http.py",
+   "old": "if colon and value.startswith(b\" \"):",
+   "new": "if False:",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: the one space after the colon is kept"
+  },
+  {
+   "id": "p7-sse-strip-all-spaces",
+   "file": "tap/http.py",
+   "old": "            value = value[1:]\n",
+   "new": "            value = value.lstrip(b\" \")\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: every leading space after the colon is removed"
+  },
+  {
+   "id": "p7-sse-strip-without-colon",
+   "file": "tap/http.py",
+   "old": "if colon and value.startswith(b\" \"):",
+   "new": "if value.startswith(b\" \"):",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: the space rule without the colon test",
+   "equivalent": "a line with no colon partitions to an empty value, which cannot start with a space, so the `colon` test never decides anything."
+  },
+  {
+   "id": "p7-sse-comment-uncounted",
+   "file": "tap/http.py",
+   "old": "            self.comments += 1\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: comments are not counted"
+  },
+  {
+   "id": "p7-sse-comment-opens-event",
+   "file": "tap/http.py",
+   "old": "            self.comments += 1\n            return None\n",
+   "new": "            self.comments += 1\n            self._touched = True\n            return None\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: a comment opens an event (a blank line after it dispatches an empty one)"
+  },
+  {
+   "id": "p7-sse-comment-needs-space",
+   "file": "tap/http.py",
+   "old": "if line.startswith(b\":\"):",
+   "new": "if line.startswith(b\": \"):",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: only `: ` starts a comment"
+  },
+  {
+   "id": "p7-sse-field-case",
+   "file": "tap/http.py",
+   "old": "field = name.decode(\"latin-1\")",
+   "new": "field = name.decode(\"latin-1\").lower()",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: field names match without regard to case"
+  },
+  {
+   "id": "p7-sse-field-prefix",
+   "file": "tap/http.py",
+   "old": "if field == \"data\":",
+   "new": "if field.startswith(\"data\"):",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: any field starting with `data` is data"
+  },
+  {
+   "id": "p7-sse-id-dropped",
+   "file": "tap/http.py",
+   "old": "            self._id = value.decode(\"utf-8\", \"replace\")\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: the id field is not kept"
+  },
+  {
+   "id": "p7-sse-event-dropped",
+   "file": "tap/http.py",
+   "old": "            self._event = value.decode(\"utf-8\", \"replace\")\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: the event field is not kept"
+  },
+  {
+   "id": "p7-sse-id-event-swapped",
+   "file": "tap/http.py",
+   "old": "SseEvent(b\"\\n\".join(self._data), self._id, self._event, self._retry)",
+   "new": "SseEvent(b\"\\n\".join(self._data), self._event, self._id, self._retry)",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: id and event are swapped on the event"
+  },
+  {
+   "id": "p7-sse-retry-dropped",
+   "file": "tap/http.py",
+   "old": "            self._retry = int(value)\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: the retry field is not kept"
+  },
+  {
+   "id": "p7-sse-retry-unchecked",
+   "file": "tap/http.py",
+   "old": "            if not (value.isascii() and value.isdigit()):\n                return None\n",
+   "new": "            if False:\n                return None\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: a retry that is not digits is not ignored (int raises)"
+  },
+  {
+   "id": "p7-sse-retry-ascii-test",
+   "file": "tap/http.py",
+   "old": "if not (value.isascii() and value.isdigit()):",
+   "new": "if not value.isdigit():",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: the retry test without isascii",
+   "equivalent": "`value` is bytes and `bytes.isdigit()` is true only for ASCII digits, so `isascii()` adds nothing."
+  },
+  {
+   "id": "p7-sse-bad-retry-opens-event",
+   "file": "tap/http.py",
+   "old": "            if not (value.isascii() and value.isdigit()):\n                return None\n",
+   "new": "            if not (value.isascii() and value.isdigit()):\n                self._touched = True\n                return None\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: a bad retry value opens an event"
+  },
+  {
+   "id": "p7-sse-unknown-field-opens-event",
+   "file": "tap/http.py",
+   "old": "        else:\n            return None\n        self._touched = True\n",
+   "new": "        else:\n            self._touched = True\n            return None\n        self._touched = True\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: an unknown field opens an event (a blank line dispatches an empty one)"
+  },
+  {
+   "id": "p7-sse-blank-dispatches-untouched",
+   "file": "tap/http.py",
+   "old": "        if not line:\n            if not self._touched:\n                return None\n",
+   "new": "        if not line:\n            if False:\n                return None\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: a blank line with no field before it dispatches an empty event"
+  },
+  {
+   "id": "p7-sse-event-not-reset",
+   "file": "tap/http.py",
+   "old": "            event = self._event_now()\n            self._reset()\n            return event\n",
+   "new": "            event = self._event_now()\n            return event\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: the next event starts with the last one's data and fields"
+  },
+  {
+   "id": "p7-sse-reset-keeps-id",
+   "file": "tap/http.py",
+   "old": "        self._id: str | None = None\n",
+   "new": "        self._id: str | None = getattr(self, \"_id\", None)\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: an event with no id line takes the previous event's id (the SSE last-event-id buffer)"
+  },
+  {
+   "id": "p7-sse-finish-drops-tail-line",
+   "file": "tap/http.py",
+   "old": "        elif line:\n            self._line(line)\n",
+   "new": "        elif line:\n            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: an unterminated last line is lost at the stream's end"
+  },
+  {
+   "id": "p7-sse-finish-not-partial",
+   "file": "tap/http.py",
+   "old": "        event.partial = True\n",
+   "new": "        event.partial = False\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: the event the stream's end cut off is not marked partial"
+  },
+  {
+   "id": "p7-sse-finish-untouched",
+   "file": "tap/http.py",
+   "old": "        if not self._touched:\n            return None\n        event = self._event_now()\n        event.partial",
+   "new": "        event = self._event_now()\n        event.partial",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: finish returns a partial event even when nothing was seen (SseParser alone)"
+  },
+  {
+   "id": "p7-sse-finish-cr-off",
+   "file": "tap/http.py",
+   "old": "if line.endswith(b\"\\r\"):",
+   "new": "if False:",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2/C123: a last lone CR is not a line end"
+  },
+  {
+   "id": "p7-sse-finish-cr-dropped",
+   "file": "tap/http.py",
+   "old": "            event = self._line(line[:-1])\n            if event is not None:\n                return event\n",
+   "new": "            event = self._line(line[:-1])\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2/C123: the event a last lone CR dispatches is lost"
+  },
+  {
+   "id": "p7-sse-finish-cr-kept",
+   "file": "tap/http.py",
+   "old": "self._line(line[:-1])",
+   "new": "self._line(line)",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2/C123: the last CR stays in the line"
+  },
+  {
+   "id": "p7-sse-finish-buffer-kept",
+   "file": "tap/http.py",
+   "old": "        self._buf.clear()\n        self._scanned = 0\n",
+   "new": "        self._scanned = 0\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: finish leaves the buffer as it was",
+   "equivalent": "`finish` is called once, at the stream's end, and the parser is not used after it; the buffer it would leave behind is never read."
+  },
+  {
+   "id": "p7-sse-finish-scanned-kept",
+   "file": "tap/http.py",
+   "old": "        self._buf.clear()\n        self._scanned = 0\n",
+   "new": "        self._buf.clear()\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
+   "note": "C2: finish leaves the scan position as it was",
+   "equivalent": "`finish` is called once, at the stream's end; the parser is not fed after it."
+  },
+  {
+   "id": "p7-rec-empty-data-is-frame",
+   "file": "tap/http.py",
+   "old": "            if event.data:\n                http: dict[str, Any]",
+   "new": "            if True:\n                http: dict[str, Any]",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C2: an empty-data event is an s2c frame, not an sse-event record"
+  },
+  {
+   "id": "p7-rec-partial-empty-recorded",
+   "file": "tap/http.py",
+   "old": "            elif not event.partial:\n",
+   "new": "            else:\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C2: an empty cut-off event is recorded as an sse-event"
+  },
+  {
+   "id": "p7-rec-sse-meta-dropped",
+   "file": "tap/http.py",
+   "old": "                if sse:\n                    http[\"sse\"] = sse\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C2: the frame's id and event are not recorded"
+  },
+  {
+   "id": "p7-rec-sse-event-key",
+   "file": "tap/http.py",
+   "old": "((\"id\", event.id), (\"event\", event.event))",
+   "new": "((\"id\", event.id),)",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C2: the frame keeps the id and not the event name"
+  },
+  {
+   "id": "p7-rec-sse-id-key",
+   "file": "tap/http.py",
+   "old": "((\"id\", event.id), (\"event\", event.event))",
+   "new": "((\"event\", event.event),)",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C2: the frame keeps the event name and not the id"
+  },
+  {
+   "id": "p7-rec-record-id",
+   "file": "tap/http.py",
+   "old": "                if event.id is not None:\n                    http[\"id\"] = event.id\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C2: an sse-event record has no id"
+  },
+  {
+   "id": "p7-rec-record-retry",
+   "file": "tap/http.py",
+   "old": "                if event.retry is not None:\n                    http[\"retry\"] = event.retry\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C2: an sse-event record has no retry"
+  },
+  {
+   "id": "p7-rec-partial-flag",
+   "file": "tap/http.py",
+   "old": "http, partial=event.partial)",
+   "new": "http)",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C2: a cut-off event with data is recorded as whole"
+  },
+  {
+   "id": "p7-rec-tail-dropped",
+   "file": "tap/http.py",
+   "old": "        if tail is not None:\n            record_event(tail)\n",
+   "new": "        if False:\n            record_event(tail)\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C2: the event the stream's end cut off is not recorded"
+  },
+  {
+   "id": "p7-rec-comments-count",
+   "file": "tap/http.py",
+   "old": "\"comments\": parser.comments}",
+   "new": "\"comments\": 0}",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C2: http-end counts no comments"
+  },
+  {
+   "id": "p7-fwd-stream-read-blocks",
+   "file": "tap/http.py",
+   "old": "                piece = resp.read1(CHUNK)\n            except (OSError, http.client.HTTPException):\n                break\n",
+   "new": "                piece = resp.read(CHUNK)\n            except (OSError, http.client.HTTPException):\n                break\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: the stream is read until a full chunk or its end, so an event waits for later ones",
+   "timeout": 120
+  },
+  {
+   "id": "p7-fwd-body-read-blocks",
+   "file": "tap/http.py",
+   "old": "                piece = resp.read1(CHUNK)\n                if not piece:\n                    ended = True\n",
+   "new": "                piece = resp.read(CHUNK)\n                if not piece:\n                    ended = True\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: a body is read until a full chunk or its end",
+   "timeout": 120
+  },
+  {
+   "id": "p7-fwd-send-before-record",
+   "file": "tap/http.py",
+   "old": "            for event in parser.feed(piece):\n                record_event(event)\n            try:\n                self.send_piece(piece, chunked)\n            except OSError:\n                watch.client_left()\n                break\n",
+   "new": "            try:\n                self.send_piece(piece, chunked)\n            except OSError:\n                watch.client_left()\n                break\n            for event in parser.feed(piece):\n                record_event(event)\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4/C3: a piece is forwarded before its events are recorded"
+  },
+  {
+   "id": "p7-fwd-stream-kind-off",
+   "file": "tap/http.py",
+   "old": "if kind == \"text/event-stream\":",
+   "new": "if False:",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: an event stream is forwarded as a plain body (no events recorded)"
+  },
+  {
+   "id": "p7-fwd-kind-case",
+   "file": "tap/http.py",
+   "old": ".split(\";\")[0].strip().lower()\n            trace.event(",
+   "new": ".split(\";\")[0].strip()\n            trace.event(",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: the response's content type is compared with its case"
+  },
+  {
+   "id": "p7-fwd-kind-params",
+   "file": "tap/http.py",
+   "old": ".split(\";\")[0].strip().lower()\n            trace.event(",
+   "new": ".strip().lower()\n            trace.event(",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: the content type's parameters are part of the comparison"
+  },
+  {
+   "id": "p7-fwd-chunked-off",
+   "file": "tap/http.py",
+   "old": "chunked = has_body and length is None",
+   "new": "chunked = False",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: a response with no length is forwarded without chunk framing"
+  },
+  {
+   "id": "p7-fwd-chunk-decimal",
+   "file": "tap/http.py",
+   "old": "b\"%x\\r\\n%b\\r\\n\"",
+   "new": "b\"%d\\r\\n%b\\r\\n\"",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: a chunk size is written in decimal"
+  },
+  {
+   "id": "p7-fwd-chunk-header-off",
+   "file": "tap/http.py",
+   "old": "                if chunked:\n                    self.send_header(\"Transfer-Encoding\", \"chunked\")\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: a chunked response goes out without Transfer-Encoding"
+  },
+  {
+   "id": "p7-fwd-stream-terminator",
+   "file": "tap/http.py",
+   "old": "        if by == \"client\" or not clean:\n            self.close_connection = True\n        elif chunked:",
+   "new": "        if by == \"client\" or not clean:\n            self.close_connection = True\n        elif False:",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: an ended event stream sends no last chunk"
+  },
+  {
+   "id": "p7-fwd-body-terminator",
+   "file": "tap/http.py",
+   "old": "        if not (ended and whole()):\n            self.close_connection = True\n        elif chunked:",
+   "new": "        if not (ended and whole()):\n            self.close_connection = True\n        elif False:",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: an ended chunked body sends no last chunk"
+  },
+  {
+   "id": "p7-fwd-stream-clean-never",
+   "file": "tap/http.py",
+   "old": "                clean = True\n                break\n",
+   "new": "                break\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: an event stream's normal end is never seen as clean"
+  },
+  {
+   "id": "p7-fwd-stream-close-conn",
+   "file": "tap/http.py",
+   "old": "        if by == \"client\" or not clean:\n            self.close_connection = True\n",
+   "new": "        if by == \"client\":\n            self.close_connection = True\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: the client's connection stays open after an event stream the upstream cut off"
+  },
+  {
+   "id": "p7-fwd-stream-by-server",
+   "file": "tap/http.py",
+   "old": "by = \"client\" if watch.gone.is_set() and not watch.completed else \"server\"",
+   "new": "by = \"server\"",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4/C5: an event stream is always ended by the server"
+  },
+  {
+   "id": "p7-fwd-stream-by-client",
+   "file": "tap/http.py",
+   "old": "by = \"client\" if watch.gone.is_set() and not watch.completed else \"server\"",
+   "new": "by = \"client\"",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4/C5: an event stream is always ended by the client"
+  },
+  {
+   "id": "p7-fwd-stream-by-ignores-completed",
+   "file": "tap/http.py",
+   "old": "by = \"client\" if watch.gone.is_set() and not watch.completed else \"server\"",
+   "new": "by = \"client\" if watch.gone.is_set() else \"server\"",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4/C5: a stream the client closes after it ended whole is ended by the client"
+  },
+  {
+   "id": "p7-fwd-stream-completed-unset",
+   "file": "tap/http.py",
+   "old": "        if clean:\n            watch.completed = True\n            watch.stop()\n",
+   "new": "        if clean:\n            watch.stop()\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4/C5: a whole stream is not marked completed"
+  },
+  {
+   "id": "p7-fwd-body-completed-unset",
+   "file": "tap/http.py",
+   "old": "        if ended and whole():\n            watch.completed = True\n            watch.stop()\n",
+   "new": "        if ended and whole():\n            watch.stop()\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4/C5: a whole body is not marked completed"
+  },
+  {
+   "id": "p7-fwd-nobody-completed-unset",
+   "file": "tap/http.py",
+   "old": "            if not has_body:\n                watch.completed = True\n                watch.stop()\n",
+   "new": "            if not has_body:\n                watch.stop()\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4/C5: a response with no body is not marked completed"
+  },
+  {
+   "id": "p7-fwd-record-after-last-piece",
+   "file": "tap/http.py",
+   "old": "                if length is not None and total >= length and not recorded:\n                    record()\n",
+   "new": "                if False:\n                    record()\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4/C3: the body's frame is written after its last piece is forwarded"
+  },
+  {
+   "id": "p7-fwd-body-partial-flag",
+   "file": "tap/http.py",
+   "old": "partial=not whole())",
+   "new": "partial=False)",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: a body cut off is recorded as whole"
+  },
+  {
+   "id": "p7-fwd-body-whole-by-end",
+   "file": "tap/http.py",
+   "old": "return total >= length if length is not None else ended",
+   "new": "return ended",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: a body is whole when the upstream ended it, whatever its length"
+  },
+  {
+   "id": "p7-fwd-body-empty-frame",
+   "file": "tap/http.py",
+   "old": "            if total:\n                body_frame(",
+   "new": "            if True:\n                body_frame(",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: an empty body is recorded as a frame"
+  },
+  {
+   "id": "p7-fwd-body-close-conn",
+   "file": "tap/http.py",
+   "old": "        if not (ended and whole()):\n            self.close_connection = True\n",
+   "new": "        if False:\n            self.close_connection = True\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: the client's connection stays open after a body the upstream cut off"
+  },
+  {
+   "id": "p7-fwd-head-has-body",
+   "file": "tap/http.py",
+   "old": "has_body = self.command != \"HEAD\" and",
+   "new": "has_body = True and",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: a HEAD response is read for a body"
+  },
+  {
+   "id": "p7-fwd-no-body-304",
+   "file": "tap/http.py",
+   "old": "NO_BODY_STATUS = frozenset({204, 304})",
+   "new": "NO_BODY_STATUS = frozenset({204})",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: a 304 response is read for a body"
+  },
+  {
+   "id": "p7-fwd-nodelay",
+   "file": "tap/http.py",
+   "old": "            self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: small pieces wait for the Nagle timer"
+  },
+  {
+   "id": "p7-proxy-unthreaded",
+   "file": "tap/http.py",
+   "old": "class Proxy(http.server.ThreadingHTTPServer):",
+   "new": "class Proxy(http.server.HTTPServer):",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: the proxy serves one connection at a time (the M9 round trip deadlocks)",
+   "timeout": 240
+  },
+  {
+   "id": "p7-proxy-backlog",
+   "file": "tap/http.py",
+   "old": "    request_queue_size = 128\n",
+   "new": "    request_queue_size = 5\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C122: the listen backlog is socketserver's default"
+  },
+  {
+   "id": "p7-proxy-daemon-threads",
+   "file": "tap/http.py",
+   "old": "    daemon_threads = True\n",
+   "new": "    daemon_threads = False\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: connection threads are not daemons (shutdown joins them)",
+   "timeout": 240
+  },
+  {
+   "id": "p7-proxy-drain-off",
+   "file": "tap/http.py",
+   "old": "            while self._active > 0 and (left := deadline - time.monotonic()) > 0:",
+   "new": "            while False and (left := deadline - time.monotonic()) > 0:",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C4: shutdown does not wait for open exchanges"
+  },
+  {
+   "id": "p7-watch-no-pollrdhup",
+   "file": "tap/http.py",
+   "old": "HANG_UP = getattr(select, \"POLLRDHUP\", 0)",
+   "new": "HANG_UP = 0",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C121: the watch uses the portable fallback (any queued byte ends it)"
+  },
+  {
+   "id": "p7-watch-pollin",
+   "file": "tap/http.py",
+   "old": "poller.register(self.client, HANG_UP)",
+   "new": "poller.register(self.client, select.POLLIN | HANG_UP)",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C121: a queued request wakes the watch as a hang-up"
+  },
+  {
+   "id": "p7-watch-never-leaves",
+   "file": "tap/http.py",
+   "old": "        if not self._done:\n            self.client_left()\n",
+   "new": "        pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: the watch never passes a hang-up on"
+  },
+  {
+   "id": "p7-watch-left-after-done",
+   "file": "tap/http.py",
+   "old": "            if self._done:\n                return  # the exchange was over: a client that leaves now has left nothing\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a client that leaves after the exchange is over is a hang-up"
+  },
+  {
+   "id": "p7-watch-gone-unset",
+   "file": "tap/http.py",
+   "old": "            self.gone.set()\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a hang-up is not noted (no http-end by client)"
+  },
+  {
+   "id": "p7-watch-shutdown-wr",
+   "file": "tap/http.py",
+   "old": "self._upstream.shutdown(socket.SHUT_RDWR)",
+   "new": "self._upstream.shutdown(socket.SHUT_WR)",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: the upstream socket is shut for writing only"
+  },
+  {
+   "id": "p7-watch-shutdown-rd",
+   "file": "tap/http.py",
+   "old": "self._upstream.shutdown(socket.SHUT_RDWR)",
+   "new": "self._upstream.shutdown(socket.SHUT_RD)",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: the upstream socket is shut for reading only"
+  },
+  {
+   "id": "p7-watch-shutdown-off",
+   "file": "tap/http.py",
+   "old": "                self._upstream.shutdown(socket.SHUT_RDWR)\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: the upstream is not shut down"
+  },
+  {
+   "id": "p7-watch-upstream-none",
+   "file": "tap/http.py",
+   "old": "            if self._upstream is None:\n                return\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a hang-up before the watch has an upstream shuts it down",
+   "equivalent": "`client_left` is called only after `open_upstream` has returned or from the watch thread, and `start` sets `_upstream` before it starts that thread; the socket is never None there."
+  },
+  {
+   "id": "p7-watch-poll-error",
+   "file": "tap/http.py",
+   "old": "                except OSError:\n                    pass\n                break\n        else:",
+   "new": "                except OSError:\n                    return\n                break\n        else:",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a poll error ends the watch without a hang-up",
+   "equivalent": "`poll` raises OSError only for a closed or invalid descriptor; the watch then runs only after the exchange is over, when `_done` is set and `client_left` does nothing."
+  },
+  {
+   "id": "p7-watch-period",
+   "file": "tap/http.py",
+   "old": "WATCH_PERIOD = 0.2",
+   "new": "WATCH_PERIOD = 60.0",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a finished exchange's watch lingers for a minute",
+   "equivalent": "the period only bounds how long a watch thread outlives its exchange; a hang-up wakes the poll at once and `client_left` ignores a finished exchange."
+  },
+  {
+   "id": "p7-watch-fallback-queued-ends",
+   "file": "tap/http.py",
+   "old": "                        return  # the client's next request is queued; no hang-up can be seen\n",
+   "new": "                        pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C121: where there is no POLLRDHUP, a queued request counts as a hang-up"
+  },
+  {
+   "id": "p7-watch-fallback-eof",
+   "file": "tap/http.py",
+   "old": "if self.client.recv(1, socket.MSG_PEEK) != b\"\":",
+   "new": "if self.client.recv(1, socket.MSG_PEEK) == b\"\":",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C121: where there is no POLLRDHUP, the data test is reversed"
+  },
+  {
+   "id": "p7-exch-end-for-streams",
+   "file": "tap/http.py",
+   "old": "            if not ended and not watch.completed:\n",
+   "new": "            if not watch.completed:\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: an event stream the client left gets a second http-end"
+  },
+  {
+   "id": "p7-exch-end-never",
+   "file": "tap/http.py",
+   "old": "            if not ended and not watch.completed:\n",
+   "new": "            if False:\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a client that leaves before the head, or in a body, gets no http-end by client"
+  },
+  {
+   "id": "p7-exch-end-completed",
+   "file": "tap/http.py",
+   "old": "            if not ended and not watch.completed:\n",
+   "new": "            if not ended:\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a client that closes after a whole answer gets an http-end by client"
+  },
+  {
+   "id": "p7-exch-close-conn",
+   "file": "tap/http.py",
+   "old": "        if watch.gone.is_set():\n            self.close_connection = True\n",
+   "new": "        if watch.gone.is_set():\n            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120/C121: the tap goes on serving a connection whose client left"
+  },
+  {
+   "id": "p7-relay-502-always",
+   "file": "tap/http.py",
+   "old": "            if not watch.gone.is_set():\n                self.answer_502(number)\n",
+   "new": "            self.answer_502(number)\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a client that left before the head still gets a 502 recorded"
+  },
+  {
+   "id": "p7-relay-502-never",
+   "file": "tap/http.py",
+   "old": "            if not watch.gone.is_set():\n                self.answer_502(number)\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C5: an unreachable upstream gets no 502"
+  },
+  {
+   "id": "p7-open-no-watch",
+   "file": "tap/http.py",
+   "old": "            if conn.sock is not None:\n                watch.start(conn.sock)\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: no watch is started"
+  },
+  {
+   "id": "p7-open-stop-on-fail",
+   "file": "tap/http.py",
+   "old": "            watch.stop()\n            conn.close()\n            return None\n",
+   "new": "            conn.close()\n            return None\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: the watch is not stopped when the upstream failed",
+   "equivalent": "`exchange` stops the watch in its `finally` as soon as `relay` returns, on the same thread, so the line in `open_upstream` only brings the stop forward."
+  },
+  {
+   "id": "p7-relay-finally-stop",
+   "file": "tap/http.py",
+   "old": "        finally:\n            watch.stop()\n            conn.close()\n",
+   "new": "        finally:\n            conn.close()\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: `relay` does not stop the watch itself",
+   "equivalent": "`exchange` stops the watch in its `finally` right after `relay` returns, on the same thread."
+  },
+  {
+   "id": "p7-relay-head-oserror",
+   "file": "tap/http.py",
+   "old": "            except OSError:\n                watch.client_left()\n                return False\n            if not has_body:",
+   "new": "            except OSError:\n                return False\n            if not has_body:",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a failed write of the response head is not a hang-up"
+  },
+  {
+   "id": "p7-pump-body-oserror",
+   "file": "tap/http.py",
+   "old": "                except OSError:\n                    watch.client_left()\n                    break\n        except (OSError, http.client.HTTPException):\n            pass\n",
+   "new": "                except OSError:\n                    break\n        except (OSError, http.client.HTTPException):\n            pass\n",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a failed write of a body piece is not a hang-up"
+  },
+  {
+   "id": "p7-pump-stream-oserror",
+   "file": "tap/http.py",
+   "old": "            except OSError:\n                watch.client_left()\n                break\n        if clean:",
+   "new": "            except OSError:\n                break\n        if clean:",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "note": "C120: a failed write of an event is not a hang-up"
+  },
+  {
+   "id": "p7-wire-no-content-type",
+   "file": "client/http_wire.py",
+   "old": "extra = {\"Content-Type\": \"application/json\", \"Accept\": ACCEPT}",
+   "new": "extra = {\"Accept\": ACCEPT}",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: a POST carries no Content-Type"
+  },
+  {
+   "id": "p7-wire-accept-json-only",
+   "file": "client/http_wire.py",
+   "old": "ACCEPT = f\"application/json, {EVENT_STREAM}\"",
+   "new": "ACCEPT = \"application/json\"",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: Accept lists only application/json"
+  },
+  {
+   "id": "p7-wire-accept-sse-only",
+   "file": "client/http_wire.py",
+   "old": "ACCEPT = f\"application/json, {EVENT_STREAM}\"",
+   "new": "ACCEPT = EVENT_STREAM",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: Accept lists only text/event-stream"
+  },
+  {
+   "id": "p7-wire-init-has-session",
+   "file": "client/http_wire.py",
+   "old": "self._headers(session=not is_init, extra=extra)",
+   "new": "self._headers(session=True, extra=extra)",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: initialize carries the session headers too"
+  },
+  {
+   "id": "p7-wire-no-session-header",
+   "file": "client/http_wire.py",
+   "old": "                headers[\"Mcp-Session-Id\"] = self.session_id\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: no request carries Mcp-Session-Id"
+  },
+  {
+   "id": "p7-wire-no-version-header",
+   "file": "client/http_wire.py",
+   "old": "                headers[\"MCP-Protocol-Version\"] = self.protocol_version\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: no request carries MCP-Protocol-Version"
+  },
+  {
+   "id": "p7-wire-session-header-always",
+   "file": "client/http_wire.py",
+   "old": "            if self.session_id is not None:\n",
+   "new": "            if True:\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: a request carries Mcp-Session-Id even when the server gave none"
+  },
+  {
+   "id": "p7-wire-version-header-always",
+   "file": "client/http_wire.py",
+   "old": "            if self.protocol_version is not None:\n",
+   "new": "            if True:\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: a request carries MCP-Protocol-Version even when none was negotiated"
+  },
+  {
+   "id": "p7-wire-version-never-set",
+   "file": "client/http_wire.py",
+   "old": "self.protocol_version = version if isinstance(version, str) else None",
+   "new": "self.protocol_version = None",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: the negotiated version is not remembered"
+  },
+  {
+   "id": "p7-wire-version-fixed",
+   "file": "client/http_wire.py",
+   "old": "self.protocol_version = version if isinstance(version, str) else None",
+   "new": "self.protocol_version = PROTOCOL_VERSION",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: the header names the version the client asked for, not the one negotiated"
+  },
+  {
+   "id": "p7-wire-version-overwritten",
+   "file": "client/http_wire.py",
+   "old": "and self.protocol_version is None and key_of(message[\"id\"]) == self._init_key",
+   "new": "and key_of(message[\"id\"]) == self._init_key",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: a later response to the initialize id replaces the negotiated version"
+  },
+  {
+   "id": "p7-wire-version-any-response",
+   "file": "client/http_wire.py",
+   "old": "and key_of(message[\"id\"]) == self._init_key",
+   "new": "and True",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: the first response of any request fixes the version"
+  },
+  {
+   "id": "p7-wire-init-key-unset",
+   "file": "client/http_wire.py",
+   "old": "                if is_init:\n                    self._init_key = key_of(message[\"id\"])\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: the initialize id is not remembered"
+  },
+  {
+   "id": "p7-wire-session-any-status",
+   "file": "client/http_wire.py",
+   "old": "if is_init and resp.status == 200:",
+   "new": "if is_init:",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: the session id is read from any initialize answer",
+   "equivalent": "a non-200 answer to `initialize` carries no `Mcp-Session-Id`, so `getheader` gives None, which is what `session_id` already is."
+  },
+  {
+   "id": "p7-wire-session-never-set",
+   "file": "client/http_wire.py",
+   "old": "                self.session_id = resp.getheader(\"Mcp-Session-Id\")\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: the session id is never remembered"
+  },
+  {
+   "id": "p7-wire-202-not-skipped",
+   "file": "client/http_wire.py",
+   "old": "            if resp.status == 202:\n                resp.read()\n",
+   "new": "            if False:\n                resp.read()\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: a 202 is treated as an error status"
+  },
+  {
+   "id": "p7-wire-deliver-empty-lines",
+   "file": "client/http_wire.py",
+   "old": "                if data:  # the priming event has none\n                    self._line(data)\n",
+   "new": "                self._line(data)\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: an empty-data event goes to the line handler"
+  },
+  {
+   "id": "p7-wire-deliver-json-for-sse",
+   "file": "client/http_wire.py",
+   "old": "        if content_type == EVENT_STREAM:\n",
+   "new": "        if False:\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: an event stream is read as one JSON body"
+  },
+  {
+   "id": "p7-wire-deliver-ct-case",
+   "file": "client/http_wire.py",
+   "old": "        content_type = (resp.getheader(\"Content-Type\") or \"\").split(\";\")[0].strip().lower()\n        if content_type == EVENT_STREAM:",
+   "new": "        content_type = (resp.getheader(\"Content-Type\") or \"\").split(\";\")[0].strip()\n        if content_type == EVENT_STREAM:",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: the response's content type is compared with its case"
+  },
+  {
+   "id": "p7-wire-deliver-ct-params",
+   "file": "client/http_wire.py",
+   "old": "        content_type = (resp.getheader(\"Content-Type\") or \"\").split(\";\")[0].strip().lower()\n        if content_type == EVENT_STREAM:",
+   "new": "        content_type = (resp.getheader(\"Content-Type\") or \"\").strip().lower()\n        if content_type == EVENT_STREAM:",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: the content type's parameters are part of the comparison"
+  },
+  {
+   "id": "p7-wire-deliver-blank-body",
+   "file": "client/http_wire.py",
+   "old": "            if body.strip():\n                self._line(body)\n",
+   "new": "            self._line(body)\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: an empty 200 body goes to the line handler"
+  },
+  {
+   "id": "p7-sse-client-keeps-space",
+   "file": "client/http_wire.py",
+   "old": "data.append(value[1:] if value.startswith(b\" \") else value)",
+   "new": "data.append(value)",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: the space after the colon is kept in event data"
+  },
+  {
+   "id": "p7-sse-client-join",
+   "file": "client/http_wire.py",
+   "old": "yield b\"\\n\".join(data)",
+   "new": "yield b\"\".join(data)",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: data lines of one event are joined with nothing"
+  },
+  {
+   "id": "p7-sse-client-rstrip-lf",
+   "file": "client/http_wire.py",
+   "old": "line = line.rstrip(b\"\\r\\n\")",
+   "new": "line = line.rstrip(b\"\\n\")",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: a CRLF line keeps its CR"
+  },
+  {
+   "id": "p7-sse-client-no-reset",
+   "file": "client/http_wire.py",
+   "old": "                yield b\"\\n\".join(data)\n                data = []\n",
+   "new": "                yield b\"\\n\".join(data)\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: the next event starts with the last one's data"
+  },
+  {
+   "id": "p7-sse-client-comment-test",
+   "file": "client/http_wire.py",
+   "old": "        elif not line.startswith(b\":\"):\n",
+   "new": "        else:\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: comment lines are parsed as fields",
+   "equivalent": "a comment line starts with `:`, so `partition` gives it an empty name, which is never `data`; parsing it changes nothing."
+  },
+  {
+   "id": "p7-sse-client-tail-dispatched",
+   "file": "client/http_wire.py",
+   "old": "        if not line:\n            return\n        line = line.rstrip",
+   "new": "        if not line:\n            if data:\n                yield b\"\\n\".join(data)\n            return\n        line = line.rstrip",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: an event cut off by the stream's end is dispatched"
+  },
+  {
+   "id": "p7-sse-client-event-is-data",
+   "file": "client/http_wire.py",
+   "old": "if name == b\"data\":",
+   "new": "if name in (b\"data\", b\"event\"):",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: the event field is taken as data"
+  },
+  {
+   "id": "p7-sse-client-empty-yield",
+   "file": "client/http_wire.py",
+   "old": "            if data:\n                yield",
+   "new": "            if True:\n                yield",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: a blank line with no data yields an empty event",
+   "equivalent": "`_deliver`, the only caller, skips empty data, so an extra empty yield is dropped there."
+  },
+  {
+   "id": "p7-wire-refused-any-id",
+   "file": "client/http_wire.py",
+   "old": "                and decoded.get(\"id\") is not None\n                and key_of(decoded[\"id\"]) == key_of(message[\"id\"])):",
+   "new": "                and decoded.get(\"id\") is not None):",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: an error body with any id is the posted request's reply"
+  },
+  {
+   "id": "p7-wire-refused-null-id",
+   "file": "client/http_wire.py",
+   "old": "                and decoded.get(\"id\") is not None\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: an error body with a null id may be the reply",
+   "equivalent": "`key_of(None)` is never equal to the key of a posted request's id, so a null id fails the post by the other branch just the same."
+  },
+  {
+   "id": "p7-wire-refused-any-kind",
+   "file": "client/http_wire.py",
+   "old": "if (kind == \"request\" and classify(decoded) == \"response\"",
+   "new": "if (classify(decoded) == \"response\"",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: any POST's error body with an id is a reply"
+  },
+  {
+   "id": "p7-wire-refused-never-reply",
+   "file": "client/http_wire.py",
+   "old": "if (kind == \"request\" and classify(decoded) == \"response\"",
+   "new": "if (False and classify(decoded) == \"response\"",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: an error body is never taken as the reply"
+  },
+  {
+   "id": "p7-wire-refused-not-classified",
+   "file": "client/http_wire.py",
+   "old": " and classify(decoded) == \"response\"\n",
+   "new": "\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: any JSON error body is a reply"
+  },
+  {
+   "id": "p7-wire-404-any-session",
+   "file": "client/http_wire.py",
+   "old": "if resp.status == 404 and self.session_id is not None:",
+   "new": "if resp.status == 404:",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: a 404 to a request without the session id ends the session"
+  },
+  {
+   "id": "p7-wire-404-ignored",
+   "file": "client/http_wire.py",
+   "old": "if resp.status == 404 and self.session_id is not None:",
+   "new": "if False:",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: a 404 does not end the session"
+  },
+  {
+   "id": "p7-wire-any-4xx-ends",
+   "file": "client/http_wire.py",
+   "old": "if resp.status == 404 and self.session_id is not None:",
+   "new": "if resp.status >= 400 and self.session_id is not None:",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: any error status ends the session"
+  },
+  {
+   "id": "p7-wire-end-session-fails-none",
+   "file": "client/http_wire.py",
+   "old": "        self._fail_all(SessionEnded(\"the server ended the session (404); not re-initializing\"))\n",
+   "new": "        pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: the session's end fails nothing"
+  },
+  {
+   "id": "p7-wire-end-session-keeps-connections",
+   "file": "client/http_wire.py",
+   "old": "        self._fail_all(SessionEnded(\"the server ended the session (404); not re-initializing\"))\n        self.close_connections()\n",
+   "new": "        self._fail_all(SessionEnded(\"the server ended the session (404); not re-initializing\"))\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: the session's end leaves its streams open"
+  },
+  {
+   "id": "p7-wire-fail-post-unreported",
+   "file": "client/http_wire.py",
+   "old": "        self._report(f\"POST failed: {failure}\")\n",
+   "new": "        pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: a refused POST that carries no request is not reported"
+  },
+  {
+   "id": "p7-wire-fail-post-keeps-pending",
+   "file": "client/http_wire.py",
+   "old": "pending = self._pending.pop(key_of(message[\"id\"]), None)",
+   "new": "pending = self._pending.get(key_of(message[\"id\"]))",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: the failed request stays pending"
+  },
+  {
+   "id": "p7-wire-receive-error-always",
+   "file": "client/http_wire.py",
+   "old": "            if not carrier.closed:\n                self._fail_post(message, kind, exc)\n",
+   "new": "            self._fail_post(message, kind, exc)\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: a request cancelled by closing its stream is reported as a failed POST"
+  },
+  {
+   "id": "p7-wire-receive-error-never",
+   "file": "client/http_wire.py",
+   "old": "            if not carrier.closed:\n                self._fail_post(message, kind, exc)\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: a connection error does not fail the request"
+  },
+  {
+   "id": "p7-wire-by-request-unfiled",
+   "file": "client/http_wire.py",
+   "old": "                self._by_request[key_of(message[\"id\"])] = carrier\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: a request's carrier is not remembered"
+  },
+  {
+   "id": "p7-wire-by-request-kept",
+   "file": "client/http_wire.py",
+   "old": "                if kind == \"request\" and self._by_request.get(key_of(message[\"id\"])) is carrier:\n                    del self._by_request[key_of(message[\"id\"])]\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: a finished request's carrier stays filed",
+   "equivalent": "a carrier that stays filed is closed and its socket gone; `abandon` or `close_connections` on it shuts nothing, and a later request with the same id replaces the entry."
+  },
+  {
+   "id": "p7-wire-carrier-kept",
+   "file": "client/http_wire.py",
+   "old": "                self._carriers.discard(carrier)\n                if kind",
+   "new": "                if kind",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: a finished request's carrier stays in the set",
+   "equivalent": "`close_connections` hangs up every carrier in the set; one that is already closed has no socket, so the hang-up does nothing."
+  },
+  {
+   "id": "p7-wire-write-after-close",
+   "file": "client/http_wire.py",
+   "old": "        if self._closed is not None:\n            raise self._closed\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: a request written after close is posted"
+  },
+  {
+   "id": "p7-wire-receive-inline",
+   "file": "client/http_wire.py",
+   "old": "        threading.Thread(target=self._receive, args=(carrier, message, kind, is_init),\n                         daemon=True).start()\n",
+   "new": "        self._receive(carrier, message, kind, is_init)\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C13: a response is read on the writer's thread, so a long one blocks the next POST",
+   "timeout": 180
+  },
+  {
+   "id": "p7-wire-server-requests-unlisted",
+   "file": "client/http_wire.py",
+   "old": "            self.server_requests.append((message[\"method\"], message[\"id\"]))\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: a server request is not listed"
+  },
+  {
+   "id": "p7-wire-line-errors-escape",
+   "file": "client/http_wire.py",
+   "old": "        except Exception as exc:  # one bad line never ends a response\n",
+   "new": "        except KeyboardInterrupt as exc:  # one bad line never ends a response\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C12: a handler's exception ends the response's reading"
+  },
+  {
+   "id": "p7-wire-get-no-session",
+   "file": "client/http_wire.py",
+   "old": "self._headers(session=True, extra={\"Accept\": EVENT_STREAM})",
+   "new": "self._headers(session=False, extra={\"Accept\": EVENT_STREAM})",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11/C14: the GET stream carries no session headers"
+  },
+  {
+   "id": "p7-wire-get-no-accept",
+   "file": "client/http_wire.py",
+   "old": "self._headers(session=True, extra={\"Accept\": EVENT_STREAM})",
+   "new": "self._headers(session=True, extra={})",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: the GET stream asks for no content type"
+  },
+  {
+   "id": "p7-wire-get-accept-both",
+   "file": "client/http_wire.py",
+   "old": "self._headers(session=True, extra={\"Accept\": EVENT_STREAM})",
+   "new": "self._headers(session=True, extra={\"Accept\": ACCEPT})",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: the GET stream's Accept also lists application/json"
+  },
+  {
+   "id": "p7-wire-refused-stream-unreported",
+   "file": "client/http_wire.py",
+   "old": "                    self._report(f\"the server refused the GET stream: HTTP {resp.status}\")\n",
+   "new": "                    pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: a refused GET stream is not reported"
+  },
+  {
+   "id": "p7-wire-stream-end-always-server",
+   "file": "client/http_wire.py",
+   "old": "                    self._deliver(resp)\n                    self.stream_end = \"client\" if carrier.closed else \"server\"\n",
+   "new": "                    self._deliver(resp)\n                    self.stream_end = \"server\"\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14/C15: a stream the client closed is recorded as ended by the server"
+  },
+  {
+   "id": "p7-wire-stream-error-end-always-server",
+   "file": "client/http_wire.py",
+   "old": "                self.stream_end = \"client\" if carrier.closed else \"server\"\n            finally:",
+   "new": "                self.stream_end = \"server\"\n            finally:",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14/C15: a stream that fails after the client closed it is recorded as ended by the server"
+  },
+  {
+   "id": "p7-wire-stream-error-unreported",
+   "file": "client/http_wire.py",
+   "old": "                if not carrier.closed:\n                    self._report(f\"the GET stream failed: {exc}\")\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: a GET stream that failed is not reported"
+  },
+  {
+   "id": "p7-wire-stream-error-always-reported",
+   "file": "client/http_wire.py",
+   "old": "                if not carrier.closed:\n                    self._report(f\"the GET stream failed: {exc}\")\n",
+   "new": "                self._report(f\"the GET stream failed: {exc}\")\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14/C15: closing the GET stream is reported as a failure"
+  },
+  {
+   "id": "p7-wire-stream-head-not-awaited",
+   "file": "client/http_wire.py",
+   "old": "        ready.wait(timeout)\n        return status[0] if status else None\n",
+   "new": "        return status[0] if status else None\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: open_stream returns before the GET's head has arrived"
+  },
+  {
+   "id": "p7-wire-stream-status-lost",
+   "file": "client/http_wire.py",
+   "old": "        return status[0] if status else None\n",
+   "new": "        return None\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: open_stream does not return the status"
+  },
+  {
+   "id": "p7-http-init-stream-without-capabilities",
+   "file": "client/http_wire.py",
+   "old": "        if capabilities and stream:\n",
+   "new": "        if stream:\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: the GET stream opens although no capabilities were declared"
+  },
+  {
+   "id": "p7-http-init-stream-ignores-flag",
+   "file": "client/http_wire.py",
+   "old": "        if capabilities and stream:\n",
+   "new": "        if capabilities:\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: stream=False still opens the stream"
+  },
+  {
+   "id": "p7-http-init-stream-never",
+   "file": "client/http_wire.py",
+   "old": "        if capabilities and stream:\n",
+   "new": "        if False:\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: the GET stream is never opened"
+  },
+  {
+   "id": "p7-http-init-stream-after-initialized",
+   "file": "client/http_wire.py",
+   "old": "        if capabilities and stream:\n            self.http.open_stream()\n        self.wire.notify(\"notifications/initialized\")\n",
+   "new": "        self.wire.notify(\"notifications/initialized\")\n        if capabilities and stream:\n            self.http.open_stream()\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: the GET stream opens after notifications/initialized"
+  },
+  {
+   "id": "p7-http-init-not-ready",
+   "file": "client/http_wire.py",
+   "old": "        self.ready = True\n        return result\n",
+   "new": "        return result\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C14: the session is not marked ready after initialize"
+  },
+  {
+   "id": "p7-http-init-version-unchecked",
+   "file": "client/http_wire.py",
+   "old": "        if version not in SUPPORTED_VERSIONS:\n",
+   "new": "        if False:\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C11: a version the client does not speak is accepted"
+  },
+  {
+   "id": "p7-abandon-no-hangup",
+   "file": "client/http_wire.py",
+   "old": "                carrier.hang_up()\n        return done",
+   "new": "                pass\n        return done",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: cancelling leaves the request's stream open"
+  },
+  {
+   "id": "p7-abandon-always-hangs-up",
+   "file": "client/http_wire.py",
+   "old": "        done = super().abandon(pending)\n        if done:\n",
+   "new": "        done = super().abandon(pending)\n        if True:\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: a request already answered has its stream closed by a late cancel"
+  },
+  {
+   "id": "p7-abandon-pop-kept",
+   "file": "client/http_wire.py",
+   "old": "carrier = self._by_request.pop(key_of(pending.id), None)",
+   "new": "carrier = self._by_request.get(key_of(pending.id))",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: the cancelled request's carrier stays filed",
+   "equivalent": "the entry is removed by `_receive`'s `finally` when the hung-up read ends; leaving it until then changes nothing a caller can see."
+  },
+  {
+   "id": "p7-hangup-closed-flag",
+   "file": "client/http_wire.py",
+   "old": "        self.closed = True\n        sock = self.conn.sock\n",
+   "new": "        sock = self.conn.sock\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: a hang-up is not marked, so the reader reports a failure"
+  },
+  {
+   "id": "p7-hangup-shutdown-off",
+   "file": "client/http_wire.py",
+   "old": "                sock.shutdown(socket.SHUT_RDWR)\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: a hang-up does not shut the socket"
+  },
+  {
+   "id": "p7-terminate-no-session-guard",
+   "file": "client/http_wire.py",
+   "old": "        if self.session_id is None:\n            return None\n        try:\n            carrier = self._send(\"DELETE\"",
+   "new": "        try:\n            carrier = self._send(\"DELETE\"",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: DELETE is sent when there is no session"
+  },
+  {
+   "id": "p7-terminate-no-session-headers",
+   "file": "client/http_wire.py",
+   "old": "self._send(\"DELETE\", self._headers(session=True, extra={}))",
+   "new": "self._send(\"DELETE\", self._headers(session=False, extra={}))",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: DELETE carries no session headers"
+  },
+  {
+   "id": "p7-terminate-status-lost",
+   "file": "client/http_wire.py",
+   "old": "            resp.read()\n            return resp.status\n",
+   "new": "            resp.read()\n            return None\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: close returns no DELETE status"
+  },
+  {
+   "id": "p7-terminate-timeout-off",
+   "file": "client/http_wire.py",
+   "old": "                carrier.conn.sock.settimeout(timeout)  # `_send` cleared it for streams\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: an unanswered DELETE is not bounded"
+  },
+  {
+   "id": "p7-close-stream-not-awaited",
+   "file": "client/http_wire.py",
+   "old": "            self.http.wait_stream_end(self.grace)",
+   "new": "            pass",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: close does not wait for the server to end the GET stream"
+  },
+  {
+   "id": "p7-close-input-kept",
+   "file": "client/http_wire.py",
+   "old": "            self.wire.close_input()  # fails what is still pending\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: close does not fail what is pending"
+  },
+  {
+   "id": "p7-close-connections-kept",
+   "file": "client/http_wire.py",
+   "old": "            self.http.close_connections()\n            self._closed_with",
+   "new": "            self._closed_with",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: close leaves streams open"
+  },
+  {
+   "id": "p7-close-twice",
+   "file": "client/http_wire.py",
+   "old": "            if self._closed_with is not None:\n                return self._closed_with[0]\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: a second close sends a second DELETE"
+  },
+  {
+   "id": "p7-close-status-lost",
+   "file": "client/http_wire.py",
+   "old": "            self._closed_with = (status,)\n",
+   "new": "            self._closed_with = (None,)\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C15: a second close does not return the first DELETE's status"
+  },
+  {
+   "id": "p7-era-no-version",
+   "file": "client/http_wire.py",
+   "old": "headers = {\"MCP-Protocol-Version\": MODERN_ERA}\n",
+   "new": "headers = {}\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: a 2026 POST carries no MCP-Protocol-Version"
+  },
+  {
+   "id": "p7-era-no-method",
+   "file": "client/http_wire.py",
+   "old": "            headers[\"Mcp-Method\"] = method\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: a 2026 POST carries no Mcp-Method"
+  },
+  {
+   "id": "p7-era-name-resources",
+   "file": "client/http_wire.py",
+   "old": "\"resources/read\": \"uri\"",
+   "new": "\"resources/read\": \"name\"",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: resources/read names its resource by params.name"
+  },
+  {
+   "id": "p7-era-name-no-resources",
+   "file": "client/http_wire.py",
+   "old": "\"resources/read\": \"uri\", ",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: resources/read has no Mcp-Name"
+  },
+  {
+   "id": "p7-era-name-no-prompts",
+   "file": "client/http_wire.py",
+   "old": ", \"prompts/get\": \"name\"}",
+   "new": "}",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: prompts/get has no Mcp-Name"
+  },
+  {
+   "id": "p7-era-name-no-tools",
+   "file": "client/http_wire.py",
+   "old": "{\"tools/call\": \"name\", ",
+   "new": "{",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: tools/call has no Mcp-Name"
+  },
+  {
+   "id": "p7-era-name-extra",
+   "file": "client/http_wire.py",
+   "old": "\"prompts/get\": \"name\"}",
+   "new": "\"prompts/get\": \"name\", \"resources/subscribe\": \"uri\"}",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: resources/subscribe has an Mcp-Name too"
+  },
+  {
+   "id": "p7-era-name-not-set",
+   "file": "client/http_wire.py",
+   "old": "                headers[\"Mcp-Name\"] = name\n",
+   "new": "                pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: no Mcp-Name is sent"
+  },
+  {
+   "id": "p7-era-ascii-del",
+   "file": "client/http_wire.py",
+   "old": "0x20 <= ord(c) < 0x7F",
+   "new": "0x20 <= ord(c) <= 0x7F",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: DEL is plain ASCII"
+  },
+  {
+   "id": "p7-era-ascii-control",
+   "file": "client/http_wire.py",
+   "old": "0x20 <= ord(c) < 0x7F",
+   "new": "0x00 <= ord(c) < 0x7F",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: a control character is plain ASCII"
+  },
+  {
+   "id": "p7-era-ascii-latin1",
+   "file": "client/http_wire.py",
+   "old": "0x20 <= ord(c) < 0x7F",
+   "new": "0x20 <= ord(c) < 0x100",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: Latin-1 characters are plain ASCII"
+  },
+  {
+   "id": "p7-era-edge-space-off",
+   "file": "client/http_wire.py",
+   "old": " or name != name.strip(\" \\t\"):",
+   "new": ":",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: a name with a leading or trailing space or tab is sent"
+  },
+  {
+   "id": "p7-era-edge-trailing",
+   "file": "client/http_wire.py",
+   "old": "name != name.strip(\" \\t\")",
+   "new": "name != name.lstrip(\" \\t\")",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: only a leading space or tab is refused"
+  },
+  {
+   "id": "p7-era-edge-leading",
+   "file": "client/http_wire.py",
+   "old": "name != name.strip(\" \\t\")",
+   "new": "name != name.rstrip(\" \\t\")",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: only a trailing space or tab is refused"
+  },
+  {
+   "id": "p7-era-edge-whitespace-set",
+   "file": "client/http_wire.py",
+   "old": "name != name.strip(\" \\t\")",
+   "new": "name != name.strip()",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: the edge test strips all whitespace",
+   "equivalent": "a character below 0x20 is refused by the ASCII test before the edge test, so the only whitespace that reaches it is space and tab."
+  },
+  {
+   "id": "p7-era-headers-off",
+   "file": "client/http_wire.py",
+   "old": "        if self.era == MODERN_ERA:\n            extra.update(",
+   "new": "        if False:\n            extra.update(",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: a 2026 client sends no request headers"
+  },
+  {
+   "id": "p7-era-version-preset",
+   "file": "client/http_wire.py",
+   "old": "MODERN_ERA if era == MODERN_ERA else None",
+   "new": "None",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: the wire does not preset the protocol version for the era",
+   "equivalent": "`_request_headers` puts `MCP-Protocol-Version` in every 2026 POST, and `_headers` would add the same name and value; a 2026 wire sends no GET or DELETE."
+  },
+  {
+   "id": "p7-modern-cancel-notifies",
+   "file": "client/modern_http.py",
+   "old": "        return self.wire.abandon(pending)\n",
+   "new": "        return super(ModernSession, self).cancel(pending, reason)\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C25: a 2026 cancel posts notifications/cancelled"
+  },
+  {
+   "id": "p7-modern-cancel-keeps-stream",
+   "file": "client/modern_http.py",
+   "old": "        return self.wire.abandon(pending)\n",
+   "new": "        return super(HttpWire, self.wire).abandon(pending)\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C25: a 2026 cancel does not close the request's stream"
+  },
+  {
+   "id": "p7-modern-era-off",
+   "file": "client/modern_http.py",
+   "old": "on_notification=registry.feed,\n                        era=MODERN_ERA)",
+   "new": "on_notification=registry.feed)",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C24: the 2026 session's wire is built without the era"
+  }
+ ]
+}
