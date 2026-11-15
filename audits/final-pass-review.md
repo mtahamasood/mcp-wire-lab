@@ -597,6 +597,7 @@ orchestrator finalizes the pending ones.
 | P8-R7-13 | minor | pending (after Stage A) | pending |
 | P8-R7-14 | minor | reproduced (`fake_mcp_http.py`, DELETE `500` and never answered), fixed: `Lab.close` gives the DELETE `CLOSE_WAIT` (5 s), always closes the SDK client, and throws; `tour`, `server-tour` and the 2026 tour print that as a `FAILED` close step and exit 1 | branch `phase-08-fix-sdk`; `clients/sdk/test/close.test.ts` (C140) |
 | P8-R7-15 | minor, false claim | fixing on `phase-08-fix-r7-client` | pending that branch |
+| P8-CL | minor, test hygiene | fixed (Stage A's note on G9): `tools/check_lessons.py` runs each block in its own session and kills its process group at the block's end, so a block that fails, times out or forgets its `kill` leaves nothing running | branch `phase-08-fix-sdk`; `tests/test_lessons.py::BackgroundChildTest` (C142) |
 
 ### The report as written
 
