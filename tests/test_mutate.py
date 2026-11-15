@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from typing import Any
@@ -48,15 +51,30 @@ class MutateTest(unittest.TestCase):
         return {"id": id, "file": "calc.py", "old": old, "new": new, "command": CMD, **extra}
 
     def run_tool(
-        self, mutants: list[dict[str, Any]], *args: str
+        self,
+        mutants: list[dict[str, Any]],
+        *args: str,
+        links: list[str] | None = None,
+        env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         spec = Path(self._tmp.name) / "spec.json"
-        spec.write_text(json.dumps({"mutants": mutants}))
+        spec.write_text(json.dumps({"links": links or [], "mutants": mutants}))
         return subprocess.run(
             [sys.executable, str(MUTATE), "--root", str(self.proj), *args, str(spec)],
             capture_output=True,
             text=True,
             timeout=120,
+            env=env,
+        )
+
+    def python_command(self, code: str, *argv: str) -> str:
+        """A test command that runs `code` with Python, one argument per `argv`."""
+        return shlex.join([sys.executable, "-c", code, *argv])
+
+    def same_effect(self, id: str, **extra: Any) -> dict[str, Any]:
+        """A mutant that changes nothing, signed equivalent, so a run of it exits 0."""
+        return self.mutant(
+            id, old="return a + b", new="return a + b  # same", equivalent="comment only", **extra
         )
 
     def test_applies_one_exact_replacement(self) -> None:
@@ -149,6 +167,191 @@ class MutateTest(unittest.TestCase):
         )
         self.assertEqual(done.returncode, 0)
         self.assertIn("Usage:", done.stdout)
+
+    # -- Stage B of phase 8 (D9): the survivors of the mutation of this file ---------------
+
+    def test_a_restore_that_does_not_match_the_original_stops_the_run(self) -> None:
+        # C160: the command changes the real file while it runs, so the restored copy differs
+        # from it: the run stops at once (exit 2, no table) and says the file was not restored.
+        touch = self.python_command(
+            f"open({str(self.proj / 'calc.py')!r}, 'a').write('# changed under the run')"
+        )
+        mutants = [self.mutant("M1", command=touch), self.mutant("M2", command=touch)]
+        done = self.run_tool(mutants)
+        self.assertEqual(done.returncode, 2, done.stdout + done.stderr)
+        self.assertIn("NOT restored: calc.py", done.stderr)
+        self.assertEqual(done.stdout, "")
+        self.assertNotIn("M2", done.stderr)
+
+    def test_runs_is_empty_and_present_before_every_command(self) -> None:
+        # C161: each command finds an empty runs/ in the copy, so a recording left by the
+        # previous command (or the baseline) cannot make it pass or fail; two distinct commands
+        # and two mutants of one of them all see a clean folder.
+        for name in ("test_runs_a.py", "test_runs_b.py"):
+            (self.proj / name).write_text(
+                "import os, unittest\n\n"
+                "class T(unittest.TestCase):\n"
+                "    def test_runs(self):\n"
+                "        self.assertEqual(os.listdir('runs'), [])\n"
+                "        open('runs/recording', 'w').close()\n"
+            )
+        mutants = [
+            self.same_effect("A1", command=f"{sys.executable} -m unittest test_runs_a"),
+            self.same_effect("A2", command=f"{sys.executable} -m unittest test_runs_a"),
+            self.same_effect("B1", command=f"{sys.executable} -m unittest test_runs_b"),
+        ]
+        done = self.run_tool(mutants)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("mutants: 3 killed: 0 survived: 0 errors: 0 equivalent: 3", done.stdout)
+
+    def test_baseline_runs_once_per_distinct_command(self) -> None:
+        # C162: three mutants of one command make four runs of it: one baseline and one each.
+        log = Path(self._tmp.name) / "log.txt"
+        command = self.python_command(f"open({str(log)!r}, 'a').write('x')")
+        done = self.run_tool([self.same_effect(f"E{i}", command=command) for i in range(3)])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(log.read_text(), "xxxx")
+
+    def test_a_command_killed_by_a_signal_is_a_kill(self) -> None:
+        # C162: a negative exit status (the command died of SIGKILL) is a failure, not a pass.
+        code = (
+            "import os, signal; from calc import add; "
+            "os.kill(os.getpid(), signal.SIGKILL) if add(2, 3) != 5 else None"
+        )
+        done = self.run_tool([self.mutant("SIG", command=self.python_command(code))])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertRegex(done.stdout, r"\| SIG \| calc.py \| killed \|.*exit -9")
+
+    def test_a_signed_mutant_that_is_killed_is_reported_killed_and_says_so(self) -> None:
+        # C162: signing a mutant equivalent does not hide a test that kills it.
+        signed = self.mutant("SIGNED", equivalent="thought to change nothing")
+        done = self.run_tool([signed])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertRegex(done.stdout, r"\| SIGNED \| calc.py \| killed \|")
+        self.assertIn("marked equivalent but killed", done.stdout)
+        self.assertIn("mutants: 1 killed: 1 survived: 0 errors: 0 equivalent: 0", done.stdout)
+
+    def test_copy_of_a_repository_holds_tracked_and_untracked_files_but_not_ignored_ones(
+        self,
+    ) -> None:
+        # C163: a git repository is copied as git sees it: tracked files, files not yet
+        # tracked, and not what .gitignore names. The command is the check.
+        git = ["git", "-C", str(self.proj)]
+        subprocess.run([*git, "init", "-q"], check=True)
+        (self.proj / ".gitignore").write_text("ignored.txt\n")
+        for name in ("tracked.txt", "untracked.txt", "ignored.txt"):
+            (self.proj / name).write_text(name)
+        subprocess.run([*git, "add", ".gitignore", "tracked.txt", "calc.py"], check=True)
+        check = self.python_command(
+            "import os, sys; sys.exit(0 if os.path.exists('tracked.txt') "
+            "and os.path.exists('untracked.txt') and os.path.exists('calc.py') "
+            "and not os.path.exists('ignored.txt') and not os.path.exists('.git') else 1)"
+        )
+        done = self.run_tool([self.same_effect("GIT", command=check)])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_a_folder_inside_a_repository_is_copied_whole_not_by_the_repositorys_list(
+        self,
+    ) -> None:
+        # C163: only a repository's own root is listed by git; a subfolder is walked.
+        outer = Path(self._tmp.name) / "outer"
+        inner = outer / "inner"
+        inner.mkdir(parents=True)
+        subprocess.run(["git", "-C", str(outer), "init", "-q"], check=True)
+        (outer / ".gitignore").write_text("ignored.txt\n")
+        (inner / "ignored.txt").write_text("x")
+        (inner / "calc.py").write_text(CALC)
+        (inner / "test_calc.py").write_text(CHECK)
+        check = self.python_command(
+            "import os, sys; sys.exit(0 if os.path.exists('ignored.txt') else 1)"
+        )
+        done = self.run_tool([self.same_effect("SUB", command=check)], "--root", str(inner))
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_a_plain_copy_leaves_out_git_and_bytecode_folders(self) -> None:
+        # C163: outside a repository the copy is a walk that skips .git and __pycache__.
+        (self.proj / ".git").mkdir()
+        (self.proj / ".git" / "config").write_text("")
+        (self.proj / "__pycache__").mkdir()
+        (self.proj / "__pycache__" / "calc.pyc").write_text("")
+        check = self.python_command(
+            "import os, sys; sys.exit(0 if not os.path.exists('.git') "
+            "and not os.path.exists('__pycache__') and os.path.exists('calc.py') else 1)"
+        )
+        done = self.run_tool([self.same_effect("WALK", command=check)])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_linked_paths_are_linked_not_copied_and_a_missing_one_is_refused(self) -> None:
+        # C163: a linked path is a symlink to the real one; a sibling that only shares its
+        # first letters is copied as usual; a link to nothing stops the run.
+        (self.proj / "lib").mkdir()
+        (self.proj / "lib" / "a.txt").write_text("a")
+        (self.proj / "lib2").mkdir()
+        (self.proj / "lib2" / "b.txt").write_text("b")
+        check = self.python_command(
+            "import os, sys; sys.exit(0 if os.path.islink('lib') "
+            "and os.path.exists('lib/a.txt') and not os.path.islink('lib2') "
+            "and os.path.exists('lib2/b.txt') else 1)"
+        )
+        done = self.run_tool([self.same_effect("LINK", command=check)], links=["lib"])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        done = self.run_tool([self.same_effect("GONE", command=check)], links=["nowhere"])
+        self.assertEqual(done.returncode, 2, done.stdout + done.stderr)
+        self.assertIn("link path does not exist: nowhere", done.stderr)
+
+    def test_command_is_split_like_a_shell_and_runs_with_bytecode_off(self) -> None:
+        # C164: quoted arguments stay whole; the command gets PYTHONDONTWRITEBYTECODE=1 even
+        # when the caller's environment lacks it (so a mutant's bytecode cannot outlive it).
+        code = (
+            "import os, sys; sys.exit(0 if os.environ.get('PYTHONDONTWRITEBYTECODE') == '1' "
+            "and sys.argv[1:] == ['two words'] else 1)"
+        )
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+        done = self.run_tool(
+            [self.same_effect("ENV", command=self.python_command(code, "two words"))], env=env
+        )
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_command_gets_no_stdin_and_odd_output_does_not_stop_the_tool(self) -> None:
+        # C164: a command that reads stdin sees end of file at once, even when the tool's own
+        # stdin is an open pipe; output that is not UTF-8 is shown replaced, not a crash.
+        reads = self.python_command("import sys; sys.stdin.read()")
+        odd = self.python_command("import sys; sys.stdout.buffer.write(b'\\xff\\xfe\\n')")
+        spec = Path(self._tmp.name) / "spec.json"
+        mutants = [self.same_effect("STDIN", command=reads), self.same_effect("ODD", command=odd)]
+        spec.write_text(json.dumps({"mutants": mutants}))
+        argv = [sys.executable, str(MUTATE), "--root", str(self.proj), "--timeout", "10", str(spec)]
+        with subprocess.Popen(
+            argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        ) as tool:
+            tool.wait(timeout=60)  # stdin stays open until here: only a closed stdin ends it
+            assert tool.stdout is not None and tool.stderr is not None
+            out, err = tool.stdout.read(), tool.stderr.read()
+        self.assertEqual(tool.returncode, 0, out + err)
+        self.assertIn("equivalent: 2", out)
+
+    def test_timeout_flag_applies_when_a_mutant_has_none_and_kills_what_the_command_started(
+        self,
+    ) -> None:
+        # C164: --timeout bounds a command, and the whole process group dies with it (a
+        # grandchild holding the output pipe open must not make the tool wait for it).
+        (self.proj / "test_grandchild.py").write_text(
+            "import subprocess, sys, time, unittest\n"
+            "from calc import add\n\n"
+            "class T(unittest.TestCase):\n"
+            "    def test_grandchild(self):\n"
+            "        if add(1, 1) != 2:\n"
+            "            subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(25)'])\n"
+            "            time.sleep(25)\n"
+        )
+        grandchild = self.mutant(
+            "GRAND", command=f"{sys.executable} -m unittest test_grandchild"
+        )
+        started = time.monotonic()
+        done = self.run_tool([grandchild], "--timeout", "1")
+        self.assertLess(time.monotonic() - started, 15)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertRegex(done.stdout, r"\| GRAND \| calc.py \| killed \(timeout\) \|")
 
 
 if __name__ == "__main__":

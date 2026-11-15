@@ -137,6 +137,28 @@ class HandlersTest(unittest.TestCase):
                 self.assertEqual(reply["error"]["code"], -32602, (method, params))
         self.assertEqual(rig.reports, [])
 
+    def test_malformed_schema_property_values_get_a_reply_too(self) -> None:
+        # P8-R3-1 (the mutation run of phase 8): a property whose `type` is a list (a JSON
+        # schema allows it, the elicitation schema does not) and a `default` of NaN (which
+        # Python's JSON reader accepts, and int() refuses) raise on the worker thread as a
+        # TypeError and a ValueError; each still gets -32602 under the request's id.
+        rig = self.rig()
+        for request_id, prop in ((1, {"type": ["string", "null"]}), (2, {"default": float("nan")})):
+            reply = rig.ask(request_id, "elicitation/create",
+                            {"requestedSchema": {"properties": {"a": prop}}})
+            self.assertEqual(reply["id"], request_id, prop)
+            self.assertEqual(reply["error"]["code"], -32602, prop)
+        self.assertEqual(rig.reports, [])
+
+    def test_a_null_params_is_read_as_no_params(self) -> None:
+        # Not a spec rule (the schema types `params` as an optional object): the client is
+        # lenient about a JSON null and answers a ping as it answers one with no `params`.
+        rig = self.rig()
+        rig.say({"id": 9, "method": "ping", "params": None})
+        reply = rig.read()
+        self.assertEqual(reply["id"], 9)
+        self.assertEqual(reply["result"], {})
+
     def test_unknown_method_is_refused(self) -> None:
         rig = self.rig()
         reply = rig.ask("u-1", "tasks/get")

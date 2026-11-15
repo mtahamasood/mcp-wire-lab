@@ -166,6 +166,17 @@ class DiscoverTest(unittest.TestCase):
                 self.assertFalse(sess.ready)
 
 
+    def test_unsupported_version_error_names_the_versions_the_server_supports(self) -> None:
+        # The data of a -32022 reply is an object whose `supported` member lists the versions;
+        # the message names that list, not the whole object (which also says what was asked for).
+        data = '{"supported": ["2025-11-25"], "requested": "2099-01-01"}'
+        with server("--discover-error", "-32022", "--discover-data", data,
+                    discover=False) as (sess, _log, _):
+            with self.assertRaises(UnsupportedVersion) as caught:
+                sess.discover()
+        self.assertIn('it offered ["2025-11-25"]', str(caught.exception))
+        self.assertNotIn("requested", str(caught.exception))
+
     def test_a_malformed_discover_reply_stops_the_session(self) -> None:
         # D3: `supportedVersions` must be a list holding the era (a string that contains the era
         # as text is not one), and discover's own reply is never `input_required`

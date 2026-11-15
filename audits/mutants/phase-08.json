@@ -1,0 +1,730 @@
+{
+ "links": [
+  "vendor",
+  "clients/sdk/node_modules"
+ ],
+ "mutants": [
+  {
+   "id": "p8-mutate-count-zero-ok",
+   "file": "tools/mutate.py",
+   "old": "if count != 1:",
+   "new": "if count == 0:",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a text that occurs several times is applied, not an error"
+  },
+  {
+   "id": "p8-mutate-count-many-ok",
+   "file": "tools/mutate.py",
+   "old": "if count != 1:",
+   "new": "if count > 1:",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a text that occurs zero times is run unchanged, not an error"
+  },
+  {
+   "id": "p8-mutate-replace-first",
+   "file": "tools/mutate.py",
+   "old": "before.replace(mutant[\"old\"].encode(), mutant[\"new\"].encode())",
+   "new": "before.replace(mutant[\"old\"].encode(), mutant[\"new\"].encode(), 1)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: only the first occurrence is replaced",
+   "equivalent": "the replacement runs only when the text occurs exactly once, so replacing the first occurrence and replacing all of them are the same edit"
+  },
+  {
+   "id": "p8-mutate-real-tree",
+   "file": "tools/mutate.py",
+   "old": "target = copy / mutant[\"file\"]",
+   "new": "target = root / mutant[\"file\"]",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the mutant is written to the real tree, not the copy"
+  },
+  {
+   "id": "p8-mutate-run-cwd",
+   "file": "tools/mutate.py",
+   "old": "        cwd=cwd,\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the command runs in the caller's directory, not in the copy"
+  },
+  {
+   "id": "p8-mutate-no-restore",
+   "file": "tools/mutate.py",
+   "old": "    finally:\n        target.write_bytes(before)\n",
+   "new": "    finally:\n        pass\n",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the file is not restored after the command"
+  },
+  {
+   "id": "p8-mutate-cmp-skipped",
+   "file": "tools/mutate.py",
+   "old": "if not filecmp.cmp(target, original, shallow=False):",
+   "new": "if False:",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the byte comparison is never made"
+  },
+  {
+   "id": "p8-mutate-cmp-inverted",
+   "file": "tools/mutate.py",
+   "old": "if not filecmp.cmp(target, original, shallow=False):",
+   "new": "if filecmp.cmp(target, original, shallow=False):",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a restored file is reported as not restored"
+  },
+  {
+   "id": "p8-mutate-cmp-shallow",
+   "file": "tools/mutate.py",
+   "old": "filecmp.cmp(target, original, shallow=False)",
+   "new": "filecmp.cmp(target, original, shallow=True)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the comparison trusts size and mtime",
+   "equivalent": "shallow=True compares os.stat signatures first and falls back to the bytes when they differ; the restore has just rewritten the target, so its mtime differs from the original's and the bytes are compared anyway; only a rewrite with the same size in the same clock tick of the filesystem would be trusted, and that cannot happen after write_bytes"
+  },
+  {
+   "id": "p8-mutate-mismatch-continues",
+   "file": "tools/mutate.py",
+   "old": "raise SetupError(f\"NOT restored: {mutant['file']} differs from the original; run stopped\")",
+   "new": "print(f\"NOT restored: {mutant['file']} differs from the original\", file=sys.stderr)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a mismatch is printed and the run goes on"
+  },
+  {
+   "id": "p8-mutate-restore-silent",
+   "file": "tools/mutate.py",
+   "old": "    print(f\"mutate: {mutant['id']}: restored byte-identical\", file=sys.stderr)\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the restore is not reported"
+  },
+  {
+   "id": "p8-mutate-root-runs-unchecked",
+   "file": "tools/mutate.py",
+   "old": "found = leftovers(root / \"runs\")\n        if found:",
+   "new": "found = leftovers(root / \"runs\")\n        if False:",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: an entry in the real runs/ does not stop the run"
+  },
+  {
+   "id": "p8-mutate-root-runs-wrong-dir",
+   "file": "tools/mutate.py",
+   "old": "found = leftovers(root / \"runs\")",
+   "new": "found = leftovers(root / \"run\")",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the leftover check looks at another folder"
+  },
+  {
+   "id": "p8-mutate-runs-not-emptied",
+   "file": "tools/mutate.py",
+   "old": "    shutil.rmtree(copy / \"runs\", ignore_errors=True)\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the copy's runs/ is not emptied before a command"
+  },
+  {
+   "id": "p8-mutate-runs-not-recreated",
+   "file": "tools/mutate.py",
+   "old": "    (copy / \"runs\").mkdir()\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the copy has no runs/ folder for a command to write in"
+  },
+  {
+   "id": "p8-mutate-runs-copy-guard",
+   "file": "tools/mutate.py",
+   "old": "    if found:\n        raise SetupError(f\"runs/ in the copy still has entries",
+   "new": "    if False:\n        raise SetupError(f\"runs/ in the copy still has entries",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the check after emptying the copy's runs/ is off",
+   "equivalent": "the check follows rmtree and mkdir of the same folder, so it can find an entry only if another process writes there in between; the copy is private and no command runs then"
+  },
+  {
+   "id": "p8-mutate-runs-copy-guard-setup",
+   "file": "tools/mutate.py",
+   "old": "            if found:\n                raise SetupError(f\"runs/ in the copy has leftovers",
+   "new": "            if False:\n                raise SetupError(f\"runs/ in the copy has leftovers",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the check of runs/ right after the copy is made is off",
+   "equivalent": "the copy holds the root's tracked and untracked files; an entry in the root's runs/ stops the run before the copy is made (the check above it), and the copy does not get an entry the root lacks"
+  },
+  {
+   "id": "p8-mutate-baseline-runs-not-emptied",
+   "file": "tools/mutate.py",
+   "old": "                fresh_runs(copy)\n                code, _, _ = run_command(command, copy, timeout)",
+   "new": "                code, _, _ = run_command(command, copy, timeout)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a baseline command starts with the previous baseline's recordings"
+  },
+  {
+   "id": "p8-mutate-baseline-every-mutant",
+   "file": "tools/mutate.py",
+   "old": "for command in dict.fromkeys(m[\"command\"] for m in mutants):",
+   "new": "for command in [m[\"command\"] for m in mutants]:",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the baseline runs once per mutant, not once per distinct command"
+  },
+  {
+   "id": "p8-mutate-baseline-red-ignored",
+   "file": "tools/mutate.py",
+   "old": "if code != 0:\n                    why =",
+   "new": "if code is None:\n                    why =",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a red baseline stops the run only on a timeout"
+  },
+  {
+   "id": "p8-mutate-signal-not-killed",
+   "file": "tools/mutate.py",
+   "old": "    elif code != 0:\n",
+   "new": "    elif code is not None and code > 0:\n",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a command killed by a signal (negative exit) is not a kill"
+  },
+  {
+   "id": "p8-mutate-timeout-not-reported",
+   "file": "tools/mutate.py",
+   "old": "    if code is None:\n        result, detail =",
+   "new": "    if False:\n        result, detail =",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a timeout is reported as a plain kill"
+  },
+  {
+   "id": "p8-mutate-equivalent-ignored",
+   "file": "tools/mutate.py",
+   "old": "    elif reason:\n",
+   "new": "    elif False:\n",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a signed mutant that survives is a survivor"
+  },
+  {
+   "id": "p8-mutate-equivalent-killed-unsaid",
+   "file": "tools/mutate.py",
+   "old": "    if reason and result.startswith(\"killed\"):",
+   "new": "    if False:",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a signed mutant that is killed does not say so"
+  },
+  {
+   "id": "p8-mutate-exit-always-zero",
+   "file": "tools/mutate.py",
+   "old": "return 0 if survived == 0 and errors == 0 else 1",
+   "new": "return 0",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the exit is 0 whatever the verdicts"
+  },
+  {
+   "id": "p8-mutate-exit-survivors-only",
+   "file": "tools/mutate.py",
+   "old": "return 0 if survived == 0 and errors == 0 else 1",
+   "new": "return 0 if survived == 0 else 1",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: an error does not fail the run"
+  },
+  {
+   "id": "p8-mutate-exit-errors-only",
+   "file": "tools/mutate.py",
+   "old": "return 0 if survived == 0 and errors == 0 else 1",
+   "new": "return 0 if errors == 0 else 1",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a survivor does not fail the run"
+  },
+  {
+   "id": "p8-mutate-count-killed",
+   "file": "tools/mutate.py",
+   "old": "killed = sum(r[2].startswith(\"killed\") for r in rows)",
+   "new": "killed = sum(r[2] == \"killed\" for r in rows)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: a timeout kill is not counted as killed"
+  },
+  {
+   "id": "p8-mutate-count-equivalent",
+   "file": "tools/mutate.py",
+   "old": "equivalent = sum(r[2] == \"equivalent\" for r in rows)",
+   "new": "equivalent = sum(r[2] == \"survived\" for r in rows)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: equivalent mutants are not counted"
+  },
+  {
+   "id": "p8-mutate-error-row-runs",
+   "file": "tools/mutate.py",
+   "old": "return \"error\", 0.0, f\"old text occurs {count} times, need exactly 1\"",
+   "new": "return \"survived\", 0.0, f\"old text occurs {count} times, need exactly 1\"",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: an ambiguous text is reported as a survivor"
+  },
+  {
+   "id": "p8-mutate-failing-tests-lost",
+   "file": "tools/mutate.py",
+   "old": "stderr=subprocess.STDOUT,",
+   "new": "stderr=subprocess.DEVNULL,",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C6: the command's stderr, where unittest prints its failures, is dropped"
+  },
+  {
+   "id": "p8-mutate-copy-no-untracked",
+   "file": "tools/mutate.py",
+   "old": "\"--cached\", \"--others\", \"--exclude-standard\"",
+   "new": "\"--cached\", \"--exclude-standard\"",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a new file that git does not track yet is not copied"
+  },
+  {
+   "id": "p8-mutate-copy-no-tracked",
+   "file": "tools/mutate.py",
+   "old": "\"--cached\", \"--others\", \"--exclude-standard\"",
+   "new": "\"--others\", \"--exclude-standard\"",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a tracked file is not copied"
+  },
+  {
+   "id": "p8-mutate-copy-ignored",
+   "file": "tools/mutate.py",
+   "old": "\"--cached\", \"--others\", \"--exclude-standard\"",
+   "new": "\"--cached\", \"--others\"",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: ignored files (run output, caches) are copied"
+  },
+  {
+   "id": "p8-mutate-copy-walk-always",
+   "file": "tools/mutate.py",
+   "old": "if done.returncode == 0 and (root / \".git\").exists():",
+   "new": "if False:",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a git repository is copied by a plain walk"
+  },
+  {
+   "id": "p8-mutate-copy-git-subdir",
+   "file": "tools/mutate.py",
+   "old": "if done.returncode == 0 and (root / \".git\").exists():",
+   "new": "if done.returncode == 0:",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a folder inside a repository, not its root, is copied by the repository's file list"
+  },
+  {
+   "id": "p8-mutate-copy-walk-git",
+   "file": "tools/mutate.py",
+   "old": "if d not in (\".git\", \"__pycache__\", \"runs\")]",
+   "new": "if d not in (\"__pycache__\", \"runs\")]",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a plain walk copies .git"
+  },
+  {
+   "id": "p8-mutate-copy-walk-pycache",
+   "file": "tools/mutate.py",
+   "old": "if d not in (\".git\", \"__pycache__\", \"runs\")]",
+   "new": "if d not in (\".git\", \"runs\")]",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a plain walk copies __pycache__"
+  },
+  {
+   "id": "p8-mutate-copy-walk-runs",
+   "file": "tools/mutate.py",
+   "old": "if d not in (\".git\", \"__pycache__\", \"runs\")]",
+   "new": "if d not in (\".git\", \"__pycache__\")]",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a plain walk copies runs/",
+   "equivalent": "a runs/ with entries stops the run before the copy is made, and an empty one has nothing to copy; fresh_runs recreates it either way"
+  },
+  {
+   "id": "p8-mutate-copy-empty-name",
+   "file": "tools/mutate.py",
+   "old": "if n]",
+   "new": "if True]",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: the empty name after git's last NUL is kept",
+   "equivalent": "the empty name joins to the root itself, which is not a file, so make_copy skips it"
+  },
+  {
+   "id": "p8-mutate-copy-unsorted",
+   "file": "tools/mutate.py",
+   "old": "return sorted(set(names))",
+   "new": "return names",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: the file list is not sorted or de-duplicated",
+   "equivalent": "the list only drives copying; a file named twice is copied twice to the same place, and the order does not matter"
+  },
+  {
+   "id": "p8-mutate-copy-broken-symlink",
+   "file": "tools/mutate.py",
+   "old": "if not src.is_file() or src.is_symlink() and not src.exists():",
+   "new": "if not src.is_file():",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a broken symlink is no longer skipped explicitly",
+   "equivalent": "a broken symlink is not a file (is_file follows it), so the first clause already skips what the second names"
+  },
+  {
+   "id": "p8-mutate-copy-copy2",
+   "file": "tools/mutate.py",
+   "old": "shutil.copy2(src, target)",
+   "new": "shutil.copy(src, target)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: modification times are not kept",
+   "equivalent": "nothing reads the copy's mtimes: the restore comparison is byte for byte (shallow=False) and bytecode is not written (PYTHONDONTWRITEBYTECODE)"
+  },
+  {
+   "id": "p8-mutate-link-copied",
+   "file": "tools/mutate.py",
+   "old": "        if any(name == x or name.startswith(x + \"/\") for x in linked):\n            continue\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a linked path is copied and then linked over it"
+  },
+  {
+   "id": "p8-mutate-link-prefix",
+   "file": "tools/mutate.py",
+   "old": "name.startswith(x + \"/\")",
+   "new": "name.startswith(x)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a sibling whose name starts with a linked path's is skipped too"
+  },
+  {
+   "id": "p8-mutate-link-exact",
+   "file": "tools/mutate.py",
+   "old": "name == x or name.startswith",
+   "new": "name.startswith",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a file named exactly as a linked path is copied",
+   "equivalent": "a linked path is a directory or a gitlink, for which make_copy's is_file test already skips the exact name"
+  },
+  {
+   "id": "p8-mutate-link-missing-ok",
+   "file": "tools/mutate.py",
+   "old": "        if not src.exists():\n            raise SetupError(f\"link path does not exist",
+   "new": "        if False:\n            raise SetupError(f\"link path does not exist",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a link to a path that does not exist is made without a word"
+  },
+  {
+   "id": "p8-mutate-link-relative",
+   "file": "tools/mutate.py",
+   "old": "symlink_to(src.resolve())",
+   "new": "symlink_to(src)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: the link target is not resolved",
+   "equivalent": "main resolves --root before anything is copied, so root / x is already absolute and src.resolve() differs only if x is itself a symlink, which the link still follows"
+  },
+  {
+   "id": "p8-mutate-env-bytecode",
+   "file": "tools/mutate.py",
+   "old": "\"PYTHONDONTWRITEBYTECODE\": \"1\"",
+   "new": "\"PYTHONDONTWRITEBYTECODE\": \"0\"",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: the command may write bytecode into the copy"
+  },
+  {
+   "id": "p8-mutate-env-dropped",
+   "file": "tools/mutate.py",
+   "old": "env = {**os.environ, \"PYTHONDONTWRITEBYTECODE\": \"1\"}",
+   "new": "env = dict(os.environ)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: the command runs with the caller's environment unchanged"
+  },
+  {
+   "id": "p8-mutate-shlex",
+   "file": "tools/mutate.py",
+   "old": "shlex.split(command)",
+   "new": "command.split()",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: the command is split at every space, quotes and all"
+  },
+  {
+   "id": "p8-mutate-stdin",
+   "file": "tools/mutate.py",
+   "old": "        stdin=subprocess.DEVNULL,\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: the command inherits the tool's stdin"
+  },
+  {
+   "id": "p8-mutate-decode-strict",
+   "file": "tools/mutate.py",
+   "old": "        errors=\"replace\",\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: output that is not UTF-8 stops the tool"
+  },
+  {
+   "id": "p8-mutate-no-new-session",
+   "file": "tools/mutate.py",
+   "old": "        start_new_session=True,\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: the command does not get its own process group (the timeout's killpg then hits the tool's own group)"
+  },
+  {
+   "id": "p8-mutate-kill-leader-only",
+   "file": "tools/mutate.py",
+   "old": "os.killpg(proc.pid, signal.SIGKILL)",
+   "new": "proc.kill()",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a timeout kills the command but not what it started"
+  },
+  {
+   "id": "p8-mutate-timeout-default",
+   "file": "tools/mutate.py",
+   "old": "return float(value) if isinstance(value, int | float) else default",
+   "new": "return default",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a mutant's own timeout is ignored"
+  },
+  {
+   "id": "p8-mutate-timeout-flag",
+   "file": "tools/mutate.py",
+   "old": "timeout = float(value)",
+   "new": "timeout = DEFAULT_TIMEOUT",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: --timeout is ignored"
+  },
+  {
+   "id": "p8-mutate-timeout-bool",
+   "file": "tools/mutate.py",
+   "old": "isinstance(value, int | float)",
+   "new": "isinstance(value, (int, float, str))",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "D8: a timeout given as text reaches float()",
+   "equivalent": "load_spec does not check a mutant's timeout and a string such as \"1\" then converts with float(); the only difference is a string that is not a number, which is a spec the author wrote wrong and which fails loudly (ValueError) either way"
+  },
+  {
+   "id": "p8-order-response-at-once",
+   "file": "clients/sdk/src/order.ts",
+   "old": "    if (isResponse(message)) queueMicrotask(() => handler(message, extra));\n    else handler(message, extra);\n",
+   "new": "    handler(message, extra);\n",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: a response is handed over at once (the pre-fix order)"
+  },
+  {
+   "id": "p8-order-inverted",
+   "file": "clients/sdk/src/order.ts",
+   "old": "    if (isResponse(message)) queueMicrotask(() => handler(message, extra));\n    else handler(message, extra);\n",
+   "new": "    if (!isResponse(message)) queueMicrotask(() => handler(message, extra));\n    else handler(message, extra);\n",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: notifications are late and responses at once"
+  },
+  {
+   "id": "p8-order-all-late",
+   "file": "clients/sdk/src/order.ts",
+   "old": "    if (isResponse(message)) queueMicrotask(() => handler(message, extra));\n    else handler(message, extra);\n",
+   "new": "    queueMicrotask(() => handler(message, extra));\n",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: every message is one microtask late, notifications included (the SDK then adds its own)"
+  },
+  {
+   "id": "p8-order-no-result",
+   "file": "clients/sdk/src/order.ts",
+   "old": "(\"result\" in message || \"error\" in message)",
+   "new": "(\"error\" in message)",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: a result is not a response"
+  },
+  {
+   "id": "p8-order-no-error",
+   "file": "clients/sdk/src/order.ts",
+   "old": "(\"result\" in message || \"error\" in message)",
+   "new": "(\"result\" in message)",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: an error reply is not a response"
+  },
+  {
+   "id": "p8-order-method-test",
+   "file": "clients/sdk/src/order.ts",
+   "old": "return !(\"method\" in message) && (",
+   "new": "return (",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: a message with a method is a response if it also has a result or error",
+   "equivalent": "a JSON-RPC request or notification has no result or error member, and a response has no method, so the method test never decides for a well-formed message; the SDK parses every message against its schema before it reaches onmessage"
+  },
+  {
+   "id": "p8-order-never-a-response",
+   "file": "clients/sdk/src/order.ts",
+   "old": "  return !(\"method\" in message) && (\"result\" in message || \"error\" in message);",
+   "new": "  return false;",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: no message is a response"
+  },
+  {
+   "id": "p8-order-setimmediate",
+   "file": "clients/sdk/src/order.ts",
+   "old": "queueMicrotask(() => handler(message, extra))",
+   "new": "setImmediate(() => handler(message, extra))",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: a response is handed over a macrotask late, not a microtask"
+  },
+  {
+   "id": "p8-order-extra-dropped",
+   "file": "clients/sdk/src/order.ts",
+   "old": "queueMicrotask(() => handler(message, extra))",
+   "new": "queueMicrotask(() => handler(message))",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: a late response loses the transport's second argument"
+  },
+  {
+   "id": "p8-order-extra-dropped-now",
+   "file": "clients/sdk/src/order.ts",
+   "old": "    else handler(message, extra);",
+   "new": "    else handler(message);",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: a notification or request loses the transport's second argument"
+  },
+  {
+   "id": "p8-order-slot-unwrapped",
+   "file": "clients/sdk/src/order.ts",
+   "old": "current = handler === undefined ? undefined : responsesLast(handler);",
+   "new": "current = handler;",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: the handler the SDK sets is stored as it is"
+  },
+  {
+   "id": "p8-order-slot-cleared-wrapped",
+   "file": "clients/sdk/src/order.ts",
+   "old": "current = handler === undefined ? undefined : responsesLast(handler);",
+   "new": "current = responsesLast(handler as OnMessage);",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: a cleared handler is wrapped, so the slot is never empty"
+  },
+  {
+   "id": "p8-order-slot-reads-nothing",
+   "file": "clients/sdk/src/order.ts",
+   "old": "get: () => current,",
+   "new": "get: () => undefined,",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: the slot reads as empty, so a caller that chains the old handler finds none"
+  },
+  {
+   "id": "p8-order-wrapper-recursion",
+   "file": "clients/sdk/src/order.ts",
+   "old": "responsesLast(handler);",
+   "new": "responsesLast((m, e) => current!(m, e));",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: the wrapper calls whatever the slot holds, not the handler it was made for"
+  },
+  {
+   "id": "p8-order-not-configurable",
+   "file": "clients/sdk/src/order.ts",
+   "old": "    configurable: true,\n",
+   "new": "    configurable: false,\n",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: the slot cannot be redefined",
+   "equivalent": "inWireOrder runs once per transport (clients/sdk/src/client.ts, era.ts) and nothing redefines the slot afterwards; configurable only matters to a second defineProperty"
+  },
+  {
+   "id": "p8-order-not-enumerable",
+   "file": "clients/sdk/src/order.ts",
+   "old": "    enumerable: true,\n",
+   "new": "    enumerable: false,\n",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: the slot is hidden from enumeration",
+   "equivalent": "nothing in the SDK or the lab enumerates a transport's own properties; enumerable only changes Object.keys and spread of the transport"
+  },
+  {
+   "id": "p8-order-returns-copy",
+   "file": "clients/sdk/src/order.ts",
+   "old": "  return transport;\n}",
+   "new": "  return { ...transport };\n}",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
+   "note": "C3: the function returns a copy, not the transport it patched"
+  },
+  {
+   "id": "p8-modern-discover-data-or",
+   "file": "client/modern.py",
+   "old": "offered = data.get(\"supported\") if isinstance(data, dict) else data",
+   "new": "offered = (data or {}).get(\"supported\")",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C24: the old reading of the -32022 data: a list or a string raises AttributeError"
+  },
+  {
+   "id": "p8-modern-discover-data-hidden",
+   "file": "client/modern.py",
+   "old": "offered = data.get(\"supported\") if isinstance(data, dict) else data",
+   "new": "offered = data.get(\"supported\") if isinstance(data, dict) else None",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C24: data that is not an object is not shown"
+  },
+  {
+   "id": "p8-modern-discover-data-whole",
+   "file": "client/modern.py",
+   "old": "offered = data.get(\"supported\") if isinstance(data, dict) else data",
+   "new": "offered = data if isinstance(data, dict) else data",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C24: an object's data is shown whole, not its supported member"
+  },
+  {
+   "id": "p8-handlers-params-guard",
+   "file": "client/handlers.py",
+   "old": "        if not isinstance(params, dict):\n",
+   "new": "        if False:\n",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C80: params that are not an object reach params.get",
+   "equivalent": "the AttributeError of params.get is caught in _respond and answered with the same -32602 under the same id; only the message text differs, and no row specifies it"
+  },
+  {
+   "id": "p8-handlers-params-guard-code",
+   "file": "client/handlers.py",
+   "old": "\"error\": {\"code\": INVALID_PARAMS, \"message\": \"params must be an object\"},",
+   "new": "\"error\": {\"code\": METHOD_NOT_FOUND, \"message\": \"params must be an object\"},",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C80: params that are not an object get -32601"
+  },
+  {
+   "id": "p8-handlers-params-or",
+   "file": "client/handlers.py",
+   "old": "params = message.get(\"params\") or {}",
+   "new": "params = message.get(\"params\", {})",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C80: a null params is not an empty object"
+  },
+  {
+   "id": "p8-handlers-respond-attribute",
+   "file": "client/handlers.py",
+   "old": "except (AttributeError, TypeError, ValueError) as exc:",
+   "new": "except (TypeError, ValueError) as exc:",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C80: an AttributeError from malformed params is not caught (the test's ask gets no reply and waits)",
+   "timeout": 60
+  },
+  {
+   "id": "p8-handlers-respond-type",
+   "file": "client/handlers.py",
+   "old": "except (AttributeError, TypeError, ValueError) as exc:",
+   "new": "except (AttributeError, ValueError) as exc:",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C80: a TypeError from malformed params is not caught"
+  },
+  {
+   "id": "p8-handlers-respond-value",
+   "file": "client/handlers.py",
+   "old": "except (AttributeError, TypeError, ValueError) as exc:",
+   "new": "except (AttributeError, TypeError) as exc:",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C80: a ValueError from malformed params is not caught"
+  },
+  {
+   "id": "p8-handlers-respond-no-catch",
+   "file": "client/handlers.py",
+   "old": "except (AttributeError, TypeError, ValueError) as exc:",
+   "new": "except ZeroDivisionError as exc:",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C80: no malformed params are caught at all (the test's ask gets no reply and waits)",
+   "timeout": 60
+  },
+  {
+   "id": "p8-handlers-respond-id",
+   "file": "client/handlers.py",
+   "old": "reply = {\"jsonrpc\": JSON_RPC, \"id\": message[\"id\"],\n                         \"error\": {\"code\": INVALID_PARAMS,",
+   "new": "reply = {\"jsonrpc\": JSON_RPC, \"id\": None,\n                         \"error\": {\"code\": INVALID_PARAMS,",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C80: the -32602 for malformed params is sent under no id"
+  },
+  {
+   "id": "p8-handlers-respond-code",
+   "file": "client/handlers.py",
+   "old": "\"error\": {\"code\": INVALID_PARAMS,\n                                   \"message\": f\"Invalid params for",
+   "new": "\"error\": {\"code\": METHOD_NOT_FOUND,\n                                   \"message\": f\"Invalid params for",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C80: malformed params get -32601, not -32602"
+  },
+  {
+   "id": "p8-handlers-ping",
+   "file": "client/handlers.py",
+   "old": "        if method == \"ping\":\n            return {}",
+   "new": "        if method == \"ping\":\n            return None",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C80: a ping is refused"
+  }
+ ]
+}
