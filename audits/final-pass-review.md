@@ -583,18 +583,18 @@ orchestrator finalizes the pending ones.
 | P8-R4-1 | minor, docs | reproduced by reading `schema.ts:159-163` (`id` optional on an error response), fixed: lesson 04's answer 1 says no id can be read, the schema allows an error without one, this server only logs | `0c95cbb`; `tests/test_walkthrough_03_04.py::Doc04Test::test_lesson_04_array_has_a_reply_form` (C83) |
 | P8-R4-2 | minor, false claim | reproduced from the fixture (`{"id":1,...}`), fixed: walkthrough 04 says the SDK drops the message at validation and could have answered `-32600` with `id` 1 | `0c95cbb`; `tests/test_walkthrough_03_04.py::Doc04Test::test_walkthrough_04_missing_jsonrpc_has_an_id` (C84) |
 | P8-R7-1 | major | fixing on `phase-08-fix-r7-1` | pending that branch |
-| P8-R7-2 | major | pending (after Stage A) | pending |
+| P8-R7-2 | major | reproduced (a fake upstream held its head 3 s, and again a JSON body half sent; the server never saw the client hang up), fixed: a `ClientWatch` covers every response kind and shuts the upstream down on a hang-up, no 502 goes to a gone client, a cut-off body is recorded with `partial`, and the exchange ends with `http-end` by `client` (register row A49, flagged for Stage F) | `c6ae7c5`; `tests/test_tap_http.py::ClientHangUpTest::test_client_gone_before_response_head_closes_upstream`, `::test_client_gone_during_a_json_body_closes_upstream`, `::test_closing_after_a_whole_answer_is_not_a_hang_up` (C120) |
 | P8-R7-3 | major | Stage A | Stage A |
-| P8-R7-4 | minor | pending (after Stage A) | pending |
+| P8-R7-4 | minor | done by Stage A: `communicate()` closes the pipe | `e211e4f`; `tests/test_e2e_http.py:363` |
 | P8-R7-5 | minor | fixing on `phase-08-fix-r7-client` | pending that branch |
 | P8-R7-6 | minor | fixing on `phase-08-fix-r7-client` | pending that branch |
 | P8-R7-7 | minor | fixing on `phase-08-fix-r7-client` | pending that branch |
 | P8-R7-8 | minor | fixing on `phase-08-fix-r7-client` | pending that branch |
-| P8-R7-9 | minor | pending (after Stage A) | pending |
+| P8-R7-9 | minor | reproduced (a stream ending in a lone CR gave `partial: true`; `finish()` dropped the CR as half a CRLF), fixed: `SseParser.finish()` takes a last lone CR as a line end; a CR at a piece end still waits for the next byte (C28), an Accepted limit | `c6ae7c5`; `tests/test_tap_http.py::SseTest::test_stream_ended_by_a_lone_cr_is_a_whole_event`, `tests/test_tap_sse.py::SseParserFramingTest::test_finish_takes_a_lone_cr_at_the_end_as_a_line_end` (C123) |
 | P8-R7-10 | minor, test gap | fixing on `phase-08-fix-r7-client` | pending that branch |
 | P8-R7-11 | minor, test gap | fixing on `phase-08-fix-r7-client` | pending that branch |
-| P8-R7-12 | minor | pending (after Stage A) | pending |
-| P8-R7-13 | minor | pending (after Stage A) | pending |
+| P8-R7-12 | minor | reproduced (200 simultaneous connections: 71 reset with the default backlog of 5), fixed: `Proxy.request_queue_size = 128` | `c6ae7c5`; `tests/test_tap_http.py::HttpForwardTest::test_many_simultaneous_connections_are_all_answered` (C122) |
+| P8-R7-13 | minor | reproduced (a hang-up behind a pipelined request was never passed on), fixed: the watch uses `POLLRDHUP` where available, so a queued request does not end it; elsewhere an Accepted limit | `c6ae7c5`; `tests/test_tap_http.py::ClientHangUpTest::test_hang_up_behind_a_pipelined_request_is_passed_on` (C121) |
 | P8-R7-14 | minor | pending (after Stage A) | pending |
 | P8-R7-15 | minor, false claim | fixing on `phase-08-fix-r7-client` | pending that branch |
 

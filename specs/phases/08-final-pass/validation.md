@@ -70,6 +70,10 @@ named in their own `validation.md`; D10 reviews phases 3–7.
 | C82 | Stage B (D10, P8-R3-3). Phase 3 C14: walkthrough 03 says `ElicitResult` values are `string \| number \| boolean \| string[]` in `schema.ts` (checked against the pinned file) and that only the generated JSON schema, which `tap.check` uses, says `integer`; its citations still resolve | `tests/test_walkthrough_03_04.py::Doc03Test::test_walkthrough_03_elicit_number_matches_schema_ts`, `tools/check_citations.py` | not claim code (RP3) |
 | C83 | Stage B (D10, P8-R4-1). Phase 4 C14: lesson 04's answer 1 does not say an array has nothing to reply to; it says no id can be read and that the schema allows an error without an id, which this server does not send | `tests/test_walkthrough_03_04.py::Doc04Test::test_lesson_04_array_has_a_reply_form`, `tools/check_lessons.py` | not claim code (RP3) |
 | C84 | Stage B (D10, P8-R4-2). Phase 4 C14: walkthrough 04's note on `missing-jsonrpc` says the message has an `id` (1, checked in the fixture) and that the SDK drops it at validation, not for want of an id | `tests/test_walkthrough_03_04.py::Doc04Test::test_walkthrough_04_missing_jsonrpc_has_an_id` | not claim code (RP3) |
+| C120 | Stage B (D10, P8-R7-2). Phase 7 C-tap: a client that hangs up before the response head, or during a JSON (non-stream) body, is passed on: the tap shuts the upstream socket down at once (the server sees the disconnect), sends no 502 to the gone client, records the body cut short as a frame with `partial: true`, and records `http-end` `{by: client}` for the exchange. Recording `http-end` for a non-stream exchange extends phase 7 D1's record list (D1 lists it for streams only); the choice is register row A49 in `audits/autonomous-decisions.md`, flagged for the owner's Stage F sitting | `tests/test_tap_http.py::ClientHangUpTest::test_client_gone_before_response_head_closes_upstream`, `tests/test_tap_http.py::ClientHangUpTest::test_client_gone_during_a_json_body_closes_upstream`; and, for a client that closes after a whole answer (no hang-up, no end record), `tests/test_tap_http.py::ClientHangUpTest::test_closing_after_a_whole_answer_is_not_a_hang_up` | yes (the old watch, started only for a stream after the head, fails the first two) |
+| C121 | Stage B (D10, P8-R7-13). A client hang-up behind a pipelined request is passed on: the watch uses `POLLRDHUP`, so a request already queued on the connection does not end it | `tests/test_tap_http.py::ClientHangUpTest::test_hang_up_behind_a_pipelined_request_is_passed_on` | yes (the old peek-and-stop watch fails it) |
+| C122 | Stage B (D10, P8-R7-12). The tap answers 200 simultaneous connections: `Proxy.request_queue_size` is 128, not `socketserver`'s 5 | `tests/test_tap_http.py::HttpForwardTest::test_many_simultaneous_connections_are_all_answered` | yes (backlog 5 fails it: 71 of 200 connections reset) |
+| C123 | Stage B (D10, P8-R7-9). An event stream whose last line end is a lone CR is a whole event, not `partial: true`: `SseParser.finish()` takes a last lone CR as a line end (a CR at a piece end is still held for the next byte, C28) | `tests/test_tap_http.py::SseTest::test_stream_ended_by_a_lone_cr_is_a_whole_event`, `tests/test_tap_sse.py::SseParserFramingTest::test_finish_takes_a_lone_cr_at_the_end_as_a_line_end` | yes (the old `finish` fails both) |
 
 ## E. Not-done conditions
 
@@ -103,3 +107,8 @@ closed on (D2).
 - The combined learning check gives evidence across the whole path, not per phase (register row
   2026-11-14, learning check superseded).
 - Phase 8's own rows are not guarded by G12 until its close (D1).
+- A CR that ends a piece of an event stream is held until the next byte, so an event completed by
+  a lone CR at a piece end is recorded after that piece is forwarded (phase 7 D1 order; the
+  pinned server writes LF only; P8-R7-9).
+- Without `POLLRDHUP` (anything but Linux) a client hang-up behind a pipelined request is not
+  passed on to the server (P8-R7-13).
