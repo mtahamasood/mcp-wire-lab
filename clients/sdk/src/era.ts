@@ -2,7 +2,7 @@
 // step for step with the same inputs, through @modelcontextprotocol/client pinned to the new era.
 // Everything era-specific lives here so that phase 5's files stay as they were.
 
-import { CLIENT_CAPABILITIES_META_KEY, Client, LOG_LEVEL_META_KEY, StreamableHTTPClientTransport, SUBSCRIPTION_ID_META_KEY } from "@modelcontextprotocol/client";
+import { CLIENT_CAPABILITIES_META_KEY, Client, LOG_LEVEL_META_KEY, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import type { ClientCapabilities, McpSubscription } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { capabilityObject } from "./args.ts";
@@ -10,8 +10,9 @@ import type { Capability } from "./args.ts";
 import { CLIENT_INFO, STATIC_DOC } from "./client.ts";
 import { DEFAULT_ROOTS, Traffic, elicitationResult, rootsResult, samplingResult } from "./handlers.ts";
 import type { ElicitParams } from "./handlers.ts";
+import { ListenTag, tagOf } from "./listen.ts";
 import { inWireOrder } from "./order.ts";
-import { Steps, compact, text0 } from "./steps.ts";
+import { Steps, closeStep, compact, text0 } from "./steps.ts";
 
 export const MODERN_ERA = "2026-07-28";
 /** The capabilities the 2026 tour declares unless `--caps` says otherwise (phase 6 D6). */
@@ -31,15 +32,16 @@ const CANCEL_REASON = "the tour cancels after the first progress";
 export class InPlaceStdioTransport extends StdioClientTransport {}
 
 type Progress = { progress: number; total?: number; message?: string };
-type Meta = Record<string, unknown>;
 
-class ModernTour {
+export class ModernTour {
   readonly steps: Steps;
   readonly client: Client;
   readonly traffic = new Traffic();
   readonly errors: string[] = [];
   private subscription: McpSubscription | undefined;
-  private subscriptionId: unknown;
+  /** The listen id the tour's request carried, and what the last notification was tagged with. */
+  private readonly listenTag = new ListenTag();
+  private tag: unknown;
   private http = false;
 
   constructor(steps: Steps, caps: readonly Capability[], report: (line: string) => void) {
@@ -83,12 +85,12 @@ class ModernTour {
       const method = `notifications/${kind}/list_changed` as const;
       this.client.setNotificationHandler(method, (note) => {
         this.traffic.mark(method);
-        this.subscriptionId = (note.params?._meta as Meta | undefined)?.[SUBSCRIPTION_ID_META_KEY];
+        this.tag = tagOf(note.params);
       });
     }
     this.client.setNotificationHandler("notifications/resources/updated", (note) => {
       this.traffic.mark("notifications/resources/updated");
-      this.subscriptionId = (note.params?._meta as Meta | undefined)?.[SUBSCRIPTION_ID_META_KEY];
+      this.tag = tagOf(note.params);
     });
   }
 
@@ -114,9 +116,9 @@ class ModernTour {
    */
   async discovery(command: readonly string[], url?: string): Promise<void> {
     // Both transports deliver messages in wire order (order.ts).
-    await this.client.connect(inWireOrder(url === undefined
+    await this.client.connect(this.listenTag.watch(inWireOrder(url === undefined
       ? new InPlaceStdioTransport({ command: command[0] as string, args: command.slice(1) })
-      : new StreamableHTTPClientTransport(new URL(url))));
+      : new StreamableHTTPClientTransport(new URL(url)))));
     const version = this.client.getNegotiatedProtocolVersion();
     this.steps.expect(version === MODERN_ERA, `the connection must run ${MODERN_ERA}, not ${version}`);
     this.steps.step("server/discover", `version ${version}, server ${this.client.getServerVersion()?.name}`);
@@ -249,12 +251,20 @@ class ModernTour {
       const count = traffic.seen(method);
       await this.client.callTool({ name: "trigger-list-changed", arguments: { list: kind } });
       this.steps.expect(await traffic.waitFor(() => traffic.seen(method) > count, NOTE_WAIT), `no ${method}`);
-      this.steps.step(`tools/call trigger-list-changed ${kind}`, `${method} on subscription ${String(this.subscriptionId)}`);
+      this.expectTagged(method);
+      this.steps.step(`tools/call trigger-list-changed ${kind}`, `${method} on subscription ${String(this.tag)}`);
     }
     const count = traffic.seen("notifications/resources/updated");
     await this.client.callTool({ name: "trigger-resource-update", arguments: { uri: STATIC_DOC } });
     this.steps.expect(await traffic.waitFor(() => traffic.seen("notifications/resources/updated") > count, NOTE_WAIT), "no resource update");
-    this.steps.step("tools/call trigger-resource-update", `notifications/resources/updated on subscription ${String(this.subscriptionId)}`);
+    this.expectTagged("notifications/resources/updated");
+    this.steps.step("tools/call trigger-resource-update", `notifications/resources/updated on subscription ${String(this.tag)}`);
+  }
+
+  /** The last notification must carry the id of the `subscriptions/listen` request (P8-R6-4). */
+  private expectTagged(method: string): void {
+    const why = this.listenTag.mismatch(this.tag);
+    this.steps.expect(why === undefined, `${method} ${why}`);
   }
 
   /** No server-to-client requests: the server answers `input_required` and the SDK retries. */
@@ -307,7 +317,6 @@ export async function runModernTour(
     report(`sdk: tour failed at step ${failure.trim()}`);
     status = 1;
   }
-  await tour.client.close();
-  steps.step("close", "closed");
+  if (await closeStep(steps, report, () => tour.client.close())) status = 1;
   return status;
 }

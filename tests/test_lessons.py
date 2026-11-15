@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import re
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -153,6 +155,85 @@ class LessonsTest(unittest.TestCase):
                 code, err = self.run_main(root)
         self.assertEqual(code, 1)
         self.assertIn("timed out", err)
+
+
+def alive(pid: int) -> bool:
+    """Whether `pid` is a running process (a zombie awaiting its reaper is not)."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return False
+    return stat.rsplit(")", 1)[1].split()[0] != "Z"
+
+
+def reap(pid: int) -> None:
+    """Cleanup for a test that failed: it must not leak the process it was checking for."""
+    if alive(pid):
+        os.kill(pid, 9)
+
+
+class BackgroundChildTest(unittest.TestCase):
+    """P8-R7 note (phase 8 Stage A): a block that starts something with `&` leaves nothing behind
+    when it fails, times out or forgets its `kill`; each block runs in its own process group,
+    killed when the block ends."""
+
+    def run_block(self, cmd_before: str, after: str = "") -> tuple[list[str], int, float]:
+        """Run one block that writes the pid of its background `sleep` to a file; return the
+        errors, that pid, and the seconds the check took."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pidfile = root / "child.pid"
+            (root / "docs/lessons").mkdir(parents=True)
+            body = f"$ sleep 300 &\n$ echo $! > {pidfile}\n{cmd_before}"
+            text = lesson(block(body, after or None))
+            (root / "docs/lessons/01-x.md").write_text(text, encoding="utf-8")
+            started = time.monotonic()
+            with mock.patch.object(check_lessons, "TIMEOUT_S", 15):
+                _, errors = check_lessons.check(root, 1)
+            elapsed = time.monotonic() - started
+            pid = int(pidfile.read_text(encoding="utf-8"))
+        self.addCleanup(reap, pid)
+        for _ in range(50):
+            if not alive(pid):
+                break
+            time.sleep(0.1)
+        return errors, pid, elapsed
+
+    def test_failing_block_leaves_no_background_child(self) -> None:
+        errors, pid, elapsed = self.run_block("$ exit 3")
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("exited 3", errors[0])
+        self.assertLess(elapsed, 8, "the check waited for the background child's pipes")
+        self.assertFalse(alive(pid), "the background child outlived its failed block")
+
+    def test_timed_out_block_leaves_no_background_child(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pidfile = root / "child.pid"
+            (root / "docs/lessons").mkdir(parents=True)
+            body = f"$ sleep 300 &\n$ echo $! > {pidfile}\n$ sleep 300"
+            (root / "docs/lessons/01-x.md").write_text(lesson(block(body)), encoding="utf-8")
+            with mock.patch.object(check_lessons, "TIMEOUT_S", 1):
+                _, errors = check_lessons.check(root, 1)
+            pid = int(pidfile.read_text(encoding="utf-8"))
+        self.addCleanup(reap, pid)
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("timed out", errors[0])
+        for _ in range(50):
+            if not alive(pid):
+                break
+            time.sleep(0.1)
+        self.assertFalse(alive(pid), "the background child outlived its timed-out block")
+
+    def test_passing_block_that_forgets_its_kill_leaves_no_background_child(self) -> None:
+        errors, pid, _ = self.run_block("$ echo done", "done")
+        self.assertEqual(errors, [])
+        self.assertFalse(alive(pid), "the background child outlived its block")
+
+    def test_output_of_a_block_with_a_background_child_is_still_checked(self) -> None:
+        errors, _, _ = self.run_block("$ echo done", "nothing like it")
+        self.assertEqual(len(errors), 1)
+        self.assertIn("expected output not found", errors[0])
 
 
 def _section(prose: str, name: str) -> str:
