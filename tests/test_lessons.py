@@ -158,10 +158,11 @@ class LessonsTest(unittest.TestCase):
 
 
 def alive(pid: int) -> bool:
-    """Whether `pid` is a running process (a zombie awaiting its reaper is not)."""
+    """Whether `pid` is a running process (a zombie awaiting its reaper is not). A process that
+    exits between the open and the read of its stat file raises ProcessLookupError (seen on CI)."""
     try:
         stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return False
     return stat.rsplit(")", 1)[1].split()[0] != "Z"
 
@@ -169,7 +170,10 @@ def alive(pid: int) -> bool:
 def reap(pid: int) -> None:
     """Cleanup for a test that failed: it must not leak the process it was checking for."""
     if alive(pid):
-        os.kill(pid, 9)
+        try:
+            os.kill(pid, 9)
+        except ProcessLookupError:
+            pass
 
 
 class BackgroundChildTest(unittest.TestCase):
