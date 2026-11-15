@@ -11,7 +11,7 @@ import { CLIENT_INFO, STATIC_DOC } from "./client.ts";
 import { DEFAULT_ROOTS, Traffic, elicitationResult, rootsResult, samplingResult } from "./handlers.ts";
 import type { ElicitParams } from "./handlers.ts";
 import { inWireOrder } from "./order.ts";
-import { Steps, compact, text0 } from "./steps.ts";
+import { Steps, closeStep, compact, text0 } from "./steps.ts";
 
 export const MODERN_ERA = "2026-07-28";
 /** The capabilities the 2026 tour declares unless `--caps` says otherwise (phase 6 D6). */
@@ -307,7 +307,6 @@ export async function runModernTour(
     report(`sdk: tour failed at step ${failure.trim()}`);
     status = 1;
   }
-  await tour.client.close();
-  steps.step("close", "closed");
+  if (await closeStep(steps, report, () => tour.client.close())) status = 1;
   return status;
 }
