@@ -154,6 +154,21 @@ class SseParserFramingTest(unittest.TestCase):
         parser.feed(b"data: a\n\n")
         self.assertIsNone(parser.finish())
 
+    def test_finish_takes_a_lone_cr_at_the_end_as_a_line_end(self) -> None:
+        # Review P8-R7-9: at the stream's end no LF can follow, so a last CR ends its line. CR CR
+        # is a field line and the blank line that dispatches the event: whole, not partial.
+        parser = SseParser()
+        self.assertEqual(parser.feed(b"data: x\r\r"), [])  # the last CR may still be a CRLF
+        event = parser.finish()
+        assert event is not None
+        self.assertEqual((event.data, event.partial), (b"x", False))
+        self.assertIsNone(parser.finish())
+        parser = SseParser()
+        parser.feed(b"data: y\r")  # a CR that ends the field line only: no blank line
+        event = parser.finish()
+        assert event is not None
+        self.assertEqual((event.data, event.partial), (b"y", True))
+
     def test_comments_are_counted_and_not_events(self) -> None:
         events, parser = feed_all(b": a\n:b\r\n: c\r\n", 1024)
         self.assertEqual(events, [])
