@@ -11,6 +11,7 @@ import os
 import threading
 import time
 import unittest
+from collections import Counter
 from typing import Any
 
 from client import handlers, wire
@@ -298,6 +299,25 @@ class NotificationsTest(unittest.TestCase):
         self.assertTrue(any("level=warning" in n and "logger=everything" in n and "careful" in n
                             for n in rig.notes), rig.notes)
         self.assertTrue(any("notifications/prompts/list_changed" in n for n in rig.notes))
+
+    def test_counted_notification_is_already_queued(self) -> None:
+        # C201 (P8-FL-1): a step that waits for a notification's count and then for the client
+        # to go idle must see the re-request the notification calls for. Once the count moves,
+        # the client is not idle. Checked at the moment the count is written.
+        calls = handlers.Handlers(ALL, debounce=0.05, report=lambda _: None)
+        idle_when_counted: list[tuple[str, bool]] = []
+
+        class Spy(Counter[str]):
+            def __setitem__(self, key: str, value: int) -> None:
+                super().__setitem__(key, value)
+                idle_when_counted.append((key, calls.wait_idle(0)))
+
+        calls.counts = Spy()
+        calls.handle_notification({"method": "notifications/tools/list_changed"})
+        calls.handle_notification({"method": "notifications/resources/updated",
+                                   "params": {"uri": URI}})
+        self.assertEqual(idle_when_counted, [("notifications/tools/list_changed", False),
+                                             ("notifications/resources/updated", False)])
 
     def test_roots_change_notifies(self) -> None:
         rig = self.rig()

@@ -243,14 +243,17 @@ class Handlers:
         method = message["method"]
         params: Message = message.get("params") or {}
         with self._cond:
+            # The re-request is queued before the count moves (one lock), so a caller that
+            # waits for the count and then for idle also waits for the re-request (P8-FL-1).
+            if method in LIST_METHODS:
+                self._mark(LIST_METHODS[method])
+            elif method == "notifications/resources/updated" and isinstance(params.get("uri"),
+                                                                             str):
+                self._mark(params["uri"])
             self.counts[method] += 1
             self._cond.notify_all()
         self._print(method, params)
-        if method in LIST_METHODS:
-            self._mark(LIST_METHODS[method])
-        elif method == "notifications/resources/updated" and isinstance(params.get("uri"), str):
-            self._mark(params["uri"])
-        elif method == "notifications/progress":
+        if method == "notifications/progress":
             self._match_progress(params)
 
     def _print(self, method: str, params: Message) -> None:

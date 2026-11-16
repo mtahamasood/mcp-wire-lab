@@ -11,6 +11,7 @@ Sections:
 1. Phases 5 and 6 (reviewer: Opus 5.5): disposition table, then the report as written.
 2. Phases 3, 4 and 7 (reviewer: Opus 5.5): disposition table, then the report as written, then
    the results of `mutants-07.json`.
+3. Test flakes after Stage A (builder: Opus 5.5): disposition table and the measurements.
 
 ## 1. Phases 5 and 6
 
@@ -1249,3 +1250,25 @@ The JSON, with the exact `old` and `new` texts (also in `mutants-07.json` next t
  ]
 }
 ```
+
+## 3. Test flakes after Stage A
+
+### Disposition
+
+Branch `phase-08-fix-flakes`. Findings are numbered `P8-FL-<n>`; P8-FL-1 to P8-FL-5 are the flakes
+the orchestrator listed, P8-FL-6 was found while measuring them. The C rows are in
+`specs/phases/08-final-pass/validation.md`, the choice for P8-FL-1 and P8-FL-3 is A50. Each red run
+is in its commit message. "Load" is the 1-minute load average on the 4-CPU WSL2 machine while two
+mutation agents ran; "busy" adds four `while :; do :; done` processes (D4's `stress -c 4`).
+
+| Finding | Severity | Disposition | Commit and test (C row) |
+| --- | --- | --- | --- |
+| P8-FL-1 | major | reproduced, fixed. `HttpModesTest.test_server_tour_over_http`: the server tour over HTTP exited 1 at step 11, 13 or 15 ("no notifications/tools/list_changed", "no update"). The server sends a list change or a resource update on the standalone GET stream (exchange 1) and the tool's result on the POST's own stream; in the failed traces the result reached the client 1 ms before the notification, and the step checked at once. The tour now waits for the notification (`ServerTour.wait_note`), and `Handlers.handle_notification` queues the re-request before the count moves. The failure report showed only the server because `record.sh --http` opened the tap's stderr with `>`: each later server line was written at the tap's offset, over the client's; it now appends. Rate: 9 of 60 recordings before (load 2.9-3.9), 0 of 60 after (load 3-5.8) | `6a15d97`, `48edbb7`; `tests/test_e2e_http.py::RecordHttpStderrTest::test_client_lines_survive_later_server_lines` (C200), `tests/test_client_server_tour.py::LateNotificationTest` and `tests/test_client_handlers.py::NotificationsTest::test_counted_notification_is_already_queued` (C201) |
+| P8-FL-2 | minor | reproduced, fixed (test code, and P8-FL-4). `HttpModesTest.test_manual_posts_typed_line_verbatim` had two failures. (a) Swapped lines: the fake logged each POST when its handler thread read the body, so two connections landed in thread order; it now orders by the order it accepted the connections, which is the client's write order. (b) The junk line's 400 not reported: the cause of P8-FL-4. Rate: 11 of 100 on `main` (load about 4-5); 2 of 100 after (a) alone, both (b); 0 of 100 after both (load 2-4.5) | `fcb87df`; `tests/test_client_http.py::FakeOrderTest::test_log_follows_connection_order` (C202) |
+| P8-FL-3 | minor | reproduced under busy load, fixed. `HttpModesTest.test_tour_over_http`: `ping` recorded before `notifications/initialized`. The two are separate POSTs on separate connections; the tap reads each on its own thread and records and forwards whichever body it read first, so the server too could take `ping` first. After a POST that carries no request, the client's next POST now waits for its answer (A50). Rate: 0 of 80 at load 2.5-3; 2 of 50 busy (load 5-6.7) before; 0 of 50 busy after (load 6-7) | `fcb87df`; `tests/test_client_http.py::HttpWireTest::test_next_post_waits_for_a_notifications_202` (C203) |
+| P8-FL-4 | minor | reproduced, fixed. Lesson 07 block 11 (G9, CI run 43755533169) exited 1 by a grep miss, not by `wait`: the tap exits with the server's code, and the server's SIGINT handler ends with `process.exit(0)` (`servers:src/everything/transports/streamableHttp.ts:368` "process.exit(0);"). The junk line is the last one typed and nothing is awaited, so `manual` closed the session before the 400 was read, and a closed carrier's failure is not reported. With the P8-FL-3 wait the refusal is reported before the next line is read. The tap's ClientWatch plays no part. Rate, the block run as G9 runs it (`bash -eo pipefail`): 8 of 60 busy on `main` (7 grep misses, 1 abort, P8-FL-6; load up to 7); 0 of 60 busy after (load up to 6) | `fcb87df`; `tests/test_client_http.py::HttpModesTest::test_manual_reports_a_late_refusal_before_closing` (C204) |
+| P8-FL-5 | minor | cause shown, not fixed: an owner decision. Lesson 06 block 2 expects `check: ok (74 frames)`. On stdio the only frame count that depends on timing is the cancel step's: the tour cancels after the first progress, 0.5 s before the tool's second step ends; a cancel that reaches the server later lets the cancelled call's result through, which the wire drops as the spec allows. Shown deterministically: the 2026 tour through `python3 -m tap --delay c2s:700` exits 0 with `check: ok (75 frames)` and "dropped a late reply to a cancelled request: id 14". Not reproduced under load: 0 of 80 `tour-2026` recordings had another count (load 2.4-7, 40 of them busy). The same step is in the 2025 tour and the SDK tours, so lessons 02 and 05 can flake the same way. The fixes all change teaching content: a longer cancelled call (`duration`/`steps`) in four tours and their walkthroughs, which only narrows the window; or expected blocks that do not show the count; or a G9 form for alternatives. The `SdkClientTest` setup flake (A45) was not reproduced: 60 of 60 of its recordings (15 sets of four) passed busy (load 5-7); since Stage A a failure would show the client's stderr (C1) | none |
+| P8-FL-6 | minor | found, fixed. `manual --url` aborted with exit 134, "could not acquire lock for <_io.BufferedWriter name='<stdout>'> at interpreter shutdown, possibly due to daemon threads": a daemon thread reading a response was still printing when `main` returned. `HttpSession.close` now joins the response readers (up to its grace) after hanging them up. Seen in 1 of 20 runs of the C200 test and 1 of 60 block 11 runs before; 0 of 20 and 0 of 60 after | `fcb87df`; `tests/test_client_http.py::HttpStreamTest::test_close_waits_for_the_receivers` (C205) |
+
+`tap/http.py` is unchanged: no flake was in the tap, so the phase 7 mutation run on
+`phase-08-mutants-07` needs no re-check for this branch.

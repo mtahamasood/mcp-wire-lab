@@ -160,6 +160,10 @@ Run the same command without the redirect and read every note against your predi
 - `client/http_wire.py`, `HttpWire._write`: a message the wire writes is one POST; the response is
   read on a new thread, so a long stream never blocks the next send. That is the whole difference
   from lesson 02's `Wire`: classification, ids and the pending table are `client/wire.py`, untouched.
+  One rule follows from it: separate POSTs are separate connections, and nothing makes the server
+  take them in the order they were sent. So after a notification or a reply, which is answered at
+  once (`202`, or an error status), the next POST waits for that answer; without the wait, `ping`
+  could reach the server before `initialized`.
 - `HttpWire._receive` and `_refused`: `202` has nothing to read; `200` is a JSON body or a stream
   whose events each go to the same line handler as a pipe's lines; any other status fails the
   request at once (or, if the body is a JSON-RPC error with an id, is that request's error).
