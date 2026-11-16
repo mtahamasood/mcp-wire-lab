@@ -29,13 +29,19 @@ INIT_RESULT = {"protocolVersion": "2025-11-25", "capabilities": {},
 
 
 class Fake:
-    """A loopback HTTP server whose answers a test scripts; `log` holds every request."""
+    """A loopback HTTP server whose answers a test scripts; `log` holds every request.
+
+    `log` is in the order the handler threads read the requests; `ordered()` is in the order
+    the connections were accepted, which is the client's write order (one POST per connection,
+    each sent in full before the next opens; P8-FL-2).
+    """
 
     def __init__(self, script: Script, *, sequential: bool = False) -> None:
         self.script = script
         self.log: list[dict[str, Any]] = []
         self.lock = threading.Lock()
         self.events: dict[str, threading.Event] = {}
+        self.accepted: dict[socket.socket, int] = {}
         fake = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -49,6 +55,7 @@ class Fake:
                 body = self.rfile.read(length) if length else b""
                 with fake.lock:
                     fake.log.append({
+                        "conn": fake.accepted[self.connection],
                         "method": self.command, "path": self.path, "body": body,
                         "headers": {k.lower(): v for k, v in self.headers.items()},
                     })
@@ -57,7 +64,15 @@ class Fake:
             do_GET = do_POST = do_DELETE = serve
 
         base = http.server.HTTPServer if sequential else http.server.ThreadingHTTPServer
-        self.server = base(("127.0.0.1", 0), Handler)
+
+        class Server(base):  # type: ignore[valid-type,misc]
+            def process_request(self, request: Any, client_address: Any) -> None:
+                # The accepting thread numbers each connection before its handler starts.
+                with fake.lock:
+                    fake.accepted[request] = len(fake.accepted)
+                super().process_request(request, client_address)
+
+        self.server = Server(("127.0.0.1", 0), Handler)
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}/mcp"
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
@@ -78,11 +93,15 @@ class Fake:
             time.sleep(0.02)
         return False
 
-    def posted(self) -> list[dict[str, Any]]:
-        """The JSON bodies of the POSTs, in arrival order."""
+    def ordered(self) -> list[dict[str, Any]]:
+        """The log in connection order (stable within one connection)."""
         with self.lock:
-            return [{**json.loads(e["body"]), "_headers": e["headers"]}
-                    for e in self.log if e["method"] == "POST" and e["body"]]
+            return sorted(self.log, key=lambda e: e["conn"])
+
+    def posted(self) -> list[dict[str, Any]]:
+        """The JSON bodies of the POSTs, in the client's write order."""
+        return [{**json.loads(e["body"]), "_headers": e["headers"]}
+                for e in self.ordered() if e["method"] == "POST" and e["body"]]
 
 
 def reply_json(h: http.server.BaseHTTPRequestHandler, status: int, body: bytes,
@@ -173,6 +192,35 @@ class Case(unittest.TestCase):
         wire = HttpWire(fake.url, report=reports.append, **kwargs)
         self.addCleanup(wire.close_connections)
         return wire, reports
+
+
+class FakeOrderTest(Case):
+    def test_log_follows_connection_order(self) -> None:
+        # C202 (P8-FL-2): the client opens one connection per POST and sends each in full before
+        # opening the next, so its write order is the order the fake accepts connections in. The
+        # handler threads read the bodies in any order; the log must not follow them. Here the
+        # first connection's body is held back until the second's has been read.
+        fake = self.serve(lambda fake, h, body: reply_json(h, 202, b""))
+        port = int(fake.url.split(":")[2].split("/")[0])
+
+        def post(body: bytes) -> bytes:
+            return (b"POST /mcp HTTP/1.1\r\nHost: x\r\nContent-Length: %d\r\n\r\n%b"
+                    % (len(body), body))
+
+        first = socket.create_connection(("127.0.0.1", port))
+        self.addCleanup(first.close)
+        whole = post(b'{"n":1}')
+        first.sendall(whole[:-3])
+        time.sleep(0.2)  # the fake has accepted the first connection
+        second = socket.create_connection(("127.0.0.1", port))
+        self.addCleanup(second.close)
+        second.sendall(post(b'{"n":2}'))
+        self.assertTrue(fake.wait_for(lambda e: e["body"] == b'{"n":2}'))
+        first.sendall(whole[-3:])
+        self.assertTrue(fake.wait_for(lambda e: e["body"] == b'{"n":1}'))
+        for sock in (first, second):
+            sock.recv(1024)  # the 202, so neither connection closes with unread data
+        self.assertEqual([m["n"] for m in fake.posted()], [1, 2])
 
 
 class HttpWireTest(Case):
@@ -360,6 +408,33 @@ class HttpWireTest(Case):
                          [f"notifications/n{n}" for n in range(8)])
 
 
+    def test_next_post_waits_for_a_notifications_202(self) -> None:
+        # C203 (P8-FL-3): separate POSTs are separate connections, and nothing orders them at
+        # the server; the client knows a notification was taken only from its `202`. So the
+        # next POST waits for it, and `ping` cannot overtake `initialized`. The fake holds the
+        # `202` back; at that moment it must have seen no later POST.
+        seen_at_202: list[int] = []
+
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            if body and json.loads(body).get("method") == "notifications/initialized":
+                time.sleep(0.3)
+                with fake.lock:
+                    seen_at_202.append(len(fake.log))
+                reply_json(h, 202, b"")
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        session, _ = self.session(fake)
+        session.initialize()
+        self.assertEqual(session.request("ping"), {})
+        deadline = time.monotonic() + 5
+        while not seen_at_202 and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertEqual(seen_at_202, [2])  # initialize and initialized only
+        self.assertEqual([m["method"] for m in fake.posted()],
+                         ["initialize", "notifications/initialized", "ping"])
+
     def test_reply_to_server_request_while_its_stream_is_open(self) -> None:
         stream_open_at_reply: list[bool] = []
 
@@ -475,6 +550,34 @@ class HttpStreamTest(Case):
             session.wire.request("ping")
         self.assertEqual(session.close(), 200)  # safe twice
 
+    def test_close_waits_for_the_receivers(self) -> None:
+        # C205 (P8-FL-6): a receiver thread still printing what it read when the program exits
+        # aborted the interpreter (exit 134, "could not acquire lock for <stdout> at interpreter
+        # shutdown"). Here a receiver is held inside the observer while the session closes.
+        entered, finished = threading.Event(), threading.Event()
+
+        def observer(arrow: str, message: Any) -> None:
+            if arrow == "<-" and isinstance(message, dict) and message.get("method") == "note":
+                entered.set()
+                time.sleep(0.5)
+                finished.set()
+
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            if body and json.loads(body).get("method") == "slow":
+                stream_head(h)
+                piece(h, event({"jsonrpc": "2.0", "method": "note"}))
+                hung_up(h)
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        session, _ = self.session(fake, observer=observer)
+        session.initialize()
+        session.start_request("slow")
+        self.assertTrue(entered.wait(5))
+        session.close()
+        self.assertTrue(finished.is_set(), "close returned while a receiver was still running")
+
     def test_unanswered_delete_is_bounded(self) -> None:
         """P8-R7-5: a DELETE the server never answers ends `close` after the grace, not never."""
         def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
@@ -537,13 +640,33 @@ class HttpModesTest(Case):
         status = manual.run_manual([], [typed, junk], out, settle=0.5, report=reports.append,
                                    url=fake.url)
         self.assertEqual(status, 0)
-        with fake.lock:
-            bodies = [e["body"].decode() for e in fake.log if e["method"] == "POST"]
+        bodies = [e["body"].decode() for e in fake.ordered() if e["method"] == "POST"]
         self.assertEqual(bodies[2:4], [typed, junk])  # after initialize and initialized
         self.assertIn(f"-> {junk}", out.getvalue())
         refusal = [r for r in reports if "HTTP 400" in r]
         self.assertEqual(len(refusal), 1, reports)
         self.assertIn("Bad Request: junk", refusal[0])
+
+    def test_manual_reports_a_late_refusal_before_closing(self) -> None:
+        # C204 (P8-FL-4): lesson 07's junk-line block. The junk line is the last one, so
+        # nothing is awaited; the refusal must still be read and reported before the session
+        # closes, however late it comes.
+        junk = '{"jsonrpc":"2.0","id":9,"method":"ping"'
+
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            if body.decode() == junk:
+                time.sleep(0.3)
+                reply_json(h, 400, b'{"jsonrpc":"2.0","error":{"code":-32700,'
+                                   b'"message":"Parse error"},"id":null}')
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        reports: list[str] = []
+        status = manual.run_manual([], [junk, ":quit"], io.StringIO(), settle=0.5,
+                                   report=reports.append, url=fake.url)
+        self.assertEqual(status, 0)
+        self.assertEqual(len([r for r in reports if "POST failed: HTTP 400" in r]), 1, reports)
 
     def test_url_and_command_are_exclusive(self) -> None:
         url = "http://127.0.0.1:9/mcp"
