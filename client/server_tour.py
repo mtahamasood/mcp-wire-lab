@@ -82,6 +82,18 @@ class ServerTour:
         text: str = result["content"][0]["text"]
         return text
 
+    def wait_note(self, method: str, count: int) -> None:
+        """Wait (up to SETTLE) until `count` notifications of `method` have arrived in all.
+
+        A notification the server sends outside a request goes on the standalone GET stream over
+        Streamable HTTP, a separate connection from the tool's result, so it can arrive after
+        the result (P8-FL-1). On stdio it has already arrived and this returns at once.
+
+        `spec:docs/specification/2025-11-25/basic/transports.mdx:145`
+        "These messages **SHOULD** be unrelated to any concurrently-running JSON-RPC"
+        """
+        self.handlers.wait_count(method, count, SETTLE)
+
     def settle(self, what: str) -> None:
         self.expect(self.handlers.wait_idle(SETTLE), f"{what}: the client did not go idle")
 
@@ -179,6 +191,7 @@ class ServerTour:
             note = f"notifications/{kind}/list_changed"
             before, relisted = self.seen(note), self.handlers.relists.count(kind)
             self.tool("trigger-list-changed", {"list": kind})
+            self.wait_note(note, before + 1)
             self.settle(f"{kind} list_changed")
             self.expect(self.seen(note) == before + 1, f"no {note}")
             self.expect(self.handlers.relists.count(kind) == relisted + 1, f"{kind} not re-listed")
@@ -195,6 +208,7 @@ class ServerTour:
         self.step("resources/subscribe", "{}")
         before = self.seen("notifications/resources/updated")
         self.tool("trigger-resource-update", {"uri": STATIC_DOC})
+        self.wait_note("notifications/resources/updated", before + 1)
         self.settle("resources/updated")
         self.expect(self.seen("notifications/resources/updated") == before + 1, "no update")
         self.expect(self.handlers.rereads == [STATIC_DOC], "the resource was not re-read")

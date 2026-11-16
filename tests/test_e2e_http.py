@@ -532,6 +532,30 @@ class SdkServerTourHttpTest(unittest.TestCase):
         self.assertEqual(requests[-1]["method"], "DELETE")
 
 
+class RecordHttpStderrTest(unittest.TestCase):
+    """C200 (phase 8, P8-FL-1): over HTTP the client's stderr lines stay in the run's stderr.txt.
+
+    The tap (and the server it starts) and the client share the run's stderr.txt. If the tap's
+    descriptor is not opened for appending, every later server line is written at the tap's own
+    offset, over the client's lines, and a failed run's report shows only the server.
+    """
+
+    def test_client_lines_survive_later_server_lines(self) -> None:
+        # A junk line makes the client report the server's 400 on stderr; the two lines after it
+        # make the server write more lines to the same file.
+        typed = "{not json at all\n" '{"jsonrpc":"2.0","id":1,"method":"ping"}\n:req tools/list\n'
+        done = subprocess.run(["scripts/record.sh", "--http", "--client", "manual",
+                               "test-http-stderr"], cwd=ROOT, input=typed, capture_output=True,
+                              text=True, timeout=TIMEOUT)
+        self.assertEqual(done.returncode, 0, failure_report(done))
+        self.assertIn("client: POST failed: HTTP 400", done.stderr)
+        recorded = [ln for ln in done.stdout.splitlines() if ln.startswith("recorded: ")]
+        kept = (run_dir(recorded[0]) / "stderr.txt").read_text()
+        self.assertIn("client: POST failed: HTTP 400", kept)
+        self.assertIn("client: dropped a reply with an unknown id: id 1", kept)
+        self.assertIn("Server shutdown complete", kept)
+
+
 class RecordHttpRefusalsTest(unittest.TestCase):
     """The modes `record.sh --http` refuses, and why (usage errors: nothing is started)."""
 

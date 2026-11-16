@@ -115,9 +115,11 @@ case "$run_as" in
     # to the server's environment) and listens on a free loopback port; the client posts to the tap.
     ln -s "$(command -v python3)" "$dir/bin/python3"
     port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+    # The tap and the client share stderr.txt, so both append: a descriptor opened with `>`
+    # writes at its own offset, and each later server line overwrote the client's (P8-FL-1).
     env -i "PATH=$dir/bin:/usr/bin:/bin" "HOME=$dir/home" LANG=C.UTF-8 MCP_WIRE_LAB=1 \
       python3 -m tap --trace "$dir/trace.jsonl" --http "$port" -- node "$server" streamableHttp \
-      2> "$dir/stderr.txt" > /dev/null &
+      2>> "$dir/stderr.txt" > /dev/null &
     tap_pid=$!
     ready=0
     for _ in $(seq 1 400); do
