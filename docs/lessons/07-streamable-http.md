@@ -226,13 +226,13 @@ same messages sent
 **3. The SDK client's GET opens late.** `scripts/record.sh --http --client sdk-tour` runs the SDK
 client's tour through the SDK's `StreamableHTTPClientTransport` instead of the raw client. The SDK
 opens its GET stream after `notifications/initialized`, where the raw client opens it before, and it
-sends the DELETE only because the tour calls `terminateSession()`. Look at the first three requests
-and the last:
+sends the DELETE only because the tour calls `terminateSession()`. Look at the first two requests,
+the first GET and the last (the GET races the tour's next POST, so either may be recorded first):
 
 <!-- run -->
 ```console
 $ scripts/record.sh --http --client sdk-tour lesson07s > /dev/null
-$ python3 -m tap.show "$(ls -dt runs/*-lesson07s | head -1)/trace.jsonl" | grep 'http-request' | sed -E 's/^ *[0-9]+ +[0-9.]+ ms +\.\. +tap http-request #[0-9]+ ([A-Z]+).*/\1/' | sed -n '1,3p;$p'
+$ python3 -m tap.show "$(ls -dt runs/*-lesson07s | head -1)/trace.jsonl" | grep 'http-request' | sed -E 's/^ *[0-9]+ +[0-9.]+ ms +\.\. +tap http-request #[0-9]+ ([A-Z]+).*/\1/' | awk 'NR <= 2 || ($0 == "GET" && !g++) { print } { last = $0 } END { print last }'
 ```
 
 <!-- expect -->
