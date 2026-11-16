@@ -8,10 +8,14 @@ Usage: python3 tools/check_lessons.py [--min-lessons N] [repo-root]
 
 from __future__ import annotations
 
+import os
 import re
+import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+from typing import IO
 
 SECTIONS = (
     "Goal",
@@ -79,27 +83,53 @@ def check_sections(label: str, text: str) -> list[str]:
     return errors
 
 
+def _capture() -> IO[str]:
+    return tempfile.TemporaryFile("w+", encoding="utf-8", errors="replace")
+
+
+def run_block(script: str, root: Path) -> tuple[int | None, str]:
+    """Run one block with `bash -eo pipefail` in its own session, and kill that session's whole
+    process group when the block ends, however it ends. A block that starts a tap or a server
+    with `&` and fails (or times out) before its `kill` leaves nothing running, and a background
+    child holding the block's output open cannot keep the check waiting. Returns the exit code
+    (None for a timeout) and what the block printed, stdout then stderr."""
+    with _capture() as out, _capture() as err:
+        proc = subprocess.Popen(
+            ["bash", "-eo", "pipefail", "-c", script],
+            cwd=root,
+            stdout=out,
+            stderr=err,
+            start_new_session=True,
+        )
+        try:
+            code: int | None = proc.wait(timeout=TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            code = None
+        finally:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)  # the group id is the pid: new session
+            except ProcessLookupError:
+                pass  # nothing of the block is left
+            proc.wait()
+        out.seek(0)
+        err.seek(0)
+        return code, out.read() + err.read()
+
+
 def check_blocks(root: Path, label: str, text: str) -> list[str]:
     errors: list[str] = []
     for n, m in enumerate(BLOCK.finditer(text), start=1):
         script = _script(m.group("cmd"))
         where = f"{label}: runnable block {n}"
-        try:
-            done = subprocess.run(
-                ["bash", "-eo", "pipefail", "-c", script],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                timeout=TIMEOUT_S,
-            )
-        except subprocess.TimeoutExpired:
+        code, printed = run_block(script, root)
+        if code is None:
             errors.append(f"{where}: timed out after {TIMEOUT_S}s")
             continue
-        if done.returncode != 0:
-            errors.append(f"{where}: exited {done.returncode}: {script.splitlines()[0]}")
+        if code != 0:
+            errors.append(f"{where}: exited {code}: {script.splitlines()[0]}")
             continue
         expect = m.group("expect")
-        if expect is not None and _normalize(expect) not in _normalize(done.stdout + done.stderr):
+        if expect is not None and _normalize(expect) not in _normalize(printed):
             errors.append(f"{where}: expected output not found: {_normalize(expect)[:60]!r}")
     return errors
 
