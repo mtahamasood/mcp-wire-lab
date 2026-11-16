@@ -11,16 +11,20 @@ import { Steps, TourFailure } from "../src/steps.ts";
 
 test("ListenTag reads the id from the listen request on its way to the transport, and passes it on", async () => {
   const sent: unknown[] = [];
+  const options: unknown[] = [];
   const transport = {
     marker: "kept",
-    async send(this: { marker: string }, message: unknown) {
+    async send(this: { marker: string }, message: unknown, extra?: unknown) {
       assert.equal(this.marker, "kept", "send keeps its transport as `this`");
       sent.push(message);
+      options.push(extra);
     },
   };
   const tag = new ListenTag();
   assert.equal(tag.watch(transport as never), transport);
-  await transport.send({ method: "tools/list", id: 1 });
+  const extra = { relatedRequestId: 1 };
+  await (transport.send as (m: unknown, o?: unknown) => Promise<void>)({ method: "tools/list", id: 1 }, extra);
+  assert.equal(options[0], extra, "the transport's second argument is passed on");
   assert.equal(tag.id, undefined, "another request is not the listen request");
   await transport.send({ method: "subscriptions/listen", id: "listen:7", params: {} });
   await transport.send({ method: "subscriptions/listen", id: "listen:8", params: {} });
@@ -36,6 +40,7 @@ test("a notification is tagged with the listen id only if its subscription id is
   assert.match(tag.mismatch("listen:1") ?? "", /"listen:1".*listen:0/);
   assert.match(tag.mismatch(undefined) ?? "", /no listen id/);
   assert.match(tag.mismatch(0) ?? "", /listen:0/);
+  assert.match(tag.mismatch(["listen:0"]) ?? "", /\["listen:0"\].*listen:0/, "a list that prints as the id is not the id");
   assert.equal(tagOf({ _meta: { [SUBSCRIPTION_ID_META_KEY]: "listen:0" } }), "listen:0");
   assert.equal(tagOf({ _meta: {} }), undefined);
   assert.equal(tagOf(undefined), undefined);

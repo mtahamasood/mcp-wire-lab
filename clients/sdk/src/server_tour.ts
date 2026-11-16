@@ -20,7 +20,7 @@ const RESYNC: readonly ListKind[] = ["tools", "prompts", "resources"]; // every 
 const NOTE = "notifications/message";
 const ELICIT = "elicitation/create";
 
-class ServerTour {
+export class ServerTour {
   readonly steps: Steps;
   readonly lab: Lab;
   readonly client: Client;

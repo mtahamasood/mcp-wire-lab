@@ -463,6 +463,20 @@ class ListenTest(unittest.TestCase):
                 [m for m in received(log) if m.get("method") == "notifications/cancelled"], [],
                 "the request is already answered: nothing to cancel")
 
+    def test_listen_answered_with_a_result_and_no_acknowledgment_is_an_error_at_once(self) -> None:
+        # The response to subscriptions/listen only marks a graceful end, and an acknowledgment
+        # always comes first: a result before one is a server fault, named as such at once,
+        # not a wait for an acknowledgment that cannot come.
+        with server("--listen-result") as (sess, log, _):
+            started = time.monotonic()
+            with self.assertRaises(RuntimeError) as caught:
+                sess.listen({"toolsListChanged": True}, timeout=5.0)
+            self.assertIn("answered before its acknowledgment", str(caught.exception))
+            self.assertLess(time.monotonic() - started, 2.0, "not the 5 s wait for an ack")
+            self.assertEqual(
+                [m for m in received(log) if m.get("method") == "notifications/cancelled"], [],
+                "the request is already answered: nothing to cancel")
+
     def test_close_sends_cancelled_with_listen_id(self) -> None:
         with server("--late") as (sess, log, reports):
             sub = sess.listen({"toolsListChanged": True})

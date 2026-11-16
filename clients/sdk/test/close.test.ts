@@ -6,9 +6,12 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
-import { buildLab } from "../src/client.ts";
-import { runServerTour } from "../src/server_tour.ts";
-import { runTour } from "../src/tour.ts";
+import { Client } from "@modelcontextprotocol/client";
+import { CLOSE_WAIT, buildLab } from "../src/client.ts";
+import type { Lab } from "../src/client.ts";
+import { ModernTour, runModernTour } from "../src/era.ts";
+import { ServerTour, runServerTour } from "../src/server_tour.ts";
+import { Tour, runTour } from "../src/tour.ts";
 
 type Delete = "ok" | "500" | "never";
 
@@ -107,5 +110,84 @@ test("tour over --url with a DELETE answered 200 still ends with the close step"
   mode = "ok";
   const out: string[] = [];
   await runTour(["unused"], (line) => out.push(line), () => {}, [], url, WAIT);
+  assert.match(out[out.length - 1] as string, /\bclose\s+closed$/);
+});
+
+// The rest pins what the close step is wired to, with the tours' own steps stubbed out so that
+// only the close step can fail a run: with a real tour against this fake server, the tour fails
+// first and the run's status 1 would not show whether a failed close alone sets it.
+
+test("the DELETE is given five seconds by default", () => {
+  assert.equal(CLOSE_WAIT, 5000);
+});
+
+test("Lab.close reports an error from closing the client, and the DELETE's error ahead of it", async (t) => {
+  for (const [how, expected] of [["ok", /close broke/], ["500", /Failed to terminate session/]] as const) {
+    mode = how;
+    const lab = buildLab([], () => {}, () => {}, url);
+    await lab.client.connect(lab.transport([]));
+    const real = lab.client.close.bind(lab.client);
+    t.mock.method(lab.client, "close", async () => {
+      await real();
+      throw new Error("close broke");
+    });
+    await assert.rejects(lab.close(WAIT), expected, how);
+  }
+});
+
+test("Lab.close leaves no timer of its wait running", async () => {
+  mode = "ok";
+  const timers = () => process.getActiveResourcesInfo().filter((name) => name === "Timeout").length;
+  const before = timers();
+  const lab = buildLab([], () => {}, () => {}, url);
+  await lab.client.connect(lab.transport([]));
+  await lab.close(60_000);
+  assert.ok(timers() <= before, `${timers()} timers running after close, ${before} before`);
+});
+
+type Stubbed = { run(command: readonly string[]): Promise<void>; lab: Lab };
+for (const [name, cls, run] of [["tour", Tour, runTour], ["server-tour", ServerTour, runServerTour]] as const) {
+  // A run whose only step is the connection, so the close step has a DELETE to send.
+  const connectOnly = async function (this: Stubbed) { await this.lab.client.connect(this.lab.transport([])); };
+
+  test(`${name}: a failed close step alone fails the run, within the wait it was given`, async (t) => {
+    mode = "never";
+    t.mock.method(cls.prototype as unknown as Stubbed, "run", connectOnly);
+    const out: string[] = [];
+    const started = Date.now();
+    const status = await run(["unused"], (line) => out.push(line), () => {}, [], url, WAIT);
+    assert.equal(status, 1);
+    assert.ok(Date.now() - started < 3000, "the wait given is the wait used");
+    assert.match(out[out.length - 1] as string, /FAILED .*no answer to DELETE within 0\.3 s/);
+  });
+
+  test(`${name}: a close that works leaves the run passing, with the close step printed`, async (t) => {
+    mode = "ok";
+    t.mock.method(cls.prototype as unknown as Stubbed, "run", connectOnly);
+    const out: string[] = [];
+    const status = await run(["unused"], (line) => out.push(line), () => {}, [], url, WAIT);
+    assert.equal(status, 0);
+    assert.match(out[out.length - 1] as string, /\bclose\s+closed$/);
+  });
+}
+
+test("the 2026 tour: a close that throws is a failed close step and fails the run", async (t) => {
+  t.mock.method(ModernTour.prototype as unknown as { run(): Promise<void> }, "run", async () => {});
+  t.mock.method(Client.prototype, "close", async () => { throw new Error("close broke"); });
+  const out: string[] = [];
+  const reported: string[] = [];
+  const status = await runModernTour(["unused"], (line) => out.push(line), (line) => reported.push(line), []);
+  assert.equal(status, 1);
+  assert.match(out[out.length - 1] as string, /^\s*\d+\s+FAILED\s+Error: close broke$/);
+  assert.ok(!out.some((line) => /\bclose\s+closed\b/.test(line)), "a failed close is not printed as closed");
+  assert.ok(reported.some((line) => line.startsWith("sdk: close failed at step")), reported.join("\n"));
+});
+
+test("the 2026 tour: a close that works leaves the run passing, with the close step printed", async (t) => {
+  t.mock.method(ModernTour.prototype as unknown as { run(): Promise<void> }, "run", async () => {});
+  t.mock.method(Client.prototype, "close", async () => {});
+  const out: string[] = [];
+  const status = await runModernTour(["unused"], (line) => out.push(line), () => {}, []);
+  assert.equal(status, 0);
   assert.match(out[out.length - 1] as string, /\bclose\s+closed$/);
 });

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import threading
 import time
 import unittest
@@ -26,7 +27,7 @@ class Rig:
         to_server_r, to_server_w = os.pipe()
         from_server_r, from_server_w = os.pipe()
         self.said = os.fdopen(from_server_w, "wb", buffering=0)
-        self.heard = os.fdopen(to_server_r, "rb")
+        self.heard = os.fdopen(to_server_r, "rb", buffering=0)  # unbuffered: select() sees what read() has not taken
         self.client_out = os.fdopen(to_server_w, "wb", buffering=0)
         self.client_in = os.fdopen(from_server_r, "rb")
         self.reports: list[str] = []
@@ -46,7 +47,9 @@ class Rig:
         self.said.write(json.dumps({"jsonrpc": "2.0", **message}).encode() + b"\n")
 
     def read(self) -> dict[str, Any]:
-        """The next line the client wrote (blocks; the tests that call it expect one)."""
+        """The next line the client wrote; fails the test, not the run, if none comes in 5 s."""
+        ready, _, _ = select.select([self.heard], [], [], 5.0)
+        assert ready, "the client wrote nothing within 5 s"
         line = self.heard.readline()
         assert line, "the client wrote nothing"
         message: dict[str, Any] = json.loads(line)

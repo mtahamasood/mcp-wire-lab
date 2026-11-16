@@ -14,7 +14,7 @@ const CANCEL_REASON = "the tour cancels after the first progress";
 
 type Progress = { progress: number; total?: number; message?: string };
 
-class Tour {
+export class Tour {
   readonly steps: Steps;
   readonly lab: Lab;
   readonly client: Client;

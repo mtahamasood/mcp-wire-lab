@@ -25,7 +25,8 @@ receives to LOG so a test can check exactly what the client sent. Methods:
 
 --discover-data replaces the `data` of the --discover-error reply (a JSON text; default
 {"supported": ["2025-11-25"]}); --listen-error answers every subscriptions/listen with that
-JSON-RPC error code instead of an acknowledgment.
+JSON-RPC error code instead of an acknowledgment, and --listen-result answers it with an empty
+result and no acknowledgment at all.
 
 On notifications/cancelled, --late replies to the cancelled request (a late listen response).
 Any other method gets -32601.
@@ -65,6 +66,7 @@ def main() -> int:
     parser.add_argument("--late", action="store_true")
     parser.add_argument("--discover-data", default='{"supported": ["2025-11-25"]}')
     parser.add_argument("--listen-error", type=int, default=None)
+    parser.add_argument("--listen-result", action="store_true")
     args = parser.parse_args()
     held: list[tuple[Any, Any]] = []
     listening: set[Any] = set()
@@ -124,6 +126,8 @@ def main() -> int:
             elif method == "subscriptions/listen" and args.listen_error is not None:
                 send({"jsonrpc": "2.0", "id": msg_id, "error": {
                     "code": args.listen_error, "message": "listen refused"}})
+            elif method == "subscriptions/listen" and args.listen_result:
+                result(msg_id)
             elif method == "subscriptions/listen":
                 listening.add(msg_id)
                 notes = params.get("notifications", {})

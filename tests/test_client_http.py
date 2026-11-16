@@ -306,6 +306,20 @@ class HttpWireTest(Case):
         self.assertIn("not yours", str(caught.exception))
         self.assertLess(time.monotonic() - started, 2.0)
 
+    def test_error_status_to_a_notification_is_reported_whatever_the_body_says(self) -> None:
+        """A notification has no reply, so a body shaped like one belongs to nothing: the refused
+        POST is reported (P8-R7-8's rule, held for a message with no id)."""
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            reply_json(h, 400, json.dumps({"jsonrpc": "2.0", "id": 1, "result": {}}).encode())
+
+        fake = self.serve(script)
+        wire, reports = self.wire(fake)
+        wire.notify("notifications/x")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not any("POST failed" in r for r in reports):
+            time.sleep(0.02)
+        self.assertTrue(any("POST failed: " in r and "400" in r for r in reports), reports)
+
     def test_404_ends_the_session(self) -> None:
         def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
             if not body:
@@ -613,6 +627,18 @@ class Era2026Test(Case):
         self.assertIn("plain ASCII", str(caught.exception))
         self.assertEqual(len(fake.log), before, "nothing was sent")
         self.assertEqual(session.wire._pending, {}, "the refused request left no pending entry")
+
+    def test_a_control_character_in_a_name_is_refused(self) -> None:
+        """The name is a header value, whose plain ASCII is the printable characters: DEL, a line
+        feed and a NUL are refused as a non-ASCII name is (C61's rule, not only past 0x7F)."""
+        fake = self.serve(modern)
+        session = self.modern(fake)
+        before = len(fake.log)
+        for name in ("ec\x7fho", "ec\nho", "ec\x00ho"):
+            with self.assertRaises(ValueError, msg=repr(name)):
+                session.call("tools/call", {"name": name, "arguments": {}})
+        self.assertEqual(len(fake.log), before, "nothing was sent")
+        self.assertEqual(session.wire._pending, {}, "the refused requests left no pending entry")
 
     def test_name_with_edge_whitespace_is_refused(self) -> None:
         """P8-R7-7: leading or trailing space or tab MUST be Base64 (out of scope), so refuse;

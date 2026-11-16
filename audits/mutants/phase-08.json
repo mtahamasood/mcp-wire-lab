@@ -591,7 +591,8 @@
    "old": "responsesLast(handler);",
    "new": "responsesLast((m, e) => current!(m, e));",
    "command": "node --test --test-timeout=15000 clients/sdk/test/order.test.ts",
-   "note": "C3: the wrapper calls whatever the slot holds, not the handler it was made for"
+   "note": "C3: the wrapper calls whatever the slot holds, not the handler it was made for",
+   "timeout": 60
   },
   {
    "id": "p8-order-not-configurable",
@@ -725,6 +726,559 @@
    "new": "        if method == \"ping\":\n            return None",
    "command": "python3 -m unittest tests.test_client_handlers",
    "note": "C80: a ping is refused"
+  },
+  {
+   "id": "p8-modern-listen-answered-unread",
+   "file": "client/modern.py",
+   "old": "            answered = pending.done  # read first",
+   "new": "            answered = False  # read first",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C23: the listen request's answer is never looked at, so its error reply is a five-second timeout"
+  },
+  {
+   "id": "p8-modern-listen-cancel-any",
+   "file": "client/modern.py",
+   "old": "        except TimeoutError:\n            self.cancel(pending, \"no acknowledgment\")",
+   "new": "        except Exception:\n            self.cancel(pending, \"no acknowledgment\")",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C23: a listen answered with an error is cancelled as if it had timed out",
+   "equivalent": "Session.cancel sends nothing for a request that already has its reply: wire.abandon returns False for it (client/session.py), so cancelling after the error reply is a call that does nothing"
+  },
+  {
+   "id": "p8-modern-listen-answered-no-raise",
+   "file": "client/modern.py",
+   "old": "                    raise RuntimeError(\n                        \"subscriptions/listen was answered before its acknowledgment\") from None\n",
+   "new": "                    pass\n",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C23: a listen answered with a result and no acknowledgment waits out the timeout, not an error"
+  },
+  {
+   "id": "p8-modern-listen-always-poll",
+   "file": "client/modern.py",
+   "old": "0 if answered else max(0.0, min(left, LISTEN_POLL))",
+   "new": "max(0.0, min(left, LISTEN_POLL))",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C23: an answered listen request still waits one poll interval before its error is raised",
+   "equivalent": "when the request was answered the wait only lasts at most LISTEN_POLL (50 ms) longer before the same TimeoutError is turned into the same RpcError; no result or message differs"
+  },
+  {
+   "id": "p8-modern-listen-left-strict",
+   "file": "client/modern.py",
+   "old": "                if left <= 0:\n                    raise TimeoutError(f\"no {method} on subscription {pending.id!r}",
+   "new": "                if left < 0:\n                    raise TimeoutError(f\"no {method} on subscription {pending.id!r}",
+   "command": "python3 -m unittest tests.test_client_modern",
+   "note": "C23: the deadline is passed only when strictly over",
+   "equivalent": "left is a float from time.monotonic(); at exactly 0 the loop turns once more with a wait of 0 and then raises the same error; no outcome differs"
+  },
+  {
+   "id": "p8-httpwire-delete-unbounded",
+   "file": "client/http_wire.py",
+   "old": "                carrier.conn.sock.settimeout(timeout)  # `_send` cleared it for streams",
+   "new": "                pass  # `_send` cleared it for streams",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C60: the DELETE's answer is waited for with no bound"
+  },
+  {
+   "id": "p8-httpwire-delete-grace-dropped",
+   "file": "client/http_wire.py",
+   "old": "status = self.http.terminate(self.grace)",
+   "new": "status = self.http.terminate()",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C60: close gives the DELETE the default connect timeout, not the session's grace"
+  },
+  {
+   "id": "p8-httpwire-delete-no-report",
+   "file": "client/http_wire.py",
+   "old": "            self._report(f\"no answer to DELETE: {exc}\")\n            return None",
+   "new": "            return None",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C60: an unanswered DELETE is not reported"
+  },
+  {
+   "id": "p8-httpwire-pending-oserror-only",
+   "file": "client/wire.py",
+   "old": "            except Exception:  # OSError, or a refusal raised before anything was sent",
+   "new": "            except OSError:  # OSError, or a refusal raised before anything was sent",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C61: a refused request (ValueError) stays in the pending table"
+  },
+  {
+   "id": "p8-httpwire-pending-kept",
+   "file": "client/wire.py",
+   "old": "                with self._table_lock:\n                    self._pending.pop(key_of(request_id), None)\n                raise",
+   "new": "                raise",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C61: no failed write removes its request from the pending table"
+  },
+  {
+   "id": "p8-httpwire-name-edge-off",
+   "file": "client/http_wire.py",
+   "old": " or name != name.strip(\" \\t\"):",
+   "new": ":",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C62: a name with a leading or trailing space or tab is sent"
+  },
+  {
+   "id": "p8-httpwire-name-edge-space-only",
+   "file": "client/http_wire.py",
+   "old": "name != name.strip(\" \\t\")",
+   "new": "name != name.strip(\" \")",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C62: a leading or trailing tab is sent",
+   "equivalent": "a tab is below 0x20, so the first test of the same condition already refuses a name that holds one anywhere; the tab in the strip set only repeats it"
+  },
+  {
+   "id": "p8-httpwire-name-edge-tab-only",
+   "file": "client/http_wire.py",
+   "old": "name != name.strip(\" \\t\")",
+   "new": "name != name.strip(\"\\t\")",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C62: a leading or trailing space is sent"
+  },
+  {
+   "id": "p8-httpwire-name-edge-lstrip",
+   "file": "client/http_wire.py",
+   "old": "name != name.strip(\" \\t\")",
+   "new": "name != name.rstrip(\" \\t\")",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C62: a leading space or tab is sent"
+  },
+  {
+   "id": "p8-httpwire-name-edge-rstrip",
+   "file": "client/http_wire.py",
+   "old": "name != name.strip(\" \\t\")",
+   "new": "name != name.lstrip(\" \\t\")",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C62: a trailing space or tab is sent"
+  },
+  {
+   "id": "p8-httpwire-name-inner-space",
+   "file": "client/http_wire.py",
+   "old": "0x20 <= ord(c) < 0x7F",
+   "new": "0x21 <= ord(c) < 0x7F",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C62: a space inside a name is refused"
+  },
+  {
+   "id": "p8-httpwire-name-del",
+   "file": "client/http_wire.py",
+   "old": "0x20 <= ord(c) < 0x7F",
+   "new": "0x20 <= ord(c) <= 0x7F",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C62: the DEL character is allowed in a name"
+  },
+  {
+   "id": "p8-httpwire-name-refusal-silent",
+   "file": "client/http_wire.py",
+   "old": "                if not all(0x20 <= ord(c) < 0x7F for c in name) or name != name.strip(\" \\t\"):\n                    raise ValueError(",
+   "new": "                if False:\n                    raise ValueError(",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C62: no name is refused"
+  },
+  {
+   "id": "p8-httpwire-status-any-id",
+   "file": "client/http_wire.py",
+   "old": "\n                and key_of(decoded[\"id\"]) == key_of(message[\"id\"])):",
+   "new": "):",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C63: a JSON-RPC body with another id is taken as the request's reply"
+  },
+  {
+   "id": "p8-httpwire-status-null-id",
+   "file": "client/http_wire.py",
+   "old": "                and decoded.get(\"id\") is not None\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C63: a reply with a null id may be the request's",
+   "equivalent": "key_of(None) never equals the key of the posted request's id (a request id is a string or a number), so the next condition refuses a null id anyway"
+  },
+  {
+   "id": "p8-httpwire-status-not-request-kind",
+   "file": "client/http_wire.py",
+   "old": "        if (kind == \"request\" and classify(decoded) == \"response\"",
+   "new": "        if (classify(decoded) == \"response\"",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C63: a refused notification with a JSON-RPC body reads the posted message's id"
+  },
+  {
+   "id": "p8-httpwire-status-never-reply",
+   "file": "client/http_wire.py",
+   "old": "        if (kind == \"request\" and classify(decoded) == \"response\"",
+   "new": "        if (False and classify(decoded) == \"response\"",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C63: a reply body under an error status is never taken as the reply"
+  },
+  {
+   "id": "p8-httpwire-version-not-kept",
+   "file": "client/http_wire.py",
+   "old": "            self.protocol_version = version if isinstance(version, str) else None",
+   "new": "            self.protocol_version = None",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C64: the negotiated version is not remembered"
+  },
+  {
+   "id": "p8-httpwire-version-not-sent",
+   "file": "client/http_wire.py",
+   "old": "            if self.protocol_version is not None:\n                headers[\"MCP-Protocol-Version\"] = self.protocol_version\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C64: no request after initialize carries the version header"
+  },
+  {
+   "id": "p8-httpwire-version-reset",
+   "file": "client/http_wire.py",
+   "old": "              and self.protocol_version is None and key_of(message[\"id\"]) == self._init_key",
+   "new": "              and key_of(message[\"id\"]) == self._init_key",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C64: a later reply to the init id sets the version again",
+   "equivalent": "the only response under the initialize id is the initialize reply, which is read once; a second copy of it would carry the same version"
+  },
+  {
+   "id": "p8-httpwire-get-accept-json",
+   "file": "client/http_wire.py",
+   "old": "extra={\"Accept\": EVENT_STREAM}",
+   "new": "extra={\"Accept\": \"application/json\"}",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C65: the GET stream asks for JSON"
+  },
+  {
+   "id": "p8-httpwire-get-accept-none",
+   "file": "client/http_wire.py",
+   "old": "self._headers(session=True, extra={\"Accept\": EVENT_STREAM})",
+   "new": "self._headers(session=True, extra={})",
+   "command": "python3 -m unittest tests.test_client_http.Era2026Test tests.test_client_http.HttpWireTest tests.test_client_http.HttpStreamTest",
+   "note": "C65: the GET stream sends no Accept header"
+  },
+  {
+   "id": "p8-close-delete-unbounded",
+   "file": "clients/sdk/src/client.ts",
+   "old": "await within(http.terminateSession(), wait, \"no answer to DELETE\")",
+   "new": "await http.terminateSession()",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: the wait for the DELETE has no bound"
+  },
+  {
+   "id": "p8-close-problem-lost",
+   "file": "clients/sdk/src/client.ts",
+   "old": "      } catch (error) {\n        problem = error;\n      }",
+   "new": "      } catch (error) {\n        void error;\n      }",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: a failed DELETE is not reported"
+  },
+  {
+   "id": "p8-close-client-skipped",
+   "file": "clients/sdk/src/client.ts",
+   "old": "      try {\n        if (http?.sessionId !== undefined) await within(http.terminateSession(), wait, \"no answer to DELETE\");\n      } catch (error) {\n        problem = error;\n      }\n",
+   "new": "      if (http?.sessionId !== undefined) await within(http.terminateSession(), wait, \"no answer to DELETE\");\n",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: a failed DELETE leaves the SDK client unclosed"
+  },
+  {
+   "id": "p8-close-client-error-wins",
+   "file": "clients/sdk/src/client.ts",
+   "old": "problem ??= error;",
+   "new": "problem = error;",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: an error from client.close replaces the DELETE's"
+  },
+  {
+   "id": "p8-close-client-error-lost",
+   "file": "clients/sdk/src/client.ts",
+   "old": "problem ??= error;",
+   "new": "void error;",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: an error from client.close is not reported"
+  },
+  {
+   "id": "p8-close-problem-not-thrown",
+   "file": "clients/sdk/src/client.ts",
+   "old": "if (problem !== undefined) throw problem;",
+   "new": "",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: Lab.close never throws"
+  },
+  {
+   "id": "p8-close-session-always",
+   "file": "clients/sdk/src/client.ts",
+   "old": "if (http?.sessionId !== undefined) await within",
+   "new": "if (http !== undefined) await within",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: the DELETE is sent without a session id",
+   "equivalent": "the SDK's terminateSession returns at once when it has no session id (sdk:client/dist/index.mjs:5837), so a DELETE call for a transport without a session sends nothing, and for stdio there is no transport to call"
+  },
+  {
+   "id": "p8-close-timer-kept",
+   "file": "clients/sdk/src/client.ts",
+   "old": "    clearTimeout(timer);\n",
+   "new": "",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: the wait's timer outlives the call"
+  },
+  {
+   "id": "p8-close-late-failure-unhandled",
+   "file": "clients/sdk/src/client.ts",
+   "old": "  work.catch(() => {}); // a late failure after the timeout is not an unhandled rejection\n",
+   "new": "",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: a DELETE that fails after the wait ended is an unhandled rejection",
+   "equivalent": "Promise.race, in the next try block, subscribes to `work` itself, so a rejection of `work` after the race settled is already handled; the extra catch changes nothing"
+  },
+  {
+   "id": "p8-close-wait-seconds",
+   "file": "clients/sdk/src/client.ts",
+   "old": "${wait / 1000} s",
+   "new": "${wait} s",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: the wait is reported in ms under an s"
+  },
+  {
+   "id": "p8-close-wait-default",
+   "file": "clients/sdk/src/client.ts",
+   "old": "export const CLOSE_WAIT = 5000;",
+   "new": "export const CLOSE_WAIT = 50000;",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: the default wait is fifty seconds"
+  },
+  {
+   "id": "p8-close-step-status",
+   "file": "clients/sdk/src/tour.ts",
+   "old": "if (await closeStep(steps, report, () => lab.close(closeWait))) status = 1;",
+   "new": "await closeStep(steps, report, () => lab.close(closeWait));",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: tour: a failed close step does not make the run fail"
+  },
+  {
+   "id": "p8-close-step-wait-dropped",
+   "file": "clients/sdk/src/tour.ts",
+   "old": "() => lab.close(closeWait)",
+   "new": "() => lab.close()",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: tour: the wait given to it is not passed to Lab.close"
+  },
+  {
+   "id": "p8-close-server-step-status",
+   "file": "clients/sdk/src/server_tour.ts",
+   "old": "if (await closeStep(steps, report, () => lab.close(closeWait))) status = 1;",
+   "new": "await closeStep(steps, report, () => lab.close(closeWait));",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: server-tour: a failed close step does not make the run fail"
+  },
+  {
+   "id": "p8-close-server-step-wait-dropped",
+   "file": "clients/sdk/src/server_tour.ts",
+   "old": "() => lab.close(closeWait)",
+   "new": "() => lab.close()",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: server-tour: the wait given to it is not passed to Lab.close"
+  },
+  {
+   "id": "p8-close-era-step-status",
+   "file": "clients/sdk/src/era.ts",
+   "old": "if (await closeStep(steps, report, () => tour.client.close())) status = 1;",
+   "new": "await closeStep(steps, report, () => tour.client.close());",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: the 2026 tour: a failed close step does not make the run fail"
+  },
+  {
+   "id": "p8-close-era-step-bare",
+   "file": "clients/sdk/src/era.ts",
+   "old": "if (await closeStep(steps, report, () => tour.client.close())) status = 1;",
+   "new": "await tour.client.close();\n  steps.step(\"close\", \"closed\");",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: the 2026 tour: close is the old bare close, a failure is a crash"
+  },
+  {
+   "id": "p8-closestep-returns-false",
+   "file": "clients/sdk/src/steps.ts",
+   "old": "    report(`sdk: close failed at step ${failure.trim()}`);\n    return true;",
+   "new": "    report(`sdk: close failed at step ${failure.trim()}`);\n    return false;",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: closeStep reports a failure and says it passed"
+  },
+  {
+   "id": "p8-closestep-silent",
+   "file": "clients/sdk/src/steps.ts",
+   "old": "    steps.say(failure);\n    report(`sdk: close failed",
+   "new": "    report(`sdk: close failed",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: a failed close prints no FAILED line"
+  },
+  {
+   "id": "p8-closestep-no-report",
+   "file": "clients/sdk/src/steps.ts",
+   "old": "    report(`sdk: close failed at step ${failure.trim()}`);\n",
+   "new": "",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: a failed close is not reported on stderr"
+  },
+  {
+   "id": "p8-closestep-prints-closed",
+   "file": "clients/sdk/src/steps.ts",
+   "old": "    return true;\n  }\n  steps.step(\"close\", \"closed\");",
+   "new": "    return true;\n  } finally {\n    steps.step(\"close\", \"closed\");\n  }\n  steps.step(\"close\", \"closed\");",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/close.test.ts",
+   "note": "C140: a failed close step is also printed as closed"
+  },
+  {
+   "id": "p8-listen-last-wins",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "if (this.id === undefined && message.method",
+   "new": "if (message.method",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: the last listen request, not the first, is the tour's"
+  },
+  {
+   "id": "p8-listen-any-request",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "message.method === \"subscriptions/listen\" && ",
+   "new": "",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: the id of any string-id request is the listen id"
+  },
+  {
+   "id": "p8-listen-number-id",
+   "file": "clients/sdk/src/listen.ts",
+   "old": " && typeof message.id === \"string\") this.id",
+   "new": ") this.id",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: a listen request with a number id is taken",
+   "equivalent": "the SDK puts a string id, `listen:<n>`, on every listen request (sdk:client/dist/index.mjs:3987), so a number id never reaches the check; and the mutant does not type-check (an unknown id assigned to a string), which G3 refuses"
+  },
+  {
+   "id": "p8-listen-this-lost",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "return forward.call(transport, message, options);",
+   "new": "return forward(message, options);",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: send loses its transport"
+  },
+  {
+   "id": "p8-listen-options-dropped",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "return forward.call(transport, message, options);",
+   "new": "return forward.call(transport, message);",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: send loses the transport's second argument"
+  },
+  {
+   "id": "p8-listen-nothing-sent",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "return forward.call(transport, message, options);",
+   "new": "return Promise.resolve();",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: the wrapped send sends nothing"
+  },
+  {
+   "id": "p8-listen-returns-copy",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "    return transport;\n  }\n\n  /** Why",
+   "new": "    return { ...transport };\n  }\n\n  /** Why",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: watch returns a copy of the transport"
+  },
+  {
+   "id": "p8-listen-mismatch-unseen",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "    if (this.id === undefined) return \"no subscriptions/listen request was seen on the transport\";\n",
+   "new": "",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: a notification is tagged right when no listen request was seen and it has no tag"
+  },
+  {
+   "id": "p8-listen-mismatch-loose",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "if (tag === this.id) return undefined;",
+   "new": "if (tag == this.id) return undefined;",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: a tag is compared loosely, so a list that prints as the id is the id"
+  },
+  {
+   "id": "p8-listen-mismatch-always-ok",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "    if (tag === this.id) return undefined;\n",
+   "new": "    return undefined;\n",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: any tag is the listen id"
+  },
+  {
+   "id": "p8-listen-mismatch-never-ok",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "if (tag === this.id) return undefined;",
+   "new": "if (false) return undefined;",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: no tag is ever the listen id"
+  },
+  {
+   "id": "p8-listen-tagof-key",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "?.[SUBSCRIPTION_ID_META_KEY]",
+   "new": "?.[\"subscriptionId\"]",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: a tag is read under another _meta key"
+  },
+  {
+   "id": "p8-listen-tagof-params",
+   "file": "clients/sdk/src/listen.ts",
+   "old": "(params?._meta as Meta | undefined)",
+   "new": "(params as Meta | undefined)",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: a tag is read from the params, not params._meta"
+  },
+  {
+   "id": "p8-era-watch-dropped",
+   "file": "clients/sdk/src/era.ts",
+   "old": "this.listenTag.watch(inWireOrder(url === undefined\n      ? new InPlaceStdioTransport({ command: command[0] as string, args: command.slice(1) })\n      : new StreamableHTTPClientTransport(new URL(url)))))",
+   "new": "inWireOrder(url === undefined\n      ? new InPlaceStdioTransport({ command: command[0] as string, args: command.slice(1) })\n      : new StreamableHTTPClientTransport(new URL(url))))",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: the transport is not watched, so no listen id is ever seen"
+  },
+  {
+   "id": "p8-era-list-change-unchecked",
+   "file": "clients/sdk/src/era.ts",
+   "old": "      this.expectTagged(method);\n",
+   "new": "",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: a list change's tag is not checked"
+  },
+  {
+   "id": "p8-era-resource-update-unchecked",
+   "file": "clients/sdk/src/era.ts",
+   "old": "    this.expectTagged(\"notifications/resources/updated\");\n",
+   "new": "",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: a resource update's tag is not checked"
+  },
+  {
+   "id": "p8-era-expect-inverted",
+   "file": "clients/sdk/src/era.ts",
+   "old": "this.steps.expect(why === undefined, `${method} ${why}`);",
+   "new": "this.steps.expect(why !== undefined, `${method} ${why}`);",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: the check passes only a wrong tag"
+  },
+  {
+   "id": "p8-era-list-tag-unread",
+   "file": "clients/sdk/src/era.ts",
+   "old": "        this.traffic.mark(method);\n        this.tag = tagOf(note.params);",
+   "new": "        this.traffic.mark(method);",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: a list change's tag is not read, so the tag checked is the one before it"
+  },
+  {
+   "id": "p8-era-update-tag-unread",
+   "file": "clients/sdk/src/era.ts",
+   "old": "      this.traffic.mark(\"notifications/resources/updated\");\n      this.tag = tagOf(note.params);",
+   "new": "      this.traffic.mark(\"notifications/resources/updated\");",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: a resource update's tag is not read, so the tag checked is the last list change's"
+  },
+  {
+   "id": "p8-era-step-prints-no-id",
+   "file": "clients/sdk/src/era.ts",
+   "old": "`${method} on subscription ${String(this.tag)}`",
+   "new": "`${method} on subscription`",
+   "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
+   "note": "C141: the step line does not print the id"
   }
  ]
 }
