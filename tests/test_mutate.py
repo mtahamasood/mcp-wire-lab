@@ -353,6 +353,81 @@ class MutateTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertRegex(done.stdout, r"\| GRAND \| calc.py \| killed \(timeout\) \|")
 
+    def own_session_child_test(
+        self, name: str, hang: bool, holds_pipe: bool
+    ) -> tuple[dict[str, Any], Path]:
+        """A mutant whose test starts a child in a session of its own (as the tap starts its
+        upstream; one that ignores SIGTERM, and holds the output pipe open if `holds_pipe`)
+        and writes its pid to a file; when mutated (`add` is wrong) the test then hangs."""
+        pidfile = Path(self._tmp.name) / f"{name}.pid"
+        # holding the pipe only when mutated: an unmutated run that left it is a red baseline
+        quiet_out = "subprocess.DEVNULL"
+        held = f"None if add(1, 1) != 2 else {quiet_out}" if holds_pipe else quiet_out
+        quiet = f"stdout={held}, stderr={held}"
+        (self.proj / f"test_{name}.py").write_text(
+            "import os, subprocess, sys, time, unittest\n"
+            "from calc import add\n\n"
+            "class T(unittest.TestCase):\n"
+            "    def test_child(self):\n"
+            "        child = subprocess.Popen(\n"
+            "            [sys.executable, '-c', 'import signal, time; "
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(300)'],\n"
+            f"            start_new_session=True, {quiet})\n"
+            f"        open({str(pidfile)!r}, 'a').write(f'{{child.pid}}\\n')\n"
+            f"        if add(1, 1) != 2 and {hang!r}:\n"
+            "            time.sleep(300)\n"
+            "        self.assertEqual(add(1, 1), 2)\n"
+        )
+        command = f"{sys.executable} -m unittest test_{name}"
+        return self.mutant(name.upper(), command=command), pidfile
+
+    def assert_dead_after(self, pidfile: Path) -> None:
+        pids = [int(x) for x in pidfile.read_text().split()]
+        self.assertEqual(len(pids), 2, "the baseline and the mutant's run each started one")
+
+        def alive(pid: int) -> bool:
+            try:
+                state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+            except OSError:
+                return False
+            return state != "Z"
+
+        def reap(pid: int) -> None:
+            if alive(pid):
+                os.kill(pid, 9)
+
+        for pid in pids:
+            self.addCleanup(reap, pid)
+        deadline = time.monotonic() + 3
+        while any(alive(pid) for pid in pids) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        for pid in pids:
+            self.assertFalse(alive(pid), f"pid {pid}, started by the command, outlived it")
+
+    @unittest.skipUnless(Path("/proc/self/environ").exists(), "needs /proc")
+    def test_a_timeout_kills_a_child_in_a_session_of_its_own(self) -> None:
+        # P8-MU-1: the process group is not all of what a command starts. The tap starts its
+        # upstream in a group of its own; that child must not outlive the mutant's timeout.
+        # The child also holds the command's output open, as a tap's upstream does: the tool
+        # must not wait for it after the timeout.
+        mutant, pidfile = self.own_session_child_test("hang", hang=True, holds_pipe=True)
+        started = time.monotonic()
+        done = self.run_tool([mutant], "--timeout", "2")
+        self.assertLess(time.monotonic() - started, 20)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertRegex(done.stdout, r"\| HANG \| calc.py \| killed \(timeout\) \|")
+        self.assert_dead_after(pidfile)
+
+    @unittest.skipUnless(Path("/proc/self/environ").exists(), "needs /proc")
+    def test_a_child_left_behind_by_a_command_that_ended_is_killed(self) -> None:
+        # P8-MU-1: a command that ends with a child still running leaves it for the next
+        # mutant's run to meet; each run ends with nothing of it alive.
+        mutant, pidfile = self.own_session_child_test("left", hang=False, holds_pipe=False)
+        done = self.run_tool([mutant])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertRegex(done.stdout, r"\| LEFT \| calc.py \| killed \|")
+        self.assert_dead_after(pidfile)
+
 
 if __name__ == "__main__":
     unittest.main()

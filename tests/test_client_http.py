@@ -14,6 +14,7 @@ import time
 import unittest
 from collections.abc import Callable
 from typing import Any
+from unittest import mock
 
 from client import __main__ as client_main
 from client import manual
@@ -435,6 +436,31 @@ class HttpWireTest(Case):
         self.assertEqual([m["method"] for m in fake.posted()],
                          ["initialize", "notifications/initialized", "ping"])
 
+    def test_next_post_waits_for_a_reply_and_a_junk_line_too(self) -> None:
+        # C203: what carries no request is waited for, not only a notification: a reply to the
+        # server's request and a line that is not JSON-RPC at all (manual mode sends it as typed).
+        sends: list[tuple[str, Callable[[HttpWire], None]]] = [
+            ("reply", lambda wire: wire.send_message({"jsonrpc": "2.0", "id": 5, "result": {}})),
+            ("junk", lambda wire: wire.send_line("{not json")),
+        ]
+        for name, send in sends:
+            seen_at_answer: list[int] = []
+
+            def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes,
+                       seen_at_answer: list[int] = seen_at_answer) -> None:
+                if body.startswith(b"{") and b"notifications/x" not in body:
+                    time.sleep(0.3)
+                    with fake.lock:
+                        seen_at_answer.append(len(fake.log))
+                reply_json(h, 202, b"")
+
+            fake = self.serve(script)
+            wire, _ = self.wire(fake)
+            send(wire)
+            wire.notify("notifications/x")
+            self.assertTrue(fake.wait_for(lambda e: b"notifications/x" in e["body"]), name)
+            self.assertEqual(seen_at_answer, [1], f"{name}: the next POST overtook it")
+
     def test_reply_to_server_request_while_its_stream_is_open(self) -> None:
         stream_open_at_reply: list[bool] = []
 
@@ -577,6 +603,49 @@ class HttpStreamTest(Case):
         self.assertTrue(entered.wait(5))
         session.close()
         self.assertTrue(finished.is_set(), "close returned while a receiver was still running")
+
+    def test_join_gives_the_readers_the_timeout_in_all(self) -> None:
+        # C205: `join(timeout)` waits up to `timeout` seconds for all the readers together, and
+        # no longer; two readers that never end cost the timeout once, not twice, not for ever.
+        wire = HttpWire("http://127.0.0.1:9/mcp", report=lambda _text: None)
+        release = threading.Event()
+        self.addCleanup(release.set)
+        readers = [threading.Thread(target=release.wait, args=(10,), daemon=True) for _ in "ab"]
+        for reader in readers:
+            reader.start()
+        wire._receivers.update(readers)
+        started = time.monotonic()
+        wire.join(0.4)
+        took = time.monotonic() - started
+        self.assertGreaterEqual(took, 0.35, "it waited for them")
+        self.assertLess(took, 0.7, "for the timeout in all, not for each of them")
+        # the GET stream's thread is one of the readers
+        wire._receivers.clear()
+        wire._stream_thread = readers[0]
+        started = time.monotonic()
+        wire.join(0.4)
+        self.assertGreaterEqual(time.monotonic() - started, 0.35, "it waited for the stream reader")
+
+    def test_next_post_waits_no_longer_than_the_connect_timeout_for_an_answer(self) -> None:
+        # C203: the wait for a notification's answer is bounded by CONNECT_TIMEOUT; a server that
+        # never answers it cannot hold the client's later messages back for ever.
+        release = threading.Event()
+        self.addCleanup(release.set)
+
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            release.wait(2)
+
+        fake = self.serve(script)
+        wire, _ = self.wire(fake)
+        with mock.patch("client.http_wire.CONNECT_TIMEOUT", 0.4):
+            sender = threading.Thread(target=wire.notify, args=("notifications/x",), daemon=True)
+            started = time.monotonic()
+            sender.start()
+            sender.join(3.0)
+            took = time.monotonic() - started
+        self.addCleanup(wire.close_connections)  # ends the reader a failing run leaves waiting
+        self.assertFalse(sender.is_alive(), "the send is still waiting for the answer")
+        self.assertGreaterEqual(took, 0.35, "it waited for the answer")
 
     def test_unanswered_delete_is_bounded(self) -> None:
         """P8-R7-5: a DELETE the server never answers ends `close` after the grace, not never."""

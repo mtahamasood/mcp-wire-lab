@@ -17,7 +17,9 @@ repo) is copied once into a temp dir, and the real tree is never touched. Each d
 runs once unmutated first; a red baseline stops the run. For each mutant, `old` must occur
 exactly once in `file` (else it is an error, not a kill). The command runs with
 PYTHONDONTWRITEBYTECODE=1 and a clean `runs/`, so one mutant's recordings cannot satisfy another.
-Afterwards the file is restored and compared byte for byte with the original.
+Afterwards the file is restored and compared byte for byte with the original. When a command
+ends, or times out, everything it started is killed, including a child in a group of its own
+(found by an environment tag, on Linux; elsewhere only the command's process group is killed).
 
 A mutant with a non-empty `equivalent` reason is one the report has signed as unable to change
 behaviour. It still runs; if it survives its verdict is `equivalent` (with the reason) and it does
@@ -45,10 +47,12 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
 DEFAULT_TIMEOUT = 300.0
+TAG_VAR = "MUTATE_RUN_TAG"
 USAGE = __doc__ or ""
 
 
@@ -140,9 +144,54 @@ def failing_tests(output: str) -> list[str]:
     return [ln.strip() for ln in output.splitlines() if ln.startswith(("FAIL:", "ERROR:"))]
 
 
+def tagged_pids(tag: str) -> list[int]:
+    """Pids of the live processes started under `tag` (Linux: read from /proc, else none).
+
+    The tag is in the environment the command was given, which every descendant inherits, so
+    this finds a child that is in a group or session of its own, or whose parent has gone.
+    """
+    needle = f"{TAG_VAR}={tag}".encode()
+    try:
+        names = os.listdir("/proc")
+    except OSError:
+        return []
+    found = []
+    for name in names:
+        if not name.isdigit() or int(name) == os.getpid():
+            continue
+        try:
+            with open(f"/proc/{name}/environ", "rb") as f:
+                entries = f.read().split(b"\0")
+        except OSError:
+            continue  # gone, or not ours to read
+        if needle in entries:
+            found.append(int(name))
+    return found
+
+
+def kill_tagged(tag: str) -> None:
+    """SIGKILL everything started under `tag`, until none is left (a dying one may fork)."""
+    for _ in range(10):
+        pids = tagged_pids(tag)
+        if not pids:
+            return
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+        time.sleep(0.02)
+
+
 def run_command(command: str, cwd: Path, timeout: float) -> tuple[int | None, float, list[str]]:
-    """Exit code (None on timeout), seconds, failing tests. The process group dies on timeout."""
-    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    """Exit code (None on timeout), seconds, failing tests.
+
+    Nothing the command started outlives it: on a timeout, and when it has ended, the process
+    group dies and so does every process under the command's tag (a child in a group of its own,
+    like the tap's upstream, is not in the group).
+    """
+    tag = uuid.uuid4().hex
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", TAG_VAR: tag}
     start = time.monotonic()
     proc = subprocess.Popen(
         shlex.split(command),
@@ -160,8 +209,11 @@ def run_command(command: str, cwd: Path, timeout: float) -> tuple[int | None, fl
         code: int | None = proc.returncode
     except subprocess.TimeoutExpired:
         os.killpg(proc.pid, signal.SIGKILL)
+        kill_tagged(tag)  # before communicate(): a child in its own group may hold the pipe
         out, _ = proc.communicate()
         code = None
+    finally:
+        kill_tagged(tag)
     return code, time.monotonic() - start, failing_tests(out or "")
 
 

@@ -28,7 +28,7 @@ class Rig:
         to_server_r, to_server_w = os.pipe()
         from_server_r, from_server_w = os.pipe()
         self.said = os.fdopen(from_server_w, "wb", buffering=0)
-        self.heard = os.fdopen(to_server_r, "rb", buffering=0)  # unbuffered: select() sees what read() has not taken
+        self.heard = os.fdopen(to_server_r, "rb", buffering=0)  # unbuffered, for select()
         self.client_out = os.fdopen(to_server_w, "wb", buffering=0)
         self.client_in = os.fdopen(from_server_r, "rb")
         self.reports: list[str] = []

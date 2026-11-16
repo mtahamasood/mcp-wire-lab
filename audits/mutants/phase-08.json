@@ -1279,6 +1279,159 @@
    "new": "`${method} on subscription`",
    "command": "node --test --test-timeout=15000 clients/sdk/test/listen.test.ts",
    "note": "C141: the step line does not print the id"
+  },
+  {
+   "id": "p8-handlers-mark-after-count",
+   "file": "client/handlers.py",
+   "old": "            if method in LIST_METHODS:\n                self._mark(LIST_METHODS[method])\n            elif method == \"notifications/resources/updated\" and isinstance(params.get(\"uri\"),\n                                                                             str):\n                self._mark(params[\"uri\"])\n            self.counts[method] += 1\n            self._cond.notify_all()\n        self._print(method, params)\n",
+   "new": "            self.counts[method] += 1\n            self._cond.notify_all()\n        self._print(method, params)\n        if method in LIST_METHODS:\n            self._mark(LIST_METHODS[method])\n        elif method == \"notifications/resources/updated\" and isinstance(params.get(\"uri\"),\n                                                                         str):\n            self._mark(params[\"uri\"])\n",
+   "command": "python3 -m unittest tests.test_client_handlers",
+   "note": "C201: the re-request is queued after the count moved and the lock was let go (the pre-fix order)"
+  },
+  {
+   "id": "p8-handlers-mark-list-only",
+   "file": "client/handlers.py",
+   "old": "            elif method == \"notifications/resources/updated\" and isinstance(params.get(\"uri\"),\n                                                                             str):\n                self._mark(params[\"uri\"])\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_handlers tests.test_client_server_tour",
+   "note": "C201: a resource update queues no re-read"
+  },
+  {
+   "id": "p8-handlers-mark-lists-never",
+   "file": "client/handlers.py",
+   "old": "            if method in LIST_METHODS:\n                self._mark(LIST_METHODS[method])\n            elif",
+   "new": "            if False:\n                self._mark(LIST_METHODS[method])\n            elif",
+   "command": "python3 -m unittest tests.test_client_handlers tests.test_client_server_tour",
+   "note": "C201: a list change queues no re-list"
+  },
+  {
+   "id": "p8-servertour-wait-list-dropped",
+   "file": "client/server_tour.py",
+   "old": "            self.wait_note(note, before + 1)\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_server_tour",
+   "note": "C201: the list-change step does not wait for the notification"
+  },
+  {
+   "id": "p8-servertour-wait-update-dropped",
+   "file": "client/server_tour.py",
+   "old": "        self.wait_note(\"notifications/resources/updated\", before + 1)\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_server_tour",
+   "note": "C201: the resource-update step does not wait for the notification"
+  },
+  {
+   "id": "p8-servertour-wait-list-count",
+   "file": "client/server_tour.py",
+   "old": "            self.wait_note(note, before + 1)\n",
+   "new": "            self.wait_note(note, before)\n",
+   "command": "python3 -m unittest tests.test_client_server_tour",
+   "note": "C201: the list-change step waits for a count it already has"
+  },
+  {
+   "id": "p8-servertour-wait-update-count",
+   "file": "client/server_tour.py",
+   "old": "self.wait_note(\"notifications/resources/updated\", before + 1)",
+   "new": "self.wait_note(\"notifications/resources/updated\", before)",
+   "command": "python3 -m unittest tests.test_client_server_tour",
+   "note": "C201: the resource-update step waits for a count it already has"
+  },
+  {
+   "id": "p8-servertour-wait-no-time",
+   "file": "client/server_tour.py",
+   "old": "self.handlers.wait_count(method, count, SETTLE)",
+   "new": "self.handlers.wait_count(method, count, 0)",
+   "command": "python3 -m unittest tests.test_client_server_tour",
+   "note": "C201: the wait for the notification has no time"
+  },
+  {
+   "id": "p8-httpwire-post-no-wait",
+   "file": "client/http_wire.py",
+   "old": "        if kind != \"request\":\n            receiver.join(CONNECT_TIMEOUT)\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C203: the next POST does not wait for a notification's answer"
+  },
+  {
+   "id": "p8-httpwire-post-wait-notifications-only",
+   "file": "client/http_wire.py",
+   "old": "        if kind != \"request\":\n            receiver.join(CONNECT_TIMEOUT)",
+   "new": "        if kind == \"notification\":\n            receiver.join(CONNECT_TIMEOUT)",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C203: only a notification's answer is waited for, not a reply to the server's or a junk line's"
+  },
+  {
+   "id": "p8-httpwire-post-wait-requests",
+   "file": "client/http_wire.py",
+   "old": "        if kind != \"request\":\n            receiver.join(CONNECT_TIMEOUT)",
+   "new": "        if True:\n            receiver.join(CONNECT_TIMEOUT)",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C203: a request's answer is waited for too"
+  },
+  {
+   "id": "p8-httpwire-post-wait-unbounded",
+   "file": "client/http_wire.py",
+   "old": "            receiver.join(CONNECT_TIMEOUT)\n",
+   "new": "            receiver.join()\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C203: the wait for a notification's answer has no bound"
+  },
+  {
+   "id": "p8-httpwire-close-no-join",
+   "file": "client/http_wire.py",
+   "old": "            self.http.join(self.grace)  # no reader is left running (P8-FL-6)\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C205: close does not wait for the threads reading responses"
+  },
+  {
+   "id": "p8-httpwire-join-no-receivers",
+   "file": "client/http_wire.py",
+   "old": "            threads = list(self._receivers)\n",
+   "new": "            threads = []\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C205: join waits for the GET stream only"
+  },
+  {
+   "id": "p8-httpwire-join-no-stream",
+   "file": "client/http_wire.py",
+   "old": "        if self._stream_thread is not None:\n            threads.append(self._stream_thread)\n        for thread in threads:",
+   "new": "        for thread in threads:",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C205: join waits for the POST readers only"
+  },
+  {
+   "id": "p8-httpwire-join-timeout-each",
+   "file": "client/http_wire.py",
+   "old": "thread.join(max(0.0, deadline - time.monotonic()))",
+   "new": "thread.join(timeout)",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C205: each thread gets the whole timeout, not what is left of it"
+  },
+  {
+   "id": "p8-httpwire-join-no-timeout",
+   "file": "client/http_wire.py",
+   "old": "thread.join(max(0.0, deadline - time.monotonic()))",
+   "new": "thread.join()",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C205: join waits for ever"
+  },
+  {
+   "id": "p8-httpwire-receivers-not-added",
+   "file": "client/http_wire.py",
+   "old": "            self._receivers.add(receiver)\n",
+   "new": "            pass\n",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C205: a reader thread is not remembered"
+  },
+  {
+   "id": "p8-httpwire-receivers-not-discarded",
+   "file": "client/http_wire.py",
+   "old": "                self._receivers.discard(threading.current_thread())\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_client_http",
+   "note": "C205: a finished reader thread is still remembered",
+   "equivalent": "a thread that has ended joins at once, so keeping it in the set only holds a reference until the wire is dropped; no outcome differs"
   }
  ]
 }
