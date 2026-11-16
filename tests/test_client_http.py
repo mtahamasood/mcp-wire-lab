@@ -14,12 +14,21 @@ import time
 import unittest
 from collections.abc import Callable
 from typing import Any
+from unittest import mock
 
 from client import __main__ as client_main
-from client import manual
+from client import http_wire, manual
 from client.handlers import Handlers
-from client.http_wire import HttpSession, HttpStatusError, HttpWire, SessionEnded
+from client.http_wire import (
+    Carrier,
+    HttpSession,
+    HttpStatusError,
+    HttpWire,
+    SessionEnded,
+    sse_data,
+)
 from client.modern_http import ModernHttpSession
+from client.session import UnsupportedVersion
 from client.wire import RpcError
 
 Script = Callable[["Fake", http.server.BaseHTTPRequestHandler, bytes], None]
@@ -763,6 +772,540 @@ class Era2026Test(Case):
         with fake.lock:
             methods = [json.loads(e["body"])["method"] for e in fake.log if e["body"]]
         self.assertNotIn("notifications/cancelled", methods)
+
+
+class SilentCarrier:
+    """A stand-in for one HTTP connection: `getresponse` gives a scripted event stream whose
+    reading hangs the carrier up (as `close_connections` does) just before it ends whole."""
+
+    sock = None
+
+    def __init__(self, lines: list[bytes]) -> None:
+        self.lines = list(lines)
+        self.carrier: Any = None
+        self.status = 200
+
+    def getheader(self, name: str) -> str | None:
+        return "text/event-stream" if name.lower() == "content-type" else None
+
+    def readline(self) -> bytes:
+        if self.lines:
+            return self.lines.pop(0)
+        self.carrier.closed = True  # the client hung up as the stream ended: the end is whole
+        return b""
+
+    def getresponse(self) -> SilentCarrier:
+        return self
+
+    def close(self) -> None:
+        pass
+
+
+class HttpWireDetailTest(Case):
+    """Phase 8 D9 (phase 7 C11-C15): the details of the raw client's HTTP transport that the
+    first tests left to the mutation run (rows C181-C189)."""
+
+    def test_a_404_to_a_request_with_no_session_ends_nothing(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            message = json.loads(body) if body else {}
+            if message.get("method") == "gone":
+                reply_json(h, 404, json.dumps({"jsonrpc": "2.0", "id": message["id"], "error": {
+                    "code": -32001, "message": "Not found"}}).encode())
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        wire, _ = self.wire(fake)  # no `initialize`: the server gave no session id
+        with self.assertRaises(RpcError):
+            wire.request("gone", timeout=5)
+        self.assertEqual(wire.request("ping", timeout=5), {})
+
+    def test_an_error_status_other_than_404_does_not_end_the_session(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            message = json.loads(body) if body else {}
+            if message.get("method", "").startswith("status"):
+                reply_json(h, int(message["method"][6:]), b"no", "text/plain")
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        session, _ = self.session(fake)
+        session.initialize()
+        for status in (400, 403, 500):
+            with self.subTest(status=status):
+                with self.assertRaises(HttpStatusError):
+                    session.request(f"status{status}")
+                self.assertEqual(session.request("ping"), {})
+
+    def test_a_404_hangs_up_every_other_open_stream(self) -> None:
+        hung: list[bool] = []
+
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            message = json.loads(body) if body else {}
+            if message.get("method") == "gone":
+                reply_json(h, 404, json.dumps({"jsonrpc": "2.0", "id": message["id"], "error": {
+                    "code": -32001, "message": "Session not found"}}).encode())
+            elif message.get("method") == "hang":
+                stream_head(h)
+                piece(h, b"id: p\ndata: \n\n")
+                fake.event("hanging").set()
+                hung.append(hung_up(h, 4.0))
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        session, _ = self.session(fake)
+        session.initialize()
+        session.start_request("hang")
+        self.assertTrue(fake.event("hanging").wait(5))
+        with self.assertRaises(RpcError):
+            session.request("gone")
+        deadline = time.monotonic() + 6
+        while not hung and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertEqual(hung, [True], "the stream of the other request was left open")
+
+    def test_a_failed_request_is_no_longer_pending(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            reply_json(h, 400, b"Bad Request", "text/plain")
+
+        fake = self.serve(script)
+        wire, _ = self.wire(fake)
+        pending = wire.start_request("plain")
+        with self.assertRaises(HttpStatusError):
+            pending.wait(5)
+        self.assertFalse(wire.abandon(pending), "the failed request was still in the table")
+
+    def test_a_cancelled_request_is_not_reported_as_a_failed_post(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            message = json.loads(body) if body else {}
+            if message.get("method") == "long":
+                stream_head(h)
+                piece(h, b"id: p\ndata: \n\n")
+                fake.event("long-open").set()
+                hung_up(h)
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        session, reports = self.session(fake)
+        session.initialize()
+        pending = session.start_request("long")
+        self.assertTrue(fake.event("long-open").wait(5))
+        self.assertTrue(session.cancel(pending, "test"))
+        session.close()  # waits for the reader of the hung-up stream to end
+        self.assertEqual([r for r in reports if "POST failed" in r], [])
+
+    def test_a_connection_dropped_without_an_answer_fails_the_request_at_once(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            h.close_connection = True  # no status line, nothing
+
+        fake = self.serve(script)
+        wire, _ = self.wire(fake)
+        started = time.monotonic()
+        with self.assertRaises(OSError):
+            wire.request("drop", timeout=5)
+        self.assertLess(time.monotonic() - started, 2.0)
+
+    def test_a_line_that_cannot_be_handled_does_not_end_the_response(self) -> None:
+        def on_request(message: dict[str, Any]) -> None:
+            raise RuntimeError("the handler broke")
+
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            message = json.loads(body)
+            stream_head(h)
+            piece(h, event({"jsonrpc": "2.0", "id": 41, "method": "roots/list"}))
+            piece(h, event({"jsonrpc": "2.0", "id": 42, "method": "sampling/createMessage"}))
+            piece(h, event(result(message, {"after": True})))
+            end_stream(h)
+
+        fake = self.serve(script)
+        wire, reports = self.wire(fake, on_request=on_request)
+        self.assertEqual(wire.request("go", timeout=5), {"after": True})
+        self.assertTrue(any("the handler broke" in r for r in reports), reports)
+        self.assertEqual(wire.server_request_ids("roots/list"), [41])
+        self.assertEqual(wire.server_request_ids("sampling/createMessage"), [42])
+
+    def test_nothing_is_posted_once_the_session_is_closed(self) -> None:
+        fake = self.serve(standard)
+        session, _ = self.session(fake)
+        session.initialize()
+        session.close()
+        with fake.lock:
+            before = len(fake.log)
+        with self.assertRaises(OSError):
+            session.wire.notify("notifications/late")
+        with self.assertRaises(OSError):
+            session.wire.send_line("{}")
+        with fake.lock:
+            self.assertEqual(len(fake.log), before)
+
+    def test_open_stream_returns_the_status_once_the_head_has_arrived(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            if h.command == "GET":
+                time.sleep(0.3)  # the head is late
+                if fake.event("refuse").is_set():
+                    return reply_json(h, 405, b"")
+            standard(fake, h, body)
+
+        fake = self.serve(script)
+        self.addCleanup(fake.event("deleted").set)
+        wire, reports = self.wire(fake)
+        self.assertEqual(wire.open_stream(), 200)
+        head = wire.wait_head("stream", "", timeout=0)
+        self.assertIsNotNone(head)
+        fake.event("refuse").set()
+        wire2, reports2 = self.wire(fake)
+        self.assertEqual(wire2.open_stream(), 405)
+        self.assertTrue(any("405" in r for r in reports2), reports2)
+        self.assertEqual(reports, [])
+
+    def test_a_stream_the_client_closes_is_ended_by_the_client_and_not_reported(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            stream_head(h)
+            piece(h, b": open\n\n")
+            hung_up(h)
+
+        fake = self.serve(script)
+        wire, reports = self.wire(fake)
+        self.assertEqual(wire.open_stream(), 200)
+        wire.close_connections()
+        wire.wait_stream_end(5)
+        self.assertEqual(wire.stream_end, "client")
+        self.assertEqual(reports, [])
+
+    def test_a_stream_that_ends_whole_as_the_client_closes_it_is_ended_by_the_client(self) -> None:
+        carrier = SilentCarrier([b": open\n", b"\n"])
+        reports: list[str] = []
+        wire = HttpWire("http://127.0.0.1:9/mcp", report=reports.append)
+        carrier.carrier = Carrier(carrier)  # type: ignore[arg-type]
+        wire._send = lambda method, headers, body=None: carrier.carrier  # type: ignore[method-assign]
+        carrier.carrier.conn = carrier
+        self.assertEqual(wire.open_stream(), 200)
+        wire.wait_stream_end(5)
+        self.assertEqual(wire.stream_end, "client")
+
+    def test_a_stream_the_server_breaks_is_reported_and_ended_by_the_server(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            stream_head(h)
+            piece(h, b": open\n\n")
+            h.wfile.write(b"40\r\nda")  # a chunk that never finishes
+            h.wfile.flush()
+            h.close_connection = True
+
+        fake = self.serve(script)
+        wire, reports = self.wire(fake)
+        self.assertEqual(wire.open_stream(), 200)
+        wire.wait_stream_end(5)
+        self.assertEqual(wire.stream_end, "server")
+        self.assertTrue(any("the GET stream failed" in r for r in reports), reports)
+
+    def test_closing_a_stream_before_its_head_arrives_is_no_failure(self) -> None:
+        # The hang-up wakes a reader still waiting for the head with an error; the client caused
+        # it, so it is neither reported nor taken for the server ending the stream.
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            fake.event("asked").set()
+            hung_up(h, 3.0)  # the head never comes
+
+        fake = self.serve(script)
+        wire, reports = self.wire(fake)
+        self.assertIsNone(wire.open_stream(timeout=0.3))
+        self.assertTrue(fake.event("asked").wait(5))
+        wire.close_connections()
+        wire.wait_stream_end(5)
+        self.assertEqual(wire.stream_end, "client")
+        self.assertEqual(reports, [])
+
+    def test_cancelling_a_request_before_its_head_arrives_is_no_failed_post(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            fake.event("asked").set()
+            hung_up(h, 3.0)  # no head: the client has to hang up
+
+        fake = self.serve(script)
+        wire, reports = self.wire(fake)
+        pending = wire.start_request("slowhead")
+        self.assertTrue(fake.event("asked").wait(5))
+        self.assertTrue(wire.abandon(pending))
+        wire.join(5)
+        self.assertEqual(reports, [])
+
+    def test_a_later_initialize_carries_no_session_headers_either(self) -> None:
+        fake = self.serve(standard)
+        session, _ = self.session(fake)
+        session.initialize()
+        session.request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
+                                       "clientInfo": {"name": "x", "version": "0"}})
+        with fake.lock:
+            inits = [e for e in fake.log if e["method"] == "POST"
+                     and json.loads(e["body"]).get("method") == "initialize"]
+        self.assertEqual(len(inits), 2)
+        for entry in inits:
+            self.assertNotIn("mcp-session-id", entry["headers"])
+            self.assertNotIn("mcp-protocol-version", entry["headers"])
+
+    def test_stream_false_opens_no_stream(self) -> None:
+        fake = self.serve(standard)
+        session, _ = self.session(fake)
+        session.initialize({"roots": {}}, stream=False)
+        self.assertTrue(fake.wait_for(lambda e: b"notifications/initialized" in e["body"]))
+        with fake.lock:
+            self.assertNotIn("GET", [e["method"] for e in fake.log])
+
+    def test_a_version_the_client_does_not_speak_is_refused(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            if not body:  # the cleanup's DELETE
+                return reply_json(h, 200, b"")
+            message = json.loads(body)
+            stream_head(h, {"Mcp-Session-Id": SESSION})
+            piece(h, event(result(message, {**INIT_RESULT, "protocolVersion": "1999-01-01"})))
+            end_stream(h)
+
+        fake = self.serve(script)
+        session, _ = self.session(fake)
+        with self.assertRaises(UnsupportedVersion):
+            session.initialize()
+        self.assertFalse(session.ready)
+
+    def test_a_late_cancel_leaves_the_stream_of_an_answered_request_open(self) -> None:
+        disconnected: list[bool] = []
+
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            message = json.loads(body) if body else {}
+            if message.get("method") == "slow":
+                stream_head(h)
+                piece(h, event(result(message, {"done": True})))  # answered; the stream stays
+                fake.event("answered").set()
+                disconnected.append(hung_up(h, 1.5))
+                end_stream(h)
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        session, _ = self.session(fake)
+        session.initialize()
+        pending = session.start_request("slow")
+        self.assertEqual(pending.wait(5), {"done": True})
+        self.assertFalse(session.cancel(pending, "too late"))  # it was answered already
+        deadline = time.monotonic() + 5
+        while not disconnected and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertEqual(disconnected, [False])
+
+
+class SseDataTest(unittest.TestCase):
+    """Phase 8 D9 (C12): `sse_data`, the client's reading of an event stream, on its own."""
+
+    def data(self, stream: bytes) -> list[bytes]:
+        return list(sse_data(io.BytesIO(stream)))  # type: ignore[arg-type]
+
+    def test_data_lines_of_one_event_are_joined_with_a_newline(self) -> None:
+        self.assertEqual(self.data(b"data: a\ndata: b\ndata:\ndata: d\n\n"), [b"a\nb\n\nd"])
+
+    def test_crlf_lines_end_without_their_cr(self) -> None:
+        self.assertEqual(self.data(b"data: a\r\ndata: b\r\n\r\ndata: c\r\n\r\n"),
+                         [b"a\nb", b"c"])
+
+    def test_only_data_lines_count_and_comments_are_skipped(self) -> None:
+        stream = b": comment\nevent: message\nid: 7\nretry: 5\ndata: x\n\n"
+        self.assertEqual(self.data(stream), [b"x"])
+        self.assertEqual(self.data(b"event: only\n\nid: 1\n\n"), [])
+
+    def test_an_event_the_stream_ends_in_the_middle_of_is_not_dispatched(self) -> None:
+        self.assertEqual(self.data(b"data: whole\n\ndata: cut"), [b"whole"])
+        self.assertEqual(self.data(b"data: cut\n"), [])
+
+    def test_one_space_after_the_colon_is_dropped_and_no_more(self) -> None:
+        self.assertEqual(self.data(b"data:  two\ndata:none\n\n"), [b" two\nnone"])
+
+
+class HttpWireDetailTwoTest(Case):
+    """Phase 8 D9 (phase 7 C11-C15, C24, C203, C205), second part: rows C181-C189."""
+
+    def init_script(self, versions: list[str], extra_first: list[dict[str, Any]] | None = None
+                    ) -> Script:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            if not body:
+                return standard(fake, h, body)
+            message = json.loads(body)
+            if message.get("method") != "initialize":
+                return standard(fake, h, body)
+            stream_head(h, {"Mcp-Session-Id": SESSION})
+            for other in extra_first or []:
+                piece(h, event(other))
+            for version in versions:
+                piece(h, event(result(message, {**INIT_RESULT, "protocolVersion": version})))
+            end_stream(h)
+
+        return script
+
+    def versions_sent_later(self, fake: Fake) -> set[str | None]:
+        with fake.lock:
+            later = fake.log[1:]
+        return {e["headers"].get("mcp-protocol-version") for e in later}
+
+    def test_the_version_is_fixed_by_the_first_answer_to_initialize(self) -> None:
+        # A second answer to the same id is dropped by the wire (and reported); it must not
+        # replace the version the first one negotiated.
+        fake = self.serve(self.init_script(["2025-11-25", "2025-06-18"]))
+        session, _ = self.session(fake)
+        session.initialize()
+        session.wire.notify("notifications/x")
+        self.assertTrue(fake.wait_for(lambda e: b"notifications/x" in e["body"]))
+        self.assertEqual(self.versions_sent_later(fake) - {None}, {"2025-11-25"})
+
+    def test_an_answer_to_another_request_does_not_fix_the_version(self) -> None:
+        other = {"jsonrpc": "2.0", "id": 99, "result": {"protocolVersion": "2024-11-05"}}
+        fake = self.serve(self.init_script(["2025-11-25"], [other]))
+        session, _ = self.session(fake)
+        session.initialize()
+        session.wire.notify("notifications/x")
+        self.assertTrue(fake.wait_for(lambda e: b"notifications/x" in e["body"]))
+        self.assertEqual(self.versions_sent_later(fake) - {None}, {"2025-11-25"})
+
+    def test_an_event_stream_is_known_by_its_type_whatever_the_case_or_parameters(self) -> None:
+        for ctype in ("Text/Event-Stream", "text/event-stream; charset=utf-8"):
+            with self.subTest(ctype=ctype):
+                def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes,
+                           ctype: str = ctype) -> None:
+                    message = json.loads(body)
+                    h.send_response(200)
+                    h.send_header("Content-Type", ctype)
+                    h.send_header("Transfer-Encoding", "chunked")
+                    h.end_headers()
+                    piece(h, b"id: p\ndata: \n\n")
+                    piece(h, event(result(message, {"ok": True})))
+                    end_stream(h)
+
+                fake = self.serve(script)
+                wire, _ = self.wire(fake)
+                self.assertEqual(wire.request("go", timeout=5), {"ok": True})
+
+    def test_a_blank_200_body_is_not_a_message(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            reply_json(h, 200, b" \n")
+
+        fake = self.serve(script)
+        wire, reports = self.wire(fake)
+        wire.notify("notifications/x")
+        self.assertIsNotNone(wire.wait_head("notification", "notifications/x"))
+        wire.join(3)
+        self.assertEqual(reports, [])
+
+    def test_a_refused_post_that_carries_no_request_is_reported_whatever_the_body(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            reply_json(h, 400, json.dumps({"jsonrpc": "2.0", "id": 0, "error": {
+                "code": -32600, "message": "no"}}).encode())
+
+        fake = self.serve(script)
+        wire, reports = self.wire(fake)
+        wire.notify("notifications/x")
+        wire.join(3)
+        self.assertTrue(any("POST failed: HTTP 400" in r for r in reports), reports)
+
+    def test_next_post_waits_for_an_unanswered_post_only_for_a_bound(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            fake.event("release").wait(8)  # a notification the server never answers
+            with contextlib.suppress(OSError):
+                reply_json(h, 202, b"")
+
+        fake = self.serve(script)
+        self.addCleanup(fake.event("release").set)
+        wire, _ = self.wire(fake)
+        with mock.patch.object(http_wire, "CONNECT_TIMEOUT", 0.3):
+            wire.notify("notifications/a")
+            started = time.monotonic()
+            wire.notify("notifications/b")  # waits for a's answer, but only so long
+            self.assertLess(time.monotonic() - started, 3.0)
+
+    def hung_stream_script(self, hung: list[bool]) -> Script:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            message = json.loads(body) if body else {}
+            if message.get("method") == "hang":
+                stream_head(h)
+                piece(h, b"id: p\ndata: \n\n")
+                fake.event("hanging").set()
+                hung.append(hung_up(h, 5.0))
+            else:
+                standard(fake, h, body)
+
+        return script
+
+    def test_close_hangs_up_the_open_streams_before_it_waits_for_their_readers(self) -> None:
+        hung: list[bool] = []
+        fake = self.serve(self.hung_stream_script(hung))
+        session, _ = self.session(fake)
+        session.grace = 2.0
+        session.initialize()
+        session.start_request("hang")
+        self.assertTrue(fake.event("hanging").wait(5))
+        started = time.monotonic()
+        session.close()
+        self.assertLess(time.monotonic() - started, 1.5, "close waited out its grace")
+        deadline = time.monotonic() + 3
+        while not hung and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertEqual(hung, [True], "the server never saw the stream hung up")
+
+    def test_close_waits_for_the_server_to_end_the_get_stream(self) -> None:
+        def script(fake: Fake, h: http.server.BaseHTTPRequestHandler, body: bytes) -> None:
+            if h.command == "GET":
+                stream_head(h)
+                piece(h, b": open\n\n")
+                fake.event("deleted").wait(5)
+                time.sleep(0.4)  # the server ends the stream a moment after the DELETE
+                end_stream(h)
+            else:
+                standard(fake, h, body)
+
+        fake = self.serve(script)
+        session, _ = self.session(fake)
+        session.initialize({"roots": {}})
+        session.close()
+        self.assertEqual(session.http.stream_end, "server")
+
+    def test_a_second_close_sends_no_second_delete(self) -> None:
+        fake = self.serve(standard)
+        session, _ = self.session(fake)
+        session.initialize()
+        self.assertEqual(session.close(), 200)
+        self.assertEqual(session.close(), 200)
+        with fake.lock:
+            deletes = [e for e in fake.log if e["method"] == "DELETE"]
+        self.assertEqual(len(deletes), 1)
+
+
+class Era2026DetailTest(Case):
+    """Phase 8 D9 (C24): the 2026-07-28 request headers, on the wire itself."""
+
+    def wire2026(self, fake: Fake) -> HttpWire:
+        wire, _ = self.wire(fake, era="2026-07-28")
+        return wire
+
+    def test_every_post_names_the_version_even_an_initialize(self) -> None:
+        fake = self.serve(modern)
+        wire = self.wire2026(fake)
+        wire.request("initialize", {}, timeout=5)  # sent as it is: it is a POST all the same
+        with fake.lock:
+            headers = fake.log[0]["headers"]
+        self.assertEqual(headers.get("mcp-protocol-version"), "2026-07-28")
+        self.assertEqual(headers.get("mcp-method"), "initialize")
+
+    def test_only_three_methods_carry_a_name(self) -> None:
+        fake = self.serve(modern)
+        wire = self.wire2026(fake)
+        wire.request("resources/subscribe", {"uri": "demo://x"}, timeout=5)
+        wire.request("tools/call", {"name": "echo"}, timeout=5)
+        with fake.lock:
+            names = [e["headers"].get("mcp-name") for e in fake.log]
+        self.assertEqual(names, [None, "echo"])
+
+    def test_a_control_character_in_a_name_is_refused(self) -> None:
+        fake = self.serve(modern)
+        wire = self.wire2026(fake)
+        for name in ("a\x7fb", "a\x01b", "a\x00b", "a\nb"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                wire.request("tools/call", {"name": name}, timeout=5)
+        self.assertEqual(len(fake.log), 0, "nothing was sent")
 
 
 if __name__ == "__main__":

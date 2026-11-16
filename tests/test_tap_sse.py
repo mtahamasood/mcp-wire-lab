@@ -136,6 +136,26 @@ class SseParserFramingTest(unittest.TestCase):
         (event,) = events
         self.assertEqual((event.data, event.retry), (b"ok", None))
 
+    def test_field_names_are_case_sensitive_whole_words(self) -> None:
+        # Phase 8 C180 (D9). The SSE standard matches field names exactly: `Data`, `DATA`,
+        # `datax` and `data-1` are not `data`, `Event` is not `event`, `ID` is not `id`.
+        stream = b"Data: a\nDATA: b\ndatax: c\ndata-1: d\nEvent: e\nID: 9\ndata: ok\n\n"
+        events, _ = feed_all(stream, 1024)
+        (event,) = events
+        self.assertEqual((event.data, event.id, event.event), (b"ok", None, None))
+        events, _ = feed_all(b"Data: a\nevent: e\n\n", 1024)  # no data field: still an event
+        self.assertEqual([(e.data, e.event) for e in events], [(b"", "e")])
+
+    def test_an_event_starts_empty_after_one_is_dispatched(self) -> None:
+        # Phase 8 C180 (D9). Nothing carries over: not the data, the id, the event name or retry.
+        events, _ = feed_all(b"id: 1\nevent: e\nretry: 5\ndata: a\n\ndata: b\n\n", 1024)
+        self.assertEqual(
+            events,
+            [SseEvent(b"a", "1", "e", 5), SseEvent(b"b", None, None, None)],
+        )
+        events, _ = feed_all(b"data: a\n\n\n\ndata: b\n\n", 1024)  # an untouched blank line
+        self.assertEqual([e.data for e in events], [b"a", b"b"])
+
     def test_finish_returns_the_cut_off_event_as_partial(self) -> None:
         parser = SseParser()
         self.assertEqual(parser.feed(b"data: a\ndata: b"), [])

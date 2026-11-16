@@ -219,8 +219,8 @@
    "file": "tap/http.py",
    "old": "            event = self._event_now()\n            self._reset()\n            return event\n",
    "new": "            event = self._event_now()\n            return event\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
-   "note": "C2: the next event starts with the last one's data and fields"
+   "command": "python3 -m unittest tests.test_tap_sse.SseParserFramingTest tests.test_tap_http.SseTest",
+   "note": "C2: the next event starts with the last one's data and fields (run without the scaling tests, which a parser that never resets makes quadratic)"
   },
   {
    "id": "p7-sse-reset-keeps-id",
@@ -284,8 +284,7 @@
    "old": "        self._buf.clear()\n        self._scanned = 0\n",
    "new": "        self._scanned = 0\n",
    "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest",
-   "note": "C2: finish leaves the buffer as it was",
-   "equivalent": "`finish` is called once, at the stream's end, and the parser is not used after it; the buffer it would leave behind is never read."
+   "note": "C2: finish leaves the buffer as it was"
   },
   {
    "id": "p7-sse-finish-scanned-kept",
@@ -301,7 +300,7 @@
    "file": "tap/http.py",
    "old": "            if event.data:\n                http: dict[str, Any]",
    "new": "            if True:\n                http: dict[str, Any]",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C2: an empty-data event is an s2c frame, not an sse-event record"
   },
   {
@@ -309,7 +308,7 @@
    "file": "tap/http.py",
    "old": "            elif not event.partial:\n",
    "new": "            else:\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C2: an empty cut-off event is recorded as an sse-event"
   },
   {
@@ -317,7 +316,7 @@
    "file": "tap/http.py",
    "old": "                if sse:\n                    http[\"sse\"] = sse\n",
    "new": "                pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C2: the frame's id and event are not recorded"
   },
   {
@@ -325,7 +324,7 @@
    "file": "tap/http.py",
    "old": "((\"id\", event.id), (\"event\", event.event))",
    "new": "((\"id\", event.id),)",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C2: the frame keeps the id and not the event name"
   },
   {
@@ -333,7 +332,7 @@
    "file": "tap/http.py",
    "old": "((\"id\", event.id), (\"event\", event.event))",
    "new": "((\"event\", event.event),)",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C2: the frame keeps the event name and not the id"
   },
   {
@@ -341,7 +340,7 @@
    "file": "tap/http.py",
    "old": "                if event.id is not None:\n                    http[\"id\"] = event.id\n",
    "new": "                pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C2: an sse-event record has no id"
   },
   {
@@ -349,7 +348,7 @@
    "file": "tap/http.py",
    "old": "                if event.retry is not None:\n                    http[\"retry\"] = event.retry\n",
    "new": "                pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C2: an sse-event record has no retry"
   },
   {
@@ -357,7 +356,7 @@
    "file": "tap/http.py",
    "old": "http, partial=event.partial)",
    "new": "http)",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C2: a cut-off event with data is recorded as whole"
   },
   {
@@ -365,7 +364,7 @@
    "file": "tap/http.py",
    "old": "        if tail is not None:\n            record_event(tail)\n",
    "new": "        if False:\n            record_event(tail)\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C2: the event the stream's end cut off is not recorded"
   },
   {
@@ -373,7 +372,7 @@
    "file": "tap/http.py",
    "old": "\"comments\": parser.comments}",
    "new": "\"comments\": 0}",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C2: http-end counts no comments"
   },
   {
@@ -381,7 +380,7 @@
    "file": "tap/http.py",
    "old": "                piece = resp.read1(CHUNK)\n            except (OSError, http.client.HTTPException):\n                break\n",
    "new": "                piece = resp.read(CHUNK)\n            except (OSError, http.client.HTTPException):\n                break\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: the stream is read until a full chunk or its end, so an event waits for later ones",
    "timeout": 120
   },
@@ -390,7 +389,7 @@
    "file": "tap/http.py",
    "old": "                piece = resp.read1(CHUNK)\n                if not piece:\n                    ended = True\n",
    "new": "                piece = resp.read(CHUNK)\n                if not piece:\n                    ended = True\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: a body is read until a full chunk or its end",
    "timeout": 120
   },
@@ -399,7 +398,7 @@
    "file": "tap/http.py",
    "old": "            for event in parser.feed(piece):\n                record_event(event)\n            try:\n                self.send_piece(piece, chunked)\n            except OSError:\n                watch.client_left()\n                break\n",
    "new": "            try:\n                self.send_piece(piece, chunked)\n            except OSError:\n                watch.client_left()\n                break\n            for event in parser.feed(piece):\n                record_event(event)\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4/C3: a piece is forwarded before its events are recorded"
   },
   {
@@ -407,7 +406,7 @@
    "file": "tap/http.py",
    "old": "if kind == \"text/event-stream\":",
    "new": "if False:",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: an event stream is forwarded as a plain body (no events recorded)"
   },
   {
@@ -415,7 +414,7 @@
    "file": "tap/http.py",
    "old": ".split(\";\")[0].strip().lower()\n            trace.event(",
    "new": ".split(\";\")[0].strip()\n            trace.event(",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: the response's content type is compared with its case"
   },
   {
@@ -423,7 +422,7 @@
    "file": "tap/http.py",
    "old": ".split(\";\")[0].strip().lower()\n            trace.event(",
    "new": ".strip().lower()\n            trace.event(",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: the content type's parameters are part of the comparison"
   },
   {
@@ -431,7 +430,7 @@
    "file": "tap/http.py",
    "old": "chunked = has_body and length is None",
    "new": "chunked = False",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: a response with no length is forwarded without chunk framing"
   },
   {
@@ -439,7 +438,7 @@
    "file": "tap/http.py",
    "old": "b\"%x\\r\\n%b\\r\\n\"",
    "new": "b\"%d\\r\\n%b\\r\\n\"",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: a chunk size is written in decimal"
   },
   {
@@ -447,7 +446,7 @@
    "file": "tap/http.py",
    "old": "                if chunked:\n                    self.send_header(\"Transfer-Encoding\", \"chunked\")\n",
    "new": "                pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: a chunked response goes out without Transfer-Encoding"
   },
   {
@@ -455,7 +454,7 @@
    "file": "tap/http.py",
    "old": "        if by == \"client\" or not clean:\n            self.close_connection = True\n        elif chunked:",
    "new": "        if by == \"client\" or not clean:\n            self.close_connection = True\n        elif False:",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: an ended event stream sends no last chunk"
   },
   {
@@ -463,7 +462,7 @@
    "file": "tap/http.py",
    "old": "        if not (ended and whole()):\n            self.close_connection = True\n        elif chunked:",
    "new": "        if not (ended and whole()):\n            self.close_connection = True\n        elif False:",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: an ended chunked body sends no last chunk"
   },
   {
@@ -471,7 +470,7 @@
    "file": "tap/http.py",
    "old": "                clean = True\n                break\n",
    "new": "                break\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: an event stream's normal end is never seen as clean"
   },
   {
@@ -479,7 +478,7 @@
    "file": "tap/http.py",
    "old": "        if by == \"client\" or not clean:\n            self.close_connection = True\n",
    "new": "        if by == \"client\":\n            self.close_connection = True\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: the client's connection stays open after an event stream the upstream cut off"
   },
   {
@@ -487,7 +486,7 @@
    "file": "tap/http.py",
    "old": "by = \"client\" if watch.gone.is_set() and not watch.completed else \"server\"",
    "new": "by = \"server\"",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4/C5: an event stream is always ended by the server"
   },
   {
@@ -495,7 +494,7 @@
    "file": "tap/http.py",
    "old": "by = \"client\" if watch.gone.is_set() and not watch.completed else \"server\"",
    "new": "by = \"client\"",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4/C5: an event stream is always ended by the client"
   },
   {
@@ -503,7 +502,7 @@
    "file": "tap/http.py",
    "old": "by = \"client\" if watch.gone.is_set() and not watch.completed else \"server\"",
    "new": "by = \"client\" if watch.gone.is_set() else \"server\"",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4/C5: a stream the client closes after it ended whole is ended by the client"
   },
   {
@@ -511,7 +510,7 @@
    "file": "tap/http.py",
    "old": "        if clean:\n            watch.completed = True\n            watch.stop()\n",
    "new": "        if clean:\n            watch.stop()\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4/C5: a whole stream is not marked completed"
   },
   {
@@ -519,7 +518,7 @@
    "file": "tap/http.py",
    "old": "        if ended and whole():\n            watch.completed = True\n            watch.stop()\n",
    "new": "        if ended and whole():\n            watch.stop()\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4/C5: a whole body is not marked completed"
   },
   {
@@ -527,7 +526,7 @@
    "file": "tap/http.py",
    "old": "            if not has_body:\n                watch.completed = True\n                watch.stop()\n",
    "new": "            if not has_body:\n                watch.stop()\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4/C5: a response with no body is not marked completed"
   },
   {
@@ -535,7 +534,7 @@
    "file": "tap/http.py",
    "old": "                if length is not None and total >= length and not recorded:\n                    record()\n",
    "new": "                if False:\n                    record()\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4/C3: the body's frame is written after its last piece is forwarded"
   },
   {
@@ -543,7 +542,7 @@
    "file": "tap/http.py",
    "old": "partial=not whole())",
    "new": "partial=False)",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: a body cut off is recorded as whole"
   },
   {
@@ -551,7 +550,7 @@
    "file": "tap/http.py",
    "old": "return total >= length if length is not None else ended",
    "new": "return ended",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: a body is whole when the upstream ended it, whatever its length"
   },
   {
@@ -559,7 +558,7 @@
    "file": "tap/http.py",
    "old": "            if total:\n                body_frame(",
    "new": "            if True:\n                body_frame(",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: an empty body is recorded as a frame"
   },
   {
@@ -567,7 +566,7 @@
    "file": "tap/http.py",
    "old": "        if not (ended and whole()):\n            self.close_connection = True\n",
    "new": "        if False:\n            self.close_connection = True\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: the client's connection stays open after a body the upstream cut off"
   },
   {
@@ -575,7 +574,7 @@
    "file": "tap/http.py",
    "old": "has_body = self.command != \"HEAD\" and",
    "new": "has_body = True and",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: a HEAD response is read for a body"
   },
   {
@@ -583,7 +582,7 @@
    "file": "tap/http.py",
    "old": "NO_BODY_STATUS = frozenset({204, 304})",
    "new": "NO_BODY_STATUS = frozenset({204})",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: a 304 response is read for a body"
   },
   {
@@ -591,7 +590,7 @@
    "file": "tap/http.py",
    "old": "            self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)\n",
    "new": "            pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: small pieces wait for the Nagle timer"
   },
   {
@@ -599,7 +598,7 @@
    "file": "tap/http.py",
    "old": "class Proxy(http.server.ThreadingHTTPServer):",
    "new": "class Proxy(http.server.HTTPServer):",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: the proxy serves one connection at a time (the M9 round trip deadlocks)",
    "timeout": 240
   },
@@ -608,7 +607,7 @@
    "file": "tap/http.py",
    "old": "    request_queue_size = 128\n",
    "new": "    request_queue_size = 5\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C122: the listen backlog is socketserver's default"
   },
   {
@@ -616,7 +615,7 @@
    "file": "tap/http.py",
    "old": "    daemon_threads = True\n",
    "new": "    daemon_threads = False\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump tests.test_tap_http.HttpLifecycleTest.test_exit_does_not_wait_for_an_idle_client_connection",
    "note": "C4: connection threads are not daemons (shutdown joins them)",
    "timeout": 240
   },
@@ -625,7 +624,7 @@
    "file": "tap/http.py",
    "old": "            while self._active > 0 and (left := deadline - time.monotonic()) > 0:",
    "new": "            while False and (left := deadline - time.monotonic()) > 0:",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C4: shutdown does not wait for open exchanges"
   },
   {
@@ -633,7 +632,7 @@
    "file": "tap/http.py",
    "old": "HANG_UP = getattr(select, \"POLLRDHUP\", 0)",
    "new": "HANG_UP = 0",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C121: the watch uses the portable fallback (any queued byte ends it)"
   },
   {
@@ -641,7 +640,7 @@
    "file": "tap/http.py",
    "old": "poller.register(self.client, HANG_UP)",
    "new": "poller.register(self.client, select.POLLIN | HANG_UP)",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C121: a queued request wakes the watch as a hang-up"
   },
   {
@@ -649,7 +648,7 @@
    "file": "tap/http.py",
    "old": "        if not self._done:\n            self.client_left()\n",
    "new": "        pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: the watch never passes a hang-up on"
   },
   {
@@ -657,7 +656,7 @@
    "file": "tap/http.py",
    "old": "            if self._done:\n                return  # the exchange was over: a client that leaves now has left nothing\n",
    "new": "",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a client that leaves after the exchange is over is a hang-up"
   },
   {
@@ -665,7 +664,7 @@
    "file": "tap/http.py",
    "old": "            self.gone.set()\n",
    "new": "            pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a hang-up is not noted (no http-end by client)"
   },
   {
@@ -673,7 +672,7 @@
    "file": "tap/http.py",
    "old": "self._upstream.shutdown(socket.SHUT_RDWR)",
    "new": "self._upstream.shutdown(socket.SHUT_WR)",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: the upstream socket is shut for writing only"
   },
   {
@@ -681,7 +680,7 @@
    "file": "tap/http.py",
    "old": "self._upstream.shutdown(socket.SHUT_RDWR)",
    "new": "self._upstream.shutdown(socket.SHUT_RD)",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: the upstream socket is shut for reading only"
   },
   {
@@ -689,7 +688,7 @@
    "file": "tap/http.py",
    "old": "                self._upstream.shutdown(socket.SHUT_RDWR)\n",
    "new": "                pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: the upstream is not shut down"
   },
   {
@@ -697,7 +696,7 @@
    "file": "tap/http.py",
    "old": "            if self._upstream is None:\n                return\n",
    "new": "",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a hang-up before the watch has an upstream shuts it down",
    "equivalent": "`client_left` is called only after `open_upstream` has returned or from the watch thread, and `start` sets `_upstream` before it starts that thread; the socket is never None there."
   },
@@ -706,7 +705,7 @@
    "file": "tap/http.py",
    "old": "                except OSError:\n                    pass\n                break\n        else:",
    "new": "                except OSError:\n                    return\n                break\n        else:",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a poll error ends the watch without a hang-up",
    "equivalent": "`poll` raises OSError only for a closed or invalid descriptor; the watch then runs only after the exchange is over, when `_done` is set and `client_left` does nothing."
   },
@@ -715,7 +714,7 @@
    "file": "tap/http.py",
    "old": "WATCH_PERIOD = 0.2",
    "new": "WATCH_PERIOD = 60.0",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a finished exchange's watch lingers for a minute",
    "equivalent": "the period only bounds how long a watch thread outlives its exchange; a hang-up wakes the poll at once and `client_left` ignores a finished exchange."
   },
@@ -724,7 +723,7 @@
    "file": "tap/http.py",
    "old": "                        return  # the client's next request is queued; no hang-up can be seen\n",
    "new": "                        pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C121: where there is no POLLRDHUP, a queued request counts as a hang-up"
   },
   {
@@ -732,7 +731,7 @@
    "file": "tap/http.py",
    "old": "if self.client.recv(1, socket.MSG_PEEK) != b\"\":",
    "new": "if self.client.recv(1, socket.MSG_PEEK) == b\"\":",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C121: where there is no POLLRDHUP, the data test is reversed"
   },
   {
@@ -740,7 +739,7 @@
    "file": "tap/http.py",
    "old": "            if not ended and not watch.completed:\n",
    "new": "            if not watch.completed:\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: an event stream the client left gets a second http-end"
   },
   {
@@ -748,7 +747,7 @@
    "file": "tap/http.py",
    "old": "            if not ended and not watch.completed:\n",
    "new": "            if False:\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a client that leaves before the head, or in a body, gets no http-end by client"
   },
   {
@@ -756,7 +755,7 @@
    "file": "tap/http.py",
    "old": "            if not ended and not watch.completed:\n",
    "new": "            if not ended:\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a client that closes after a whole answer gets an http-end by client"
   },
   {
@@ -764,7 +763,7 @@
    "file": "tap/http.py",
    "old": "        if watch.gone.is_set():\n            self.close_connection = True\n",
    "new": "        if watch.gone.is_set():\n            pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120/C121: the tap goes on serving a connection whose client left"
   },
   {
@@ -772,7 +771,7 @@
    "file": "tap/http.py",
    "old": "            if not watch.gone.is_set():\n                self.answer_502(number)\n",
    "new": "            self.answer_502(number)\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a client that left before the head still gets a 502 recorded"
   },
   {
@@ -780,7 +779,7 @@
    "file": "tap/http.py",
    "old": "            if not watch.gone.is_set():\n                self.answer_502(number)\n",
    "new": "            pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C5: an unreachable upstream gets no 502"
   },
   {
@@ -788,7 +787,7 @@
    "file": "tap/http.py",
    "old": "            if conn.sock is not None:\n                watch.start(conn.sock)\n",
    "new": "            pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: no watch is started"
   },
   {
@@ -796,7 +795,7 @@
    "file": "tap/http.py",
    "old": "            watch.stop()\n            conn.close()\n            return None\n",
    "new": "            conn.close()\n            return None\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: the watch is not stopped when the upstream failed",
    "equivalent": "`exchange` stops the watch in its `finally` as soon as `relay` returns, on the same thread, so the line in `open_upstream` only brings the stop forward."
   },
@@ -805,7 +804,7 @@
    "file": "tap/http.py",
    "old": "        finally:\n            watch.stop()\n            conn.close()\n",
    "new": "        finally:\n            conn.close()\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: `relay` does not stop the watch itself",
    "equivalent": "`exchange` stops the watch in its `finally` right after `relay` returns, on the same thread."
   },
@@ -814,7 +813,7 @@
    "file": "tap/http.py",
    "old": "            except OSError:\n                watch.client_left()\n                return False\n            if not has_body:",
    "new": "            except OSError:\n                return False\n            if not has_body:",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a failed write of the response head is not a hang-up"
   },
   {
@@ -822,7 +821,7 @@
    "file": "tap/http.py",
    "old": "                except OSError:\n                    watch.client_left()\n                    break\n        except (OSError, http.client.HTTPException):\n            pass\n",
    "new": "                except OSError:\n                    break\n        except (OSError, http.client.HTTPException):\n            pass\n",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a failed write of a body piece is not a hang-up"
   },
   {
@@ -830,7 +829,7 @@
    "file": "tap/http.py",
    "old": "            except OSError:\n                watch.client_left()\n                break\n        if clean:",
    "new": "            except OSError:\n                break\n        if clean:",
-   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest",
+   "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
    "note": "C120: a failed write of an event is not a hang-up"
   },
   {
@@ -1201,8 +1200,8 @@
   {
    "id": "p7-wire-carrier-kept",
    "file": "client/http_wire.py",
-   "old": "                self._carriers.discard(carrier)\n                if kind",
-   "new": "                if kind",
+   "old": "                self._carriers.discard(carrier)\n                self._receivers.discard(threading.current_thread())\n",
+   "new": "                self._receivers.discard(threading.current_thread())\n",
    "command": "python3 -m unittest tests.test_client_http",
    "note": "C15: a finished request's carrier stays in the set",
    "equivalent": "`close_connections` hangs up every carrier in the set; one that is already closed has no socket, so the hang-up does nothing."
@@ -1218,11 +1217,11 @@
   {
    "id": "p7-wire-receive-inline",
    "file": "client/http_wire.py",
-   "old": "        threading.Thread(target=self._receive, args=(carrier, message, kind, is_init),\n                         daemon=True).start()\n",
+   "old": "        receiver = threading.Thread(target=self._receive, args=(carrier, message, kind, is_init),\n                                    daemon=True)\n        with self._lock:\n            self._receivers.add(receiver)\n        receiver.start()\n        if kind != \"request\":\n            receiver.join(CONNECT_TIMEOUT)\n",
    "new": "        self._receive(carrier, message, kind, is_init)\n",
-   "command": "python3 -m unittest tests.test_client_http",
+   "command": "python3 -m unittest tests.test_client_http.HttpWireTest.test_reply_to_server_request_while_its_stream_is_open",
    "note": "C13: a response is read on the writer's thread, so a long one blocks the next POST",
-   "timeout": 180
+   "timeout": 60
   },
   {
    "id": "p7-wire-server-requests-unlisted",
@@ -1460,8 +1459,8 @@
   {
    "id": "p7-close-connections-kept",
    "file": "client/http_wire.py",
-   "old": "            self.http.close_connections()\n            self._closed_with",
-   "new": "            self._closed_with",
+   "old": "            self.http.close_connections()\n            self.http.join(self.grace)",
+   "new": "            self.http.join(self.grace)",
    "command": "python3 -m unittest tests.test_client_http",
    "note": "C15: close leaves streams open"
   },
@@ -1642,6 +1641,81 @@
    "new": "on_notification=registry.feed)",
    "command": "python3 -m unittest tests.test_client_http",
    "note": "C24: the 2026 session's wire is built without the era"
+  },
+  {
+   "id": "p7-wire-next-post-no-wait",
+   "old": "        if kind != \"request\":\n            receiver.join(CONNECT_TIMEOUT)\n",
+   "new": "        if False:\n            receiver.join(CONNECT_TIMEOUT)\n",
+   "note": "C203: the next POST does not wait for a no-request POST's answer (P8-FL-3)",
+   "file": "client/http_wire.py",
+   "command": "python3 -m unittest tests.test_client_http"
+  },
+  {
+   "id": "p7-wire-next-post-waits-for-requests",
+   "old": "        if kind != \"request\":\n            receiver.join(CONNECT_TIMEOUT)\n",
+   "new": "        if True:\n            receiver.join(CONNECT_TIMEOUT)\n",
+   "note": "C203: the next POST also waits for a request's answer, which may be a long stream",
+   "timeout": 180,
+   "file": "client/http_wire.py",
+   "command": "python3 -m unittest tests.test_client_http"
+  },
+  {
+   "id": "p7-wire-next-post-wait-unbounded",
+   "old": "            receiver.join(CONNECT_TIMEOUT)\n",
+   "new": "            receiver.join()\n",
+   "note": "C203: the wait for a no-request POST's answer has no bound",
+   "file": "client/http_wire.py",
+   "command": "python3 -m unittest tests.test_client_http"
+  },
+  {
+   "id": "p7-wire-receivers-unfiled",
+   "old": "        with self._lock:\n            self._receivers.add(receiver)\n",
+   "new": "",
+   "note": "C205: the receiver threads are not filed, so close has none to wait for",
+   "file": "client/http_wire.py",
+   "command": "python3 -m unittest tests.test_client_http"
+  },
+  {
+   "id": "p7-wire-receivers-kept",
+   "old": "                self._receivers.discard(threading.current_thread())\n",
+   "new": "",
+   "note": "C205: a finished receiver stays filed",
+   "equivalent": "a finished thread is joined at once, so the set holding it longer changes nothing a caller can see (only memory until the wire is dropped).",
+   "file": "client/http_wire.py",
+   "command": "python3 -m unittest tests.test_client_http"
+  },
+  {
+   "id": "p7-wire-join-nothing",
+   "old": "        for thread in threads:\n            thread.join(max(0.0, deadline - time.monotonic()))\n",
+   "new": "        for thread in threads:\n            pass\n",
+   "note": "C205: join waits for nothing",
+   "file": "client/http_wire.py",
+   "command": "python3 -m unittest tests.test_client_http"
+  },
+  {
+   "id": "p7-wire-join-stream-dropped",
+   "old": "        if self._stream_thread is not None:\n            threads.append(self._stream_thread)\n        for thread in threads:",
+   "new": "        for thread in threads:",
+   "note": "C205: join does not wait for the GET stream thread",
+   "equivalent": "`HttpSession.close` calls `wait_stream_end(grace)` before `join`, so the stream thread has ended or been given its whole grace already.",
+   "file": "client/http_wire.py",
+   "command": "python3 -m unittest tests.test_client_http"
+  },
+  {
+   "id": "p7-close-no-join",
+   "old": "            self.http.join(self.grace)  # no reader is left running (P8-FL-6)\n",
+   "new": "",
+   "note": "C205: close does not wait for the reader threads",
+   "file": "client/http_wire.py",
+   "command": "python3 -m unittest tests.test_client_http"
+  },
+  {
+   "id": "p7-close-join-before-hangup",
+   "old": "            self.http.close_connections()\n            self.http.join(self.grace)  # no reader is left running (P8-FL-6)\n",
+   "new": "            self.http.join(self.grace)  # no reader is left running (P8-FL-6)\n            self.http.close_connections()\n",
+   "note": "C205: close waits for the readers before it hangs up their connections",
+   "file": "client/http_wire.py",
+   "command": "python3 -m unittest tests.test_client_http"
   }
  ]
 }

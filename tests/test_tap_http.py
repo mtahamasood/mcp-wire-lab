@@ -608,6 +608,24 @@ class ClientHangUpTest(unittest.TestCase):
         records = tap.stop()
         self.assertEqual([r for r in records if r.get("event") == "http-end"], [])
 
+    def test_a_request_queued_behind_an_open_stream_is_not_itself_a_hang_up(self) -> None:
+        # Phase 8 D9. The pipelined request waits at the tap; the server's stream stays open
+        # until the client really goes (the watch looks for the hang-up, not for readable bytes).
+        tap = started(self)
+        client = raw_client(self, tap, b"POST /hold HTTP/1.1\r\nHost: x\r\n"
+                                       b"Content-Length: 2\r\n\r\n{}")
+        got = b""
+        while b"data:" not in got:
+            piece = client.recv(4096)
+            self.assertTrue(piece, "the tap closed the stream")
+            got += piece
+        client.sendall(b"POST /json HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}")
+        time.sleep(0.6)
+        self.assertEqual(upstream_disconnects(tap, "/hold"), [])
+        client.close()
+        self.assertTrue(wait_until(lambda: upstream_disconnects(tap, "/hold"), 3.0),
+                        "the server never saw the client hang up")
+
     def test_hang_up_behind_a_pipelined_request_is_passed_on(self) -> None:
         # Review P8-R7-13: the watch stopped for good once the client sent its next request
         # while the stream was open (HTTP/1.1 pipelining), so a later hang-up was never passed
@@ -668,6 +686,17 @@ class HttpLifecycleTest(unittest.TestCase):
         self.assertEqual(records[-1]["code"], 0)
         self.assertEqual(len(tap_records(records, "exit")), 1)
         self.assertEqual([r["seq"] for r in records], list(range(len(records))))
+
+    def test_exit_does_not_wait_for_an_idle_client_connection(self) -> None:
+        # Phase 8 D9. A client that keeps its connection open and idle (keep-alive) must not hold
+        # the tap up once its server has gone: the connection threads are daemons.
+        tap = started(self)
+        conn = tap.conn()
+        conn.request("GET", "/json")
+        conn.getresponse().read()  # answered; the connection stays open and idle
+        tap.proc.send_signal(signal.SIGINT)
+        self.assertEqual(tap.proc.wait(8), 0)
+        conn.close()
 
     def test_child_output_is_recorded_as_stderr(self) -> None:
         tap = started(self)
