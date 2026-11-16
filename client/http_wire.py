@@ -150,6 +150,7 @@ class HttpWire(Wire):
         self._carriers: set[Carrier] = set()
         self._by_request: dict[Key, Carrier] = {}
         self._stream_thread: threading.Thread | None = None
+        self._receivers: set[threading.Thread] = set()  # the threads reading POST responses
         self._lock = threading.Lock()
         self._heads: dict[tuple[str, Any], Head] = {}
         self._heads_changed = threading.Condition()
@@ -226,8 +227,16 @@ class HttpWire(Wire):
         """Post one message as it is written (the caller holds the write lock, so POSTs leave in
         write order); its response is read on a new thread, so a long one never blocks the next.
 
+        A request's answer may be a long stream, so it is never waited for here. Anything else (a
+        notification, a reply to the server, a junk line) is answered at once: `202`, or an error
+        status. Separate POSTs are separate connections, and nothing orders them at the server,
+        so the next POST waits for that answer (up to CONNECT_TIMEOUT): the server takes them in
+        write order, and a refusal is reported before anything later (P8-FL-3, P8-FL-4).
+
         `spec:docs/specification/2025-11-25/basic/transports.mdx:94`
         "body of the POST request **MUST** be"
+        `spec:docs/specification/2025-11-25/basic/transports.mdx:96`
+        "return HTTP status code 202"
         """
         if self._closed is not None:
             raise self._closed
@@ -247,8 +256,13 @@ class HttpWire(Wire):
                 self._by_request[key_of(message["id"])] = carrier
                 if is_init:
                     self._init_key = key_of(message["id"])
-        threading.Thread(target=self._receive, args=(carrier, message, kind, is_init),
-                         daemon=True).start()
+        receiver = threading.Thread(target=self._receive, args=(carrier, message, kind, is_init),
+                                    daemon=True)
+        with self._lock:
+            self._receivers.add(receiver)
+        receiver.start()
+        if kind != "request":
+            receiver.join(CONNECT_TIMEOUT)
 
     # -- receiving ---------------------------------------------------------------------
 
@@ -337,6 +351,7 @@ class HttpWire(Wire):
             carrier.close()
             with self._lock:
                 self._carriers.discard(carrier)
+                self._receivers.discard(threading.current_thread())
                 if kind == "request" and self._by_request.get(key_of(message["id"])) is carrier:
                     del self._by_request[key_of(message["id"])]
 
@@ -487,7 +502,18 @@ class HttpWire(Wire):
         """There is no reader thread: each response has its own."""
 
     def join(self, timeout: float) -> None:
-        """Nothing to join."""
+        """Wait up to `timeout` seconds in all for the threads reading responses to end.
+
+        After `close_connections` they end at once; a thread still printing what it read when
+        the program exits aborts the interpreter (P8-FL-6).
+        """
+        deadline = time.monotonic() + timeout
+        with self._lock:
+            threads = list(self._receivers)
+        if self._stream_thread is not None:
+            threads.append(self._stream_thread)
+        for thread in threads:
+            thread.join(max(0.0, deadline - time.monotonic()))
 
 
 class HttpSession(Session):
@@ -557,5 +583,6 @@ class HttpSession(Session):
             self.http.wait_stream_end(self.grace)  # the server ends it on DELETE (M11)
             self.wire.close_input()  # fails what is still pending
             self.http.close_connections()
+            self.http.join(self.grace)  # no reader is left running (P8-FL-6)
             self._closed_with = (status,)
             return status
