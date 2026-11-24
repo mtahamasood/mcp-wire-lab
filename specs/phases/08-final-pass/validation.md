@@ -112,6 +112,49 @@ Status: open
 Each stage adds its result here when it closes, with the IDs of the passed GitHub CI runs it
 closed on (D2).
 
+### Stage A — make CI trustworthy
+
+Stage A closed on `fe40e63` (merge of `phase-08-stage-a`: D3 `9bda78c`, D5 `bf04eab`, D6
+`e211e4f`, D4 `9f88c27`, register row A48 `a540323`). D3-D6 were all merged by that commit.
+
+Three consecutive passed runs of the `ci` workflow on `main` (`gh run view <id> --json
+conclusion,headSha,attempt,event,headBranch`: each is a `push` to `main`, attempt 1, conclusion
+`success`). `gh run list --branch main` shows no other run between them:
+
+| Run ID | Commit | Merged |
+| --- | --- | --- |
+| 43504784333 | `fe40e63` Merge phase-08-stage-a | Stage A (the commit that completed D3-D6) |
+| 43505293870 | `ab8f24e` Merge phase-08-mutants-56 | Stage B work |
+| 43506668076 | `156a1fd` Merge phase-08-chore-agents | Stage B work |
+
+The run before them on `main`, 43503402930 (`7d560f9`, a Stage B merge, before Stage A), failed;
+it is outside the count.
+
+- D4 (the SDK tours survive load). Cause, measured by the Stage A builder before the spec merged
+  (D4 "Measured"): `sdk-tour` failed 27 of 30 runs under load and `sdk-tour-2026` 8 of 12, at the
+  long-running step ("expected two progress notifications"), not at the cancel step. The pinned
+  SDK settles a response at once but runs a notification's handler one microtask late, so a
+  progress notification read in one chunk with its response was reported for an unknown token.
+  Fix, where the measurement pointed: `clients/sdk/src/order.ts` (responses reach the SDK one
+  microtask late; both eras and both transports), not the plan's suspect. Test: C3,
+  `clients/sdk/test/order.test.ts`, recorded red before the fix in the commit message of
+  `9f88c27`. Walkthrough 05 gained a "Dispatch order" note. The wrapper is register row A48 (1).
+  *Open:* the 20 consecutive `sdk-tour` recordings under the same load with 0 failures, and
+  whether the `SdkClientTest` setup flake (A45) appeared, are not recorded in any committed
+  file or commit message. The three CI runs passed, but that is not the stress evidence D4 asks
+  for. The 20-recording run has to be made and entered here before phase 8 closes.
+- D3, D5, D6 failing runs: C1 red before each part (`9bda78c`), C2 and C4 red against the old
+  `ci.yml` and `gate.sh` (`bf04eab`), the new leak test red before the fix (`e211e4f`); C5's
+  failing run is made by planting the leak, since `record.sh --http` did not leak (A48 (4)).
+- D6 (`ResourceWarning`). `gh run view <id> --log` for each of the three runs was searched for
+  `ResourceWarning` (case-insensitive): 0 matches in 43504784333, 43505293870 and 43506668076.
+  The leaks were in the tests (a tap and its fake upstream outliving the test, and pipes left
+  to the garbage collector in `tests/test_tap_http.py`, `tests/test_show.py` and
+  `tests/test_e2e_http.py`), fixed where they start in `e211e4f`.
+- After Stage A, runs 43755100566 (`04f03e2`) and 43755533169 (`68d1aa7`) on `main` failed; both
+  causes are read and fixed, outside this Stage's count. The first was a test-helper race
+  (`d798084`); the second was lesson 07 block 11 in G9 (P8-FL-4, `fcb87df`; C204).
+
 ### Accepted limits
 
 - A failed CI run's artifact (each run folder's `trace.jsonl` and `stderr.txt`) is downloadable
