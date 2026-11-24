@@ -25,7 +25,8 @@ pinned server does under the tap) and answers by path:
   /peek      200 JSON: the lines of the trace file named by TRACE_PEEK, as they are right now
   /unlisten  200, then removes the socket file, so the next connection is refused
 
-With a second argument (seconds) it waits that long before it listens.
+With a second argument (seconds) it waits that long before it listens. It exits when the process
+that started it is gone, so a killed test run leaves no upstream listening.
 
 Every request is also appended to LOG (the first argument), one JSON object per line, so a test
 can check what reached the upstream and when.
@@ -215,7 +216,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
     do_GET = do_POST = do_DELETE = do_PUT = do_HEAD = handle_any
 
 
+def exit_with_parent() -> None:
+    """End this process when the one that started it has gone.
+
+    The tap starts this fake with nothing on its stdin, so unlike a stdio fake it never sees the
+    tap's end; a test run that was killed left it listening for hours (P8-FL-5 follow-up).
+    """
+    parent = os.getppid()
+
+    def watch() -> None:
+        while os.getppid() == parent:
+            time.sleep(0.25)
+        os._exit(0)
+
+    threading.Thread(target=watch, daemon=True).start()
+
+
 def main() -> int:
+    exit_with_parent()
     path = os.environ["PORT"]
     _, hard = resource.getrlimit(resource.RLIMIT_FSIZE)  # a test may limit the tap's file size
     resource.setrlimit(resource.RLIMIT_FSIZE, (hard, hard))
