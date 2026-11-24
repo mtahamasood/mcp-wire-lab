@@ -24,23 +24,39 @@ traces kept under the session's temporary directory (never in the repository). T
 written without this recon; where it disagrees, this section wins.
 
 - **Era choice.** The server's stdio entry hands its factory to the SDK's `serveStdio`
-  (`vendor/servers/src/everything/transports/stdio.ts:49`); the client's *first message* pins
+  (`vendor/servers/src/everything/transports/stdio.ts:49`); the client's opening messages pin
   the connection's era (SDK `classifyOpeningMessage`, `@modelcontextprotocol/server`
-  `dist/stdio.mjs:235`): `initialize` without an envelope → 2025 era; any request whose
-  `params._meta` carries `io.modelcontextprotocol/protocolVersion` → 2026-07-28. There is no
+  `dist/stdio.mjs:235`): a `server/discover` only probes (an `initialize` without an envelope
+  after it still gets the 2025 era); the first other message pins: `initialize` without an
+  envelope → 2025 era; a request whose envelope claims `2026-07-28` → 2026-07-28; one claiming
+  another version is refused `-32022` and pins nothing. (Corrected 2026-11-25, register row
+  2026-11-14, phase 8 final pass, D14; measured: discover 2026-07-28, then `initialize` without
+  an envelope, gives `protocolVersion` 2025-11-25, exit 0; see *Envelope*.) There is no
   `initialize` and no `notifications/initialized`. Opening with `tools/call` plus an envelope
   (no `server/discover`) also works.
 - **`server/discover`** returns `resultType: "complete"`, `supportedVersions: ["2026-07-28"]`,
   `capabilities` (tools, prompts, resources with `subscribe` and `listChanged`, `logging`,
   `completions`, `extensions: {"io.modelcontextprotocol/tasks": {}}`), `instructions`,
   `ttlMs` 300000, `cacheScope` `public`, and `_meta["io.modelcontextprotocol/serverInfo"]`.
-  A discover claiming version `2099-01-01` gets `-32022` with `data.supported`.
+  A discover claiming version `2099-01-01` gets `-32022` with `data.supported` unless a
+  non-discover request has already pinned the era (see *Envelope*).
 - **Envelope.** A request without `_meta` gets `-32602`; without `clientCapabilities`,
   `-32602`. Every result carries `resultType`; the list results and `resources/read` add
   `ttlMs`/`cacheScope`. The tool list is the same 22 tools whatever the declared
   capabilities (the capability-gated and task tools are listed up front; the `toggle-*` tools
-  are absent). Looser than the spec: once the era is pinned, a later request claiming
-  `2025-11-25` in its envelope is served.
+  are absent). Looser than the spec: a `server/discover` only probes; the first other request
+  claiming `2026-07-28` pins the era, and a request refused with `-32022` changes nothing. Until
+  then every message's version is checked; after it only `subscriptions/listen` is, and an
+  `initialize` without an envelope is refused `-32022` whatever version it names
+  (`vendor/servers/node_modules/@modelcontextprotocol/server/dist/stdio.mjs`, `processMessage`,
+  `classifyOpeningMessage`). Once pinned, a later request, `server/discover` included, claiming
+  `2025-11-25` or `2099-01-01` is served, against
+  `spec:docs/specification/2026-07-28/basic/versioning.mdx:50` "it **MUST** respond with an".
+  Measured 2026-11-25 with a stdlib script: discover 2026-07-28 result; discover 2099-01-01
+  `-32022`; `tools/list` 2099-01-01 `-32022`; `tools/list` 2026-07-28 result (pins); `tools/list`
+  2099-01-01 and 2025-11-25, and discover 2099-01-01, results; `subscriptions/listen`
+  2099-01-01 `-32022`. No test covers it. (Corrected under register row 2026-11-14, phase 8
+  final pass, D14, 2026-11-25: the text named `2025-11-25` only.)
 - **Removed methods.** `ping`, `logging/setLevel`, `resources/subscribe` → `-32601`.
   `initialize` on a 2026-pinned connection → `-32022`, and the server process later exits 1.
 - **Logging and progress.** `trigger-log-messages` sends no `notifications/message` without
