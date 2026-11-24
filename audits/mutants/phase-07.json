@@ -697,8 +697,7 @@
    "old": "            if self._upstream is None:\n                return\n",
    "new": "",
    "command": "python3 -m unittest tests.test_tap_sse tests.test_tap_http.SseTest tests.test_tap_http.HttpRecordTest tests.test_tap_http.HttpForwardTest tests.test_tap_http.ClientHangUpTest tests.test_tap_http_pump",
-   "note": "C120: a hang-up before the watch has an upstream shuts it down",
-   "equivalent": "`client_left` is called only after `open_upstream` has returned or from the watch thread, and `start` sets `_upstream` before it starts that thread; the socket is never None there."
+   "note": "C120: a hang-up before the watch has an upstream shuts it down (the server's own path never reaches it, but the guard is code, and the in-process tests call `client_left` on a watch that was never started)"
   },
   {
    "id": "p7-watch-poll-error",
