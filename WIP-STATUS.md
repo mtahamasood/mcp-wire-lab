@@ -1,8 +1,58 @@
-# WIP status: phase-08-mutants-07 (D9, phase 7 part; stopped on STOP-USAGE 2026-11-16)
+# WIP status: phase-08-mutants-07 (D9 phase 7 part; second stop on STOP-USAGE 2026-11-25)
 
-Branch merged with main 2b6baec (it changes `client/http_wire.py`: C203 wait, C205 join). The
-source files `tap/http.py`, `client/http_wire.py`, `client/modern_http.py` are unmodified (git diff
-clean). Delete this file in the first real commit.
+Branch is merged with main 2b6baec (main had not moved). Delete this file in the first real commit.
+The earlier notes (mutants, survivor tests, what is equivalent) are kept below the line.
+
+## Done since the last WIP
+- Retests: `p7-sse-event-not-reset` (narrow command) killed; `p7-wire-receive-inline` (narrow command)
+  killed by `test_reply_to_server_request_while_its_stream_is_open`; `p7-watch-upstream-none` is
+  KILLED by the in-process tests (they call `client_left` on a watch never started), so its
+  `equivalent` mark was dropped from `audits/mutants/phase-07.json` (committed). Equivalent marks: 17.
+- `uvx ruff@0.17.1 check .` and `uvx mypy@2.4.0`: green.
+- A single tap run (cap 5400 s) was too slow (the `p7-fwd-*` mutants take 3-4 min each); stopped at
+  54 of 102 without a table. The tap part was restarted as 3 detached batches (`setsid nohup`, own
+  sessions, `timeout 6000`), started 03:17:58 PKT 2026-11-25. The mutants-08 agent shares the 4 CPUs.
+
+## Runs going when this was written (detached; they survive the agent)
+Script: `/tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/phase-08-mutants-07/run_batch.sh <b1|b2|b3>` runs `python3 tools/mutate.py --only "$(cat <name>.ids)" audits/mutants/phase-07.json`
+from this worktree (node 24.22.0 on PATH). Each writes its table to `<name>.md` ONLY at its end,
+`restored byte-identical` progress lines (one per mutant done) to `<name>.err`, and a last line
+`exit N` to `<name>.err` (0 = every mutant killed or equivalent). Logs, all in `/tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/phase-08-mutants-07/`:
+- b1 (54 mutants): b1.ids, b1.md, b1.err
+- b2 (24 mutants): b2.ids, b2.md, b2.err
+- b3 (24 mutants): b3.ids, b3.md, b3.err
+Check: `ps -eo pid,cmd | grep "mutate.py --only"`; the three `timeout 6000` PIDs at 03:17:58 were
+156902 (b1), 156906 (b2), 156903 (b3). Expect them done about 04:45. After the runs, kill any
+`tests/fake_servers/http_upstream.py` whose `/tmp/mutate-*/tree` no longer exists.
+The runs' tree links `vendor` to THIS worktree's `vendor/`: keep the symlinks `vendor/servers`,
+`vendor/spec` (to the main checkout) and `clients/sdk/node_modules` until they end (the tap tests do
+not use vendor, but the client part and the gate do). They are not committed (`git status` shows
+`T vendor/servers`, `T vendor/spec`, `?? clients/sdk/node_modules`). Before the final commits remove the
+three symlinks and restore the empty submodule dirs with `git checkout vendor/servers vendor/spec`.
+
+## ids per batch
+b1: p7-sse-lf-only,p7-sse-cr-only,p7-sse-crlf-two-ends,p7-sse-lone-cr-eats-next,p7-sse-cr-at-chunk-end,p7-sse-cr-wait-rescan,p7-sse-scan-restart,p7-sse-no-trim,p7-sse-data-join-empty,p7-sse-strip-no-space,p7-sse-strip-all-spaces,p7-sse-strip-without-colon,p7-sse-comment-uncounted,p7-sse-comment-opens-event,p7-sse-comment-needs-space,p7-sse-field-case,p7-sse-field-prefix,p7-sse-id-dropped,p7-sse-event-dropped,p7-sse-id-event-swapped,p7-sse-retry-dropped,p7-sse-retry-unchecked,p7-sse-retry-ascii-test,p7-sse-bad-retry-opens-event,p7-sse-unknown-field-opens-event,p7-sse-blank-dispatches-untouched,p7-sse-event-not-reset,p7-sse-reset-keeps-id,p7-sse-finish-drops-tail-line,p7-sse-finish-not-partial,p7-sse-finish-untouched,p7-sse-finish-cr-off,p7-sse-finish-cr-dropped,p7-sse-finish-cr-kept,p7-sse-finish-buffer-kept,p7-sse-finish-scanned-kept,p7-rec-empty-data-is-frame,p7-rec-partial-empty-recorded,p7-rec-sse-meta-dropped,p7-rec-sse-event-key,p7-rec-sse-id-key,p7-rec-record-id,p7-rec-record-retry,p7-rec-partial-flag,p7-rec-tail-dropped,p7-rec-comments-count,p7-fwd-stream-read-blocks,p7-fwd-body-read-blocks,p7-fwd-send-before-record,p7-fwd-stream-kind-off,p7-fwd-kind-case,p7-fwd-kind-params,p7-fwd-chunked-off,p7-fwd-chunk-decimal
+b2: p7-fwd-chunk-header-off,p7-fwd-stream-terminator,p7-fwd-body-terminator,p7-fwd-stream-clean-never,p7-fwd-stream-close-conn,p7-fwd-stream-by-server,p7-fwd-stream-by-client,p7-fwd-stream-by-ignores-completed,p7-fwd-stream-completed-unset,p7-fwd-body-completed-unset,p7-fwd-nobody-completed-unset,p7-fwd-record-after-last-piece,p7-fwd-body-partial-flag,p7-fwd-body-whole-by-end,p7-fwd-body-empty-frame,p7-fwd-body-close-conn,p7-fwd-head-has-body,p7-fwd-no-body-304,p7-fwd-nodelay,p7-proxy-unthreaded,p7-proxy-backlog,p7-proxy-daemon-threads,p7-proxy-drain-off,p7-watch-no-pollrdhup
+b3: p7-watch-pollin,p7-watch-never-leaves,p7-watch-left-after-done,p7-watch-gone-unset,p7-watch-shutdown-wr,p7-watch-shutdown-rd,p7-watch-shutdown-off,p7-watch-upstream-none,p7-watch-poll-error,p7-watch-period,p7-watch-fallback-queued-ends,p7-watch-fallback-eof,p7-exch-end-for-streams,p7-exch-end-never,p7-exch-end-completed,p7-exch-close-conn,p7-relay-502-always,p7-relay-502-never,p7-open-no-watch,p7-open-stop-on-fail,p7-relay-finally-stop,p7-relay-head-oserror,p7-pump-body-oserror,p7-pump-stream-oserror
+
+## Remaining
+1. Read the three tables; every tap mutant must be killed or equivalent (check that each kill's failing
+   tests are for the mutant's reason). Then the client part: the 109 ids of `client/http_wire.py` and
+   `client/modern_http.py` (`/tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/client.ids`), same script pattern (two batches in parallel is fine,
+   about 30 min for one).  A mutant reported "marked equivalent but killed" needs its mark dropped.
+2. Report rows: concatenate b1/b2/b3 `.md` into `/tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/final_tap.md`, the client tables into
+   `/tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/final_client.md`, then `python3 /tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/gen.py /tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad` writes `/tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/report_rows.md` (rows in the
+   style of `audits/mutation-final-pass.md`, new tests marked `(new)`); it prints the totals and problems.
+3. C rows C180 upward in `specs/phases/08-final-pass/validation.md` (after C142, before C200; style of
+   C100-C107), one per group of survivor tests (listed below); the mutants a test kills come from the tables.
+4. Phase 7 section of `audits/mutation-final-pass.md` (between the markers, the summary row, and the
+   sentence "Sections for phases 7 and 8 ..."), and a Result line in
+   `specs/phases/07-streamable-http/validation.md` (like phase 5's line 71).
+5. `scripts/gate.sh` once (needs the symlinks, node 24.22.0), then remove the symlinks, delete this file,
+   squash into clean commits ending with `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`,
+   push the branch with `--force-with-lease` (the pre-push hook runs tests and is slow). Do not merge to main.
+
+----- earlier notes (first WIP) -----
 
 ## Mutants (audits/mutants/phase-07.json, 211 = 102 tap + 109 client)
 
