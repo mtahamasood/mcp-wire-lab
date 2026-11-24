@@ -29,6 +29,9 @@ NOTE_WAIT = 5.0  # seconds to wait for a notification the tour needs to see
 # sent anyway (a frame the check counts): that is duration / steps = 2 s after the progress.
 # 1 s in 2 steps left 0.5 s (P8-FL-5).
 CANCEL_CALL = {"duration": 4, "steps": 2}
+# The first progress of that call comes one step after the request, so the wait for it is
+# NOTE_WAIT on top of that step.
+CANCEL_FIRST_WAIT = NOTE_WAIT + CANCEL_CALL["duration"] / CANCEL_CALL["steps"]
 
 
 class TourFailure(Exception):
@@ -79,19 +82,21 @@ class Tour:
         while not self.session.wire.notifications.empty():
             self.session.wire.notifications.get_nowait()
 
-    def wait_for_progress(self, token: str, want: int | None = None) -> Message:
+    def wait_for_progress(
+        self, token: str, want: int | None = None, wait: float = NOTE_WAIT,
+    ) -> Message:
         """Read notifications until progress for `token` arrives (the `want`th, if given).
 
         `spec:docs/specification/2025-11-25/basic/utilities/progress.mdx:43`
         "method": "notifications/progress"
         """
         notes = self.session.wire.notifications
-        deadline = time.monotonic() + NOTE_WAIT
+        deadline = time.monotonic() + wait
         while True:
             try:
                 note = notes.get(timeout=max(0.0, deadline - time.monotonic()))
             except queue.Empty:
-                raise TourFailure(f"no progress for {token} within {NOTE_WAIT} s") from None
+                raise TourFailure(f"no progress for {token} within {wait:g} s") from None
             params: Message = note.get("params", {})
             if note.get("method") == "notifications/progress" and (
                 params.get("progressToken") == token
@@ -250,7 +255,7 @@ class Tour:
             "arguments": dict(CANCEL_CALL),
             "_meta": {"progressToken": "tour-cancel"},
         })
-        self.wait_for_progress("tour-cancel", 1)
+        self.wait_for_progress("tour-cancel", 1, CANCEL_FIRST_WAIT)
         sent = self.session.cancel(pending, "the tour cancels after the first progress")
         self.expect(sent, "the request had already finished before it could be cancelled")
         try:

@@ -982,7 +982,18 @@ class CancelWindowTest(unittest.TestCase):
                             if r.get("dir") == "s2c" and r["json"].get("id") == cancels[0]
                             and "method" not in r["json"]]
                 self.assertEqual(answered, [], "the server answered the cancelled call")
-                self.assertNotIn("late reply", output)
+                # What C206 states: the cancelled call takes 4 s in 2 steps, so the cancel has 2 s.
+                asked = [r["json"] for r in recs if r.get("dir") == "c2s"
+                         and r["json"].get("id") == cancels[0] and "method" in r["json"]]
+                self.assertEqual([m["params"]["arguments"] for m in asked],
+                                 [{"duration": 4, "steps": 2}])
+                # A late result would be reported: by the raw wire as a dropped late reply, by
+                # the SDK as one more error than the late progress of the cancelled call.
+                if name.startswith("raw"):
+                    self.assertNotIn("late reply", output)
+                else:
+                    errors = [ln for ln in output.splitlines() if ln.startswith("sdk:")]
+                    self.assertEqual(len(errors), 1, errors)
 
 
 if __name__ == "__main__":

@@ -23,6 +23,8 @@ const CANCEL_REASON = "the tour cancels after the first progress";
 // The cancelled call takes 4 s in 2 steps: the cancel, sent when the first progress arrives, has
 // 2 s to reach the server before the tool's second step ends (1 s in 2 steps left 0.5 s, P8-FL-5).
 const CANCEL_CALL = { duration: 4, steps: 2 };
+// Its first progress comes one step after the request: wait NOTE_WAIT on top of that step.
+const CANCEL_FIRST_WAIT = NOTE_WAIT + (CANCEL_CALL.duration / CANCEL_CALL.steps) * 1000;
 
 /**
  * A member-less subclass of the SDK's stdio transport. With the base class the SDK runs the
@@ -226,8 +228,8 @@ export class ModernTour {
         },
       )
       .then(() => undefined, (error: unknown) => error);
-    const first = await traffic.waitFor(() => traffic.seen("notifications/progress") > progressSeen, NOTE_WAIT);
-    this.steps.expect(first, `no progress within ${NOTE_WAIT / 1000} s`);
+    const first = await traffic.waitFor(() => traffic.seen("notifications/progress") > progressSeen, CANCEL_FIRST_WAIT);
+    this.steps.expect(first, `no progress within ${CANCEL_FIRST_WAIT / 1000} s`);
     controller.abort(CANCEL_REASON);
     const outcome = await pending;
     this.steps.expect(outcome instanceof Error, "a cancelled request must stop waiting");
