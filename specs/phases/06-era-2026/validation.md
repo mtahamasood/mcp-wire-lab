@@ -72,7 +72,9 @@ on this machine (Node 24.22.0) against the pinned, built server:
 
 - J rows, learner walk (L15) and G6 walk: deferred (LP5). Since: lesson 06 was walked by a
   newcomer agent in phase 8 D13 (`audits/learner-walk-lessons-05-07.md`,
-  `audits/learner-walk-lesson-06-repeat.md`); the J rows are the owner's, drafted by phase 8 D15.
+  `audits/learner-walk-lesson-06-repeat.md`); the J rows are the owner's, to be drafted by phase
+  8 D15 (`audits/owner-review-pack.md`). (Register row 2026-11-14, phase 8 final pass, D14;
+  2026-11-25.)
 - No review round (LP4): the only changes to earlier claim code are the `input_required` rule
   and D14's extension loader and `resultType: "task"` rule in `tap/check.py`, inert for
   2025-11-25 and for traces without extension frames, and covered by C9 and C16.
@@ -100,8 +102,8 @@ on this machine (Node 24.22.0) against the pinned, built server:
   68 mutants are signed equivalent, each with its reason in `audits/mutation-final-pass.md`
   (`p6-modern-params-not-copied`, `p6-modern-close-twice`, `p6-check-pinned-methods-alias`).
   `Subscription.wait_for(..., match=)` and `Registry.wait(..., match=)` (`client/modern.py`) have
-  no caller in the repository (the tours wait by method alone); the parameter is tested and not
-  removed.
+  no caller outside the tests (the tours wait by method alone); the parameter is tested and not
+  removed. (Register row 2026-11-14, phase 8 final pass, D14; 2026-11-25.)
 
 ### Owner learning check (LP6)
 
