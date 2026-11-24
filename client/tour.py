@@ -24,6 +24,11 @@ from client.wire import Cancelled, Message, classify, stderr_report
 STATIC_DOC = "demo://resource/static/document/architecture.md"
 COMPLETABLE_PROMPT = "completable-prompt"
 NOTE_WAIT = 5.0  # seconds to wait for a notification the tour needs to see
+# The cancelled call takes 4 s in 2 steps. The tour cancels when the first progress arrives, and
+# the cancel must reach the server before the tool's second step ends, or the tool's result is
+# sent anyway (a frame the check counts): that is duration / steps = 2 s after the progress.
+# 1 s in 2 steps left 0.5 s (P8-FL-5).
+CANCEL_CALL = {"duration": 4, "steps": 2}
 
 
 class TourFailure(Exception):
@@ -242,7 +247,7 @@ class Tour:
         self.drain()
         pending = self.session.start_request("tools/call", {
             "name": "trigger-long-running-operation",
-            "arguments": {"duration": 1, "steps": 2},
+            "arguments": dict(CANCEL_CALL),
             "_meta": {"progressToken": "tour-cancel"},
         })
         self.wait_for_progress("tour-cancel", 1)

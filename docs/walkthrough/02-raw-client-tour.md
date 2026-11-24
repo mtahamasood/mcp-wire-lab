@@ -328,7 +328,9 @@ This is the slow frame of the trace: its latency is the tool's own 1 second.
 
 #### `c2s.tools/call.16`
 
-The same call with a different token, `tour-cancel`. The client will not wait for this one.
+The same call with a different token, `tour-cancel`, and a longer one: 4 seconds in 2 steps. The client
+will not wait for this one. It cancels when the first progress arrives, and the tool then has 2 seconds
+of work left, so the cancel reaches the server long before the tool ends, even on a slow machine.
 
 #### `s2c.notifications/progress.2`
 

@@ -20,6 +20,9 @@ export const MODERN_TOUR_CAPS: readonly Capability[] = ["roots", "sampling", "el
 const MISSING_CAPABILITY = -32021;
 const NOTE_WAIT = 5000; // ms to wait for a notification the tour needs to see
 const CANCEL_REASON = "the tour cancels after the first progress";
+// The cancelled call takes 4 s in 2 steps: the cancel, sent when the first progress arrives, has
+// 2 s to reach the server before the tool's second step ends (1 s in 2 steps left 0.5 s, P8-FL-5).
+const CANCEL_CALL = { duration: 4, steps: 2 };
 
 /**
  * A member-less subclass of the SDK's stdio transport. With the base class the SDK runs the
@@ -216,7 +219,7 @@ export class ModernTour {
     const progressSeen = traffic.seen("notifications/progress");
     const pending = this.client
       .callTool(
-        { name: "trigger-long-running-operation", arguments: { duration: 1, steps: 2 } },
+        { name: "trigger-long-running-operation", arguments: CANCEL_CALL },
         {
           signal: controller.signal,
           onprogress: (p) => { traffic.mark("notifications/progress"); this.steps.say(`      <- notifications/progress ${compact(p)}`); },

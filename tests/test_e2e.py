@@ -915,5 +915,75 @@ class SdkModernTourTest(unittest.TestCase):
         self.assertIn("~ c2s.server/discover#0", done.stdout)  # the diff is not empty
 
 
+class CancelWindowTest(unittest.TestCase):
+    """Phase 8, P8-FL-5: a slow cancel does not change what a tour records.
+
+    Each tour cancels its long-running call after the first progress notification arrives. The
+    everything server ignores the cancellation, so a cancel that reaches it after the tool has
+    finished lets the tool's result through, one more frame. The tap holds every client frame for
+    700 ms (a slow machine, made certain), so the cancel reaches the server 700 ms after it was
+    sent; the cancelled call must still be one that is running then. The four stdio tours run at
+    once: they spend their time waiting.
+    """
+
+    DELAY_MS = 700
+    TOURS = {
+        "raw-2025": ["python3", "-m", "client", "tour"],
+        "raw-2026": ["python3", "-m", "client", "tour", "--era", "2026-07-28"],
+        "sdk-2025": ["node", "clients/sdk/src/main.ts", "tour"],
+        "sdk-2026": ["node", "clients/sdk/src/main.ts", "tour", "--era", "2026-07-28"],
+    }
+    tmp: Path
+    runs: dict[str, tuple[int | None, str, Path]]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        assert SERVER.is_file(), f"{SERVER} missing: run scripts/bootstrap.sh"
+        cls.tmp = Path(tempfile.mkdtemp(prefix="cancel-window-"))
+        cls.addClassCleanup(shutil.rmtree, cls.tmp, ignore_errors=True)
+        bin_dir = cls.tmp / "bin"
+        bin_dir.mkdir()
+        node = shutil.which("node")
+        assert node is not None, "node not found"
+        (bin_dir / "node").symlink_to(node)
+        procs = {}
+        for name, client in cls.TOURS.items():
+            trace = cls.tmp / f"{name}.jsonl"
+            server = [
+                sys.executable, "-m", "tap", "--trace", str(trace),
+                "--delay", f"c2s:{cls.DELAY_MS}", "--",
+                "env", "-i", f"PATH={bin_dir}:/usr/bin:/bin", f"HOME={cls.tmp}", "LANG=C.UTF-8",
+                "MCP_WIRE_LAB=1", "node", str(SERVER), "stdio",
+            ]
+            procs[name] = (subprocess.Popen(
+                [*client, "--", *server], cwd=ROOT, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True), trace)
+        cls.runs = {}
+        for name, (proc, trace) in procs.items():
+            try:
+                out, err = proc.communicate(timeout=TIMEOUT)
+                code: int | None = proc.returncode
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                out, err = proc.communicate()
+                code = None
+            cls.runs[name] = (code, out + err, trace)
+
+    def test_a_late_cancel_still_stops_the_call(self) -> None:
+        for name, (code, output, trace) in self.runs.items():
+            with self.subTest(tour=name):
+                self.assertEqual(code, 0, output[-2000:])
+                recs = [json.loads(ln) for ln in trace.read_text().splitlines()]
+                cancels = [r["json"]["params"]["requestId"] for r in recs
+                           if r.get("dir") == "c2s"
+                           and r["json"].get("method") == "notifications/cancelled"]
+                self.assertTrue(cancels, "the tour sent no notifications/cancelled")
+                answered = [r["json"] for r in recs
+                            if r.get("dir") == "s2c" and r["json"].get("id") == cancels[0]
+                            and "method" not in r["json"]]
+                self.assertEqual(answered, [], "the server answered the cancelled call")
+                self.assertNotIn("late reply", output)
+
+
 if __name__ == "__main__":
     unittest.main()
