@@ -13,22 +13,31 @@ The earlier notes (mutants, survivor tests, what is equivalent) are kept below t
   54 of 102 without a table. The tap part was restarted as 3 detached batches (`setsid nohup`, own
   sessions, `timeout 6000`), started 03:17:58 PKT 2026-11-25. The mutants-08 agent shares the 4 CPUs.
 
-## Runs going when this was written (detached; they survive the agent)
-Script: `/tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/phase-08-mutants-07/run_batch.sh <b1|b2|b3>` runs `python3 tools/mutate.py --only "$(cat <name>.ids)" audits/mutants/phase-07.json`
-from this worktree (node 24.22.0 on PATH). Each writes its table to `<name>.md` ONLY at its end,
-`restored byte-identical` progress lines (one per mutant done) to `<name>.err`, and a last line
-`exit N` to `<name>.err` (0 = every mutant killed or equivalent). Logs, all in `/tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/phase-08-mutants-07/`:
-- b1 (54 mutants): b1.ids, b1.md, b1.err
-- b2 (24 mutants): b2.ids, b2.md, b2.err
-- b3 (24 mutants): b3.ids, b3.md, b3.err
-Check: `ps -eo pid,cmd | grep "mutate.py --only"`; the three `timeout 6000` PIDs at 03:17:58 were
-156902 (b1), 156906 (b2), 156903 (b3). Expect them done about 04:45. After the runs, kill any
-`tests/fake_servers/http_upstream.py` whose `/tmp/mutate-*/tree` no longer exists.
-The runs' tree links `vendor` to THIS worktree's `vendor/`: keep the symlinks `vendor/servers`,
-`vendor/spec` (to the main checkout) and `clients/sdk/node_modules` until they end (the tap tests do
-not use vendor, but the client part and the gate do). They are not committed (`git status` shows
-`T vendor/servers`, `T vendor/spec`, `?? clients/sdk/node_modules`). Before the final commits remove the
-three symlinks and restore the empty submodule dirs with `git checkout vendor/servers vendor/spec`.
+## Runs going when this was written (b1 and b3 only; detached, they survive the agent)
+`run_batch.sh <name>` (copy kept here because /tmp may be cleaned):
+```
+cd <this worktree>; export PATH=$HOME/.nvm/versions/node/v24.22.0/bin:$PATH
+timeout 6000 python3 tools/mutate.py --only "$(cat <name>.ids)" audits/mutants/phase-07.json > <name>.md 2> <name>.err
+echo "exit $?" >> <name>.err
+```
+Logs, all in `/tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/phase-08-mutants-07/`: b1 (54 mutants) b1.ids b1.md b1.err; b3 (24) b3.ids b3.md b3.err. Started 03:17:58
+PKT 2026-11-25, `setsid nohup`, ppid 751 (init); `timeout 6000` PIDs 156902 (b1) and 156903 (b3);
+expect them done about 04:45. How to read: the table lands in `<name>.md` ONLY when the batch ends;
+`grep -c restored <name>.err` counts mutants done; the last line `exit N` of `<name>.err` is mutate.py's
+exit code (0 = every mutant killed or equivalent, 1 a survivor or error, 2 setup/baseline problem).
+After the runs, kill any `tests/fake_servers/http_upstream.py` whose `/tmp/mutate-*/tree` no longer exists.
+
+b2 (24 mutants, ids below, `p7-fwd-chunk-header-off` to `p7-pump-stream-oserror` minus b3's): TO RE-RUN
+ALONE. It failed at baseline (exit 2, "baseline is red") when started in parallel with b1 and b3 (and
+while the `vendor` symlinks were briefly missing); a second start, with b1 and b3 running, was stopped
+on the coordinator's order. Re-run it once b1 and b3 are done (or alone with the machine quiet):
+`/tmp/claude-1000/-home-zodiac-gitWork-mcps-practise/8f18d5f3-8804-44ce-9d2f-f5c3823af351/scratchpad/phase-08-mutants-07/run_batch.sh b2` (needs `b2.ids`; it is inline below). The tap part was split into batches because
+the `p7-fwd-*` mutants take 3-4 min each (the single run, cap 5400 s, was at 54 of 102 after 26 min).
+
+Symlinks `vendor/servers`, `vendor/spec`, `clients/sdk/node_modules` (to the main checkout) were REMOVED
+for this commit; the tap batches do not need them. For the client part and the gate, make them again:
+`rmdir vendor/servers vendor/spec; ln -s <main>/vendor/servers vendor/servers; ln -s <main>/vendor/spec vendor/spec;
+ln -s <main>/clients/sdk/node_modules clients/sdk/node_modules`, and remove them before committing.
 
 ## ids per batch
 b1: p7-sse-lf-only,p7-sse-cr-only,p7-sse-crlf-two-ends,p7-sse-lone-cr-eats-next,p7-sse-cr-at-chunk-end,p7-sse-cr-wait-rescan,p7-sse-scan-restart,p7-sse-no-trim,p7-sse-data-join-empty,p7-sse-strip-no-space,p7-sse-strip-all-spaces,p7-sse-strip-without-colon,p7-sse-comment-uncounted,p7-sse-comment-opens-event,p7-sse-comment-needs-space,p7-sse-field-case,p7-sse-field-prefix,p7-sse-id-dropped,p7-sse-event-dropped,p7-sse-id-event-swapped,p7-sse-retry-dropped,p7-sse-retry-unchecked,p7-sse-retry-ascii-test,p7-sse-bad-retry-opens-event,p7-sse-unknown-field-opens-event,p7-sse-blank-dispatches-untouched,p7-sse-event-not-reset,p7-sse-reset-keeps-id,p7-sse-finish-drops-tail-line,p7-sse-finish-not-partial,p7-sse-finish-untouched,p7-sse-finish-cr-off,p7-sse-finish-cr-dropped,p7-sse-finish-cr-kept,p7-sse-finish-buffer-kept,p7-sse-finish-scanned-kept,p7-rec-empty-data-is-frame,p7-rec-partial-empty-recorded,p7-rec-sse-meta-dropped,p7-rec-sse-event-key,p7-rec-sse-id-key,p7-rec-record-id,p7-rec-record-retry,p7-rec-partial-flag,p7-rec-tail-dropped,p7-rec-comments-count,p7-fwd-stream-read-blocks,p7-fwd-body-read-blocks,p7-fwd-send-before-record,p7-fwd-stream-kind-off,p7-fwd-kind-case,p7-fwd-kind-params,p7-fwd-chunked-off,p7-fwd-chunk-decimal
