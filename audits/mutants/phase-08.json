@@ -410,8 +410,8 @@
   {
    "id": "p8-mutate-env-dropped",
    "file": "tools/mutate.py",
-   "old": "env = {**os.environ, \"PYTHONDONTWRITEBYTECODE\": \"1\"}",
-   "new": "env = dict(os.environ)",
+   "old": "        \"PYTHONDONTWRITEBYTECODE\": \"1\",\n",
+   "new": "",
    "command": "python3 -m unittest tests.test_mutate",
    "note": "D8: the command runs with the caller's environment unchanged"
   },
@@ -453,7 +453,8 @@
    "old": "os.killpg(proc.pid, signal.SIGKILL)",
    "new": "proc.kill()",
    "command": "python3 -m unittest tests.test_mutate",
-   "note": "D8: a timeout kills the command but not what it started"
+   "note": "D8: a timeout kills the command but not what it started (P8-MU-1: signed after the tag kill)",
+   "equivalent": "since P8-MU-1 every process under the command's tag is killed right after, group or not (the next line's kill_tagged), so the group kill and the leader's kill leave the same nothing alive; a process that cleared its environment of the tag is the only difference and no test command does"
   },
   {
    "id": "p8-mutate-timeout-default",
@@ -1432,6 +1433,168 @@
    "command": "python3 -m unittest tests.test_client_http",
    "note": "C205: a finished reader thread is still remembered",
    "equivalent": "a thread that has ended joins at once, so keeping it in the set only holds a reference until the wire is dropped; no outcome differs"
+  },
+  {
+   "id": "p8-mutate-tag-not-in-env",
+   "file": "tools/mutate.py",
+   "old": "        TAG_VAR: f\"{outer}:{tag}\" if outer else tag,\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: the command is not given the tag, so nothing is found by it",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-timeout-kill-late",
+   "file": "tools/mutate.py",
+   "old": "        kill_tagged(tag)  # before communicate(): a child in its own group may hold the pipe\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: a child in a group of its own that holds the output pipe keeps the tool waiting after a timeout",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-end-kill-dropped",
+   "file": "tools/mutate.py",
+   "old": "    finally:\n        kill_tagged(tag)\n",
+   "new": "    finally:\n        pass\n",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: a child left behind by a command that ended is not killed",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-kill-sigterm",
+   "file": "tools/mutate.py",
+   "old": "os.kill(pid, signal.SIGKILL)",
+   "new": "os.kill(pid, signal.SIGTERM)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: a tagged process is asked to stop (SIGTERM), not killed; one that ignores it lives on",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-tag-any-run",
+   "file": "tools/mutate.py",
+   "old": "entry.startswith(prefix) and wanted in entry[len(prefix) :].split(b\":\")",
+   "new": "entry.startswith(prefix)",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: every process under any run's tag is killed, not this command's only",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-tag-name",
+   "file": "tools/mutate.py",
+   "old": "TAG_VAR = \"MUTATE_RUN_TAG\"",
+   "new": "TAG_VAR = \"MUTATE_TAG\"",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: the tag is in another variable than the documented one",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-tag-fixed",
+   "file": "tools/mutate.py",
+   "old": "    tag = uuid.uuid4().hex\n",
+   "new": "    tag = \"fixed\"\n",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: every command has the same tag",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-proc-unreadable-raises",
+   "file": "tools/mutate.py",
+   "old": "            continue  # gone, or not ours to read",
+   "new": "            raise",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: a process whose environment cannot be read (another user's, or gone) stops the tool",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-proc-non-pid-name",
+   "file": "tools/mutate.py",
+   "old": "        if not name.isdigit() or int(name) == os.getpid():",
+   "new": "        if int(name) == os.getpid():",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: the entries of /proc that are not pids (self, meminfo) are not skipped",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-kill-nothing",
+   "file": "tools/mutate.py",
+   "old": "        if not pids:\n            return\n",
+   "new": "        if True:\n            return\n",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: the kill loop returns before it kills",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-proc-own-pid",
+   "file": "tools/mutate.py",
+   "old": "        if not name.isdigit() or int(name) == os.getpid():",
+   "new": "        if not name.isdigit():",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: the tool's own pid is not skipped",
+   "equivalent": "the tool's own environment does not hold the tag (only the command is given it), so its own pid is never in the list"
+  },
+  {
+   "id": "p8-mutate-kill-one-round",
+   "file": "tools/mutate.py",
+   "old": "    for _ in range(10):\n",
+   "new": "    for _ in range(1):\n",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: one round of kills, not until none is left",
+   "equivalent": "a process that has been sent SIGKILL cannot fork; a second round finds one only if the process forked between the scan and the kill, a race no test can force"
+  },
+  {
+   "id": "p8-mutate-kill-no-pause",
+   "file": "tools/mutate.py",
+   "old": "        time.sleep(0.02)\n",
+   "new": "",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: no pause between rounds",
+   "equivalent": "the pause only spaces the rounds of a loop that ends at the first empty scan; no outcome differs"
+  },
+  {
+   "id": "p8-mutate-kill-gone-raises",
+   "file": "tools/mutate.py",
+   "old": "            except OSError:\n                pass\n",
+   "new": "            except OSError:\n                raise\n",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: a process that has ended since the scan stops the tool",
+   "equivalent": "the process ends between the scan and the kill only by a race (SIGKILL of a process that exits at that moment); no test can force it"
+  },
+  {
+   "id": "p8-mutate-proc-listdir-raises",
+   "file": "tools/mutate.py",
+   "old": "    except OSError:\n        return []\n    found = []",
+   "new": "    except OSError:\n        raise\n    found = []",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: a system without /proc stops the tool",
+   "equivalent": "this machine has /proc (the tests skip otherwise); the line is for macOS, where only the process group is killed"
+  },
+  {
+   "id": "p8-mutate-tag-nested-dropped",
+   "file": "tools/mutate.py",
+   "old": "f\"{outer}:{tag}\" if outer else tag",
+   "new": "tag",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: a run inside another run drops the outer run's tag, so the outer cannot find what the inner started",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-tag-exact-only",
+   "file": "tools/mutate.py",
+   "old": "wanted in entry[len(prefix) :].split(b\":\")",
+   "new": "wanted == entry[len(prefix) :]",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: a tag is found only when it is the whole value, not one of a nest of tags",
+   "timeout": 60
+  },
+  {
+   "id": "p8-mutate-tag-outer-ignored",
+   "file": "tools/mutate.py",
+   "old": "outer = os.environ.get(TAG_VAR)",
+   "new": "outer = None",
+   "command": "python3 -m unittest tests.test_mutate",
+   "note": "C173: the outer run's tag is not read",
+   "timeout": 60
   }
  ]
 }

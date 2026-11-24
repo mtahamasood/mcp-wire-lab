@@ -56,6 +56,7 @@ class MutateTest(unittest.TestCase):
         *args: str,
         links: list[str] | None = None,
         env: dict[str, str] | None = None,
+        timeout: float = 120,
     ) -> subprocess.CompletedProcess[str]:
         spec = Path(self._tmp.name) / "spec.json"
         spec.write_text(json.dumps({"links": links or [], "mutants": mutants}))
@@ -63,7 +64,7 @@ class MutateTest(unittest.TestCase):
             [sys.executable, str(MUTATE), "--root", str(self.proj), *args, str(spec)],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=timeout,
             env=env,
         )
 
@@ -379,30 +380,32 @@ class MutateTest(unittest.TestCase):
             "        self.assertEqual(add(1, 1), 2)\n"
         )
         command = f"{sys.executable} -m unittest test_{name}"
+        self.addCleanup(self.reap_pids, pidfile)
         return self.mutant(name.upper(), command=command), pidfile
+
+    @staticmethod
+    def pid_alive(pid: int) -> bool:
+        try:
+            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+        except OSError:
+            return False
+        return state != "Z"
+
+    def reap_pids(self, pidfile: Path) -> None:
+        """Whatever a failed run left alive must not outlive the test."""
+        if pidfile.exists():
+            for pid in [int(x) for x in pidfile.read_text().split()]:
+                if self.pid_alive(pid):
+                    os.kill(pid, 9)
 
     def assert_dead_after(self, pidfile: Path) -> None:
         pids = [int(x) for x in pidfile.read_text().split()]
         self.assertEqual(len(pids), 2, "the baseline and the mutant's run each started one")
-
-        def alive(pid: int) -> bool:
-            try:
-                state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
-            except OSError:
-                return False
-            return state != "Z"
-
-        def reap(pid: int) -> None:
-            if alive(pid):
-                os.kill(pid, 9)
-
-        for pid in pids:
-            self.addCleanup(reap, pid)
         deadline = time.monotonic() + 3
-        while any(alive(pid) for pid in pids) and time.monotonic() < deadline:
+        while any(self.pid_alive(pid) for pid in pids) and time.monotonic() < deadline:
             time.sleep(0.05)
         for pid in pids:
-            self.assertFalse(alive(pid), f"pid {pid}, started by the command, outlived it")
+            self.assertFalse(self.pid_alive(pid), f"pid {pid}, started by the command, outlived it")
 
     @unittest.skipUnless(Path("/proc/self/environ").exists(), "needs /proc")
     def test_a_timeout_kills_a_child_in_a_session_of_its_own(self) -> None:
@@ -412,7 +415,7 @@ class MutateTest(unittest.TestCase):
         # must not wait for it after the timeout.
         mutant, pidfile = self.own_session_child_test("hang", hang=True, holds_pipe=True)
         started = time.monotonic()
-        done = self.run_tool([mutant], "--timeout", "2")
+        done = self.run_tool([mutant], "--timeout", "2", timeout=30)
         self.assertLess(time.monotonic() - started, 20)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertRegex(done.stdout, r"\| HANG \| calc.py \| killed \(timeout\) \|")
@@ -427,6 +430,57 @@ class MutateTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertRegex(done.stdout, r"\| LEFT \| calc.py \| killed \|")
         self.assert_dead_after(pidfile)
+
+    @unittest.skipUnless(Path("/proc/self/environ").exists(), "needs /proc")
+    def test_only_the_processes_of_the_run_are_killed(self) -> None:
+        # P8-MU-1: the tag tells this run's processes from any other. A run of the tool inside
+        # a mutated test suite is itself under the outer run's tag, and a bystander must live.
+        bystander = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(300)"],
+            env={**os.environ, "MUTATE_RUN_TAG": "another-run"},
+            start_new_session=True,
+        )
+        self.addCleanup(bystander.wait)
+        self.addCleanup(bystander.kill)
+        done = self.run_tool([self.mutant("M1")])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIsNone(bystander.poll(), "a process under another run's tag was killed")
+
+    def test_the_command_runs_under_a_tag_of_its_own(self) -> None:
+        # P8-MU-1: the tag is in MUTATE_RUN_TAG, a different one for each command.
+        tags = Path(self._tmp.name) / "tags.txt"
+        code = (
+            "import os, sys, unittest; "
+            f"open({str(tags)!r}, 'a').write(os.environ['MUTATE_RUN_TAG'] + '\\n'); "
+            "unittest.main(module='test_calc', argv=['x'])"
+        )
+        mutant = self.mutant("M1", command=self.python_command(code))
+        done = self.run_tool([mutant])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        seen = tags.read_text().split()
+        self.assertEqual(len(seen), 2, "the baseline and the mutant's run")
+        self.assertEqual(len(set(seen)), 2)
+        self.assertTrue(all(len(t) >= 16 for t in seen), seen)
+
+    def test_a_run_inside_another_run_adds_its_tag_to_the_outer_ones(self) -> None:
+        # P8-MU-1: this tool run by a mutated test suite is itself under the outer run's tag; its
+        # commands carry both, so the outer run can still find (and kill) what the inner one starts.
+        tags = Path(self._tmp.name) / "tags.txt"
+        code = (
+            "import os, unittest; "
+            f"open({str(tags)!r}, 'a').write(os.environ['MUTATE_RUN_TAG'] + '\\n'); "
+            "unittest.main(module='test_calc', argv=['x'])"
+        )
+        mutant = self.mutant("M1", command=self.python_command(code))
+        env = {**os.environ, "MUTATE_RUN_TAG": "outer-run"}
+        done = self.run_tool([mutant], env=env)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        seen = tags.read_text().split()
+        self.assertEqual(len(seen), 2)
+        for value in seen:
+            outer, _, inner = value.partition(":")
+            self.assertEqual(outer, "outer-run", value)
+            self.assertGreaterEqual(len(inner), 16, value)
 
 
 if __name__ == "__main__":

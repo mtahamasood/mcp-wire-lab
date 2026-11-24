@@ -148,9 +148,12 @@ def tagged_pids(tag: str) -> list[int]:
     """Pids of the live processes started under `tag` (Linux: read from /proc, else none).
 
     The tag is in the environment the command was given, which every descendant inherits, so
-    this finds a child that is in a group or session of its own, or whose parent has gone.
+    this finds a child that is in a group or session of its own, or whose parent has gone. The
+    variable holds the tags of every run it is nested in, colon-separated (this tool run by a
+    mutated test suite of another run), so an outer run finds what an inner one started too.
     """
-    needle = f"{TAG_VAR}={tag}".encode()
+    prefix = f"{TAG_VAR}=".encode()
+    wanted = tag.encode()
     try:
         names = os.listdir("/proc")
     except OSError:
@@ -164,8 +167,10 @@ def tagged_pids(tag: str) -> list[int]:
                 entries = f.read().split(b"\0")
         except OSError:
             continue  # gone, or not ours to read
-        if needle in entries:
-            found.append(int(name))
+        for entry in entries:
+            if entry.startswith(prefix) and wanted in entry[len(prefix) :].split(b":"):
+                found.append(int(name))
+                break
     return found
 
 
@@ -191,7 +196,12 @@ def run_command(command: str, cwd: Path, timeout: float) -> tuple[int | None, fl
     like the tap's upstream, is not in the group).
     """
     tag = uuid.uuid4().hex
-    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", TAG_VAR: tag}
+    outer = os.environ.get(TAG_VAR)
+    env = {
+        **os.environ,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        TAG_VAR: f"{outer}:{tag}" if outer else tag,
+    }
     start = time.monotonic()
     proc = subprocess.Popen(
         shlex.split(command),
