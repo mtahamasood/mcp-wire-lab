@@ -70,7 +70,9 @@ on this machine (Node 24.22.0) against the pinned, built server:
 
 ### Accepted limits
 
-- J rows, learner walk (L15) and G6 walk: deferred (LP5).
+- J rows, learner walk (L15) and G6 walk: deferred (LP5). Since: lesson 06 was walked by a
+  newcomer agent in phase 8 D13 (`audits/learner-walk-lessons-05-07.md`,
+  `audits/learner-walk-lesson-06-repeat.md`); the J rows are the owner's, drafted by phase 8 D15.
 - No review round (LP4): the only changes to earlier claim code are the `input_required` rule
   and D14's extension loader and `resultType: "task"` rule in `tap/check.py`, inert for
   2025-11-25 and for traces without extension frames, and covered by C9 and C16.
@@ -93,7 +95,13 @@ on this machine (Node 24.22.0) against the pinned, built server:
 - Coverage (L8), measured at close (Part A, 2026-10-22): lesson 06 declares 21 of the 21
   methods of 2026-07-28, each found in a fresh `tour-2026` trace; the regenerated atlas marks
   0 of 21 methods of 2026-07-28 and 6 of 31 methods of 2025-11-25 `unexercised`.
-- Mutation run (LP4): *to be filled* at close.
+- Mutation (LP4, RP3): the run is the phase 8 final-pass line above. Not mutated: C1, whose
+  envelope `tap.check` also guards (C9), and the rows marked `not claim code (RP3)`. Three of the
+  68 mutants are signed equivalent, each with its reason in `audits/mutation-final-pass.md`
+  (`p6-modern-params-not-copied`, `p6-modern-close-twice`, `p6-check-pinned-methods-alias`).
+  `Subscription.wait_for(..., match=)` and `Registry.wait(..., match=)` (`client/modern.py`) have
+  no caller in the repository (the tours wait by method alone); the parameter is tested and not
+  removed.
 
 ### Owner learning check (LP6)
 
