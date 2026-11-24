@@ -24,10 +24,14 @@ traces kept under the session's temporary directory (never in the repository). T
 written without this recon; where it disagrees, this section wins.
 
 - **Era choice.** The server's stdio entry hands its factory to the SDK's `serveStdio`
-  (`vendor/servers/src/everything/transports/stdio.ts:49`); the client's *first message* pins
+  (`vendor/servers/src/everything/transports/stdio.ts:49`); the client's opening messages pin
   the connection's era (SDK `classifyOpeningMessage`, `@modelcontextprotocol/server`
-  `dist/stdio.mjs:235`): `initialize` without an envelope → 2025 era; any request whose
-  `params._meta` carries `io.modelcontextprotocol/protocolVersion` → 2026-07-28. There is no
+  `dist/stdio.mjs:235`): a `server/discover` only probes (an `initialize` without an envelope
+  after it still gets the 2025 era); the first other message pins: `initialize` without an
+  envelope → 2025 era; a request whose envelope claims `2026-07-28` → 2026-07-28; one claiming
+  another version is refused `-32022` and pins nothing. (Corrected 2026-11-25, register row
+  2026-11-14, phase 8 final pass, D14; measured: discover 2026-07-28, then `initialize` without
+  an envelope, gives `protocolVersion` 2025-11-25, exit 0; see *Envelope*.) There is no
   `initialize` and no `notifications/initialized`. Opening with `tools/call` plus an envelope
   (no `server/discover`) also works.
 - **`server/discover`** returns `resultType: "complete"`, `supportedVersions: ["2026-07-28"]`,
@@ -42,8 +46,8 @@ written without this recon; where it disagrees, this section wins.
   capabilities (the capability-gated and task tools are listed up front; the `toggle-*` tools
   are absent). Looser than the spec: a `server/discover` only probes; the first other request
   claiming `2026-07-28` pins the era, and a request refused with `-32022` changes nothing. Until
-  then every message's version is checked; after it only `subscriptions/listen` and an
-  `initialize` without an envelope are
+  then every message's version is checked; after it only `subscriptions/listen` is, and an
+  `initialize` without an envelope is refused `-32022` whatever version it names
   (`vendor/servers/node_modules/@modelcontextprotocol/server/dist/stdio.mjs`, `processMessage`,
   `classifyOpeningMessage`). Once pinned, a later request, `server/discover` included, claiming
   `2025-11-25` or `2099-01-01` is served, against
